@@ -59,6 +59,7 @@
           pre-commit
           direnv
           self.packages.${system}.irust
+          chromedriver # For rhizome-wasm browser tests
         ] ++ format-pkgs ++ cargo-installs;
 
       shellHook = ''
