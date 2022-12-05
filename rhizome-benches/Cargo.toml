@@ -1,0 +1,16 @@
+[package]
+name = "rhizome-benches"
+version = "0.0.0"
+publish = false
+edition = "2021"
+authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
+
+[dependencies]
+rhizome = { path = "../rhizome", version = "0.1", features = ["test_utils"] }
+
+[dev-dependencies]
+criterion = { version = "0.4", default-features = false }
+
+[[bench]]
+name = "a_benchmark"
+harness = false

@@ -1,0 +1,45 @@
+[package]
+name = "rhizome-wasm"
+version = "0.1.0"
+description = ""
+keywords = []
+categories = []
+include = ["/src", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+license = "Apache-2.0 or MIT"
+readme = "README.md"
+edition = "2021"
+rust-version = "1.64"
+documentation = "https://docs.rs/rhizome-wasm"
+repository = "https://github.com/QuinnWilton/rhizome/tree/main/rhizome-wasm"
+authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1", optional = true }
+js-sys = { version = "0.3", optional = true }
+tracing = "0.1"
+wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true }
+rhizome = { path = "../rhizome", version = "0.1" }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[features]
+default = ["js"]
+full = ["js", "web"]
+js = [
+  "console_error_panic_hook",
+  "js-sys",
+  "wasm-bindgen",
+  "wasm-bindgen-futures"
+]
+web = ["web-sys"]

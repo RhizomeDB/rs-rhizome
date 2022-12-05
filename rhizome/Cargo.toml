@@ -1,0 +1,26 @@
+[package]
+name = "rhizome"
+version = "0.1.0"
+description = ""
+keywords = []
+categories = []
+include = ["/src", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+license = "Apache-2.0 or MIT"
+readme = "README.md"
+edition = "2021"
+rust-version = "1.64"
+documentation = "https://docs.rs/rhizome"
+repository = "https://github.com/QuinnWilton/rhizome/tree/main/rhizome"
+authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+proptest = { version = "1.0", optional = true }
+tracing = "0.1"
+
+[features]
+default = []
+test_utils = ["proptest"]

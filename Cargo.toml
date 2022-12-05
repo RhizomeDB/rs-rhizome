@@ -1,0 +1,16 @@
+[workspace]
+members = [
+	"examples",
+	"rhizome",
+	"rhizome-benches",
+	"rhizome-wasm"
+]
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+# Speedup build on macOS
+# See https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#splitting-debug-information
+[profile.dev]
+split-debuginfo = "unpacked"

@@ -1,0 +1,7 @@
+*
+
+!Cargo.lock
+!Cargo.toml
+!src
+
+src/bin
