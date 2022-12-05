@@ -10,7 +10,7 @@ readme = "README.md"
 edition = "2021"
 rust-version = "1.64"
 documentation = "https://docs.rs/rhizome-wasm"
-repository = "https://github.com/QuinnWilton/rhizome/tree/main/rhizome-wasm"
+repository = "https://github.com/fission-codes/rs-rhizome/tree/main/rhizome-wasm"
 authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
 
 [lib]

@@ -1,6 +1,6 @@
 <div align="center">
-  <a href="https://github.com/QuinnWilton/rhizome" target="_blank">
-    <img src="https://raw.githubusercontent.com/QuinnWilton/rhizome/main/assets/a_logo.png" alt="rhizome Logo" width="100"></img>
+  <a href="https://github.com/fission-codes/rs-rhizome" target="_blank">
+    <img src="https://raw.githubusercontent.com/fission-codes/rs-rhizome/main/assets/a_logo.png" alt="rhizome Logo" width="100"></img>
   </a>
 
   <h1 align="center">rhizome</h1>
@@ -12,16 +12,16 @@
     <a href="https://npmjs.com/package/rhizome">
       <img src="https://img.shields.io/npm/v/rhizome" alt="Npm">
     </a>
-    <a href="https://codecov.io/gh/QuinnWilton/rhizome">
-      <img src="https://codecov.io/gh/QuinnWilton/rhizome/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
+    <a href="https://codecov.io/gh/fission-codes/rs-rhizome">
+      <img src="https://codecov.io/gh/fission-codes/rs-rhizome/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
     </a>
-    <a href="https://github.com/QuinnWilton/rhizome/actions?query=">
-      <img src="https://github.com/QuinnWilton/rhizome/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
+    <a href="https://github.com/fission-codes/rs-rhizome/actions?query=">
+      <img src="https://github.com/fission-codes/rs-rhizome/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
     </a>
-    <a href="https://github.com/QuinnWilton/rhizome/blob/main/LICENSE-APACHE">
+    <a href="https://github.com/fission-codes/rs-rhizome/blob/main/LICENSE-APACHE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License-Apache">
     </a>
-    <a href="https://github.com/QuinnWilton/rhizome/blob/main/LICENSE-MIT">
+    <a href="https://github.com/fission-codes/rs-rhizome/blob/main/LICENSE-MIT">
       <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License-MIT">
     </a>
     <a href="https://docs.rs/rhizome">
@@ -39,20 +39,27 @@
 
 ## Outline
 
+- [Outline](#outline)
 - [Crates](#crates)
 - [Usage](#usage)
 - [Testing the Project](#testing-the-project)
 - [Benchmarking the Project](#benchmarking-the-project)
 - [Setting-up rhizome-wasm](#setting-up-rhizome-wasm)
 - [Contributing](#contributing)
+  - [Nix](#nix)
+  - [Formatting](#formatting)
+  - [Pre-commit Hook](#pre-commit-hook)
+  - [Recommended Development Flow](#recommended-development-flow)
+  - [Conventional Commits](#conventional-commits)
 - [Getting Help](#getting-help)
 - [External Resources](#external-resources)
 - [License](#license)
+  - [Contribution](#contribution)
 
 ## Crates
 
-- [rhizome](https://github.com/QuinnWilton/rhizome/tree/main/rhizome)
-- [rhizome-wasm](https://github.com/QuinnWilton/rhizome/tree/main/)
+- [rhizome](https://github.com/fission-codes/rs-rhizome/tree/main/rhizome)
+- [rhizome-wasm](https://github.com/fission-codes/rs-rhizome/tree/main/)
 
 ## Usage
 
