@@ -51,7 +51,7 @@ jobs:
           tool: 'cargo'
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: ${{ github.event_name == 'push' && github.repository == 'QuinnWilton/rhizome' && github.ref == 'refs/heads/main' }}
+          auto-push: ${{ github.event_name == 'push' && github.repository == 'fission-codes/rs-rhizome' && github.ref == 'refs/heads/main' }}
           alert-threshold: '200%'
           comment-on-alert: true
           fail-on-alert: true
