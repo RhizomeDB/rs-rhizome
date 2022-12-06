@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670302892445,
+  "lastUpdate": 1670328812048,
   "repoUrl": "https://github.com/fission-codes/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -53,6 +53,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fission-codes/rs-rhizome/commit/cb02ae876115ed2b5ff4ebd0a8742d24a4194a40"
         },
         "date": 1670302891606,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "322346a6f34ebd79154c48c3ceebe594e4d595ff",
+          "message": "Merge pull request #1 from fission-codes/dependabot/github_actions/main/peterjgrainger/action-create-branch-2.4.0\n\nchore(ci)(deps): bump peterjgrainger/action-create-branch from 2.3.0 to 2.4.0",
+          "timestamp": "2022-12-06T04:12:23-08:00",
+          "tree_id": "027cea964f2b54a6371e8ebd819d324807051c69",
+          "url": "https://github.com/fission-codes/rs-rhizome/commit/322346a6f34ebd79154c48c3ceebe594e4d595ff"
+        },
+        "date": 1670328811202,
         "tool": "cargo",
         "benches": [
           {
