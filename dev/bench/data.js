@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670328812048,
+  "lastUpdate": 1670453785564,
   "repoUrl": "https://github.com/fission-codes/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -83,6 +83,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fission-codes/rs-rhizome/commit/322346a6f34ebd79154c48c3ceebe594e4d595ff"
         },
         "date": 1670328811202,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "82510c0ace76d6edf8fbe83ae4b7773b3f52216d",
+          "message": "Merge pull request #5 from fission-codes/chores\n\nFix property tests",
+          "timestamp": "2022-12-07T14:55:40-08:00",
+          "tree_id": "5146807409041f7a7bd3af27baa244e75981e1e2",
+          "url": "https://github.com/fission-codes/rs-rhizome/commit/82510c0ace76d6edf8fbe83ae4b7773b3f52216d"
+        },
+        "date": 1670453784331,
         "tool": "cargo",
         "benches": [
           {
