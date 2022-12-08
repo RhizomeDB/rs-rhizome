@@ -4,6 +4,7 @@
 
 //! rhizome
 pub mod lattice;
+pub mod timestamp;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
