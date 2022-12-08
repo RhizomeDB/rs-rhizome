@@ -20,6 +20,7 @@ path = "src/lib.rs"
 anyhow = "1.0"
 paste = { version = "1.0" }
 proptest = { version = "1.0", optional = true }
+serde = { version = "1.0", features = ["rc"] }
 tracing = "0.1"
 
 [dev-dependencies]
