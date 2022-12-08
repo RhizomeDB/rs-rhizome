@@ -3,6 +3,7 @@
 #![deny(unreachable_pub, private_in_public)]
 
 //! rhizome
+pub mod lattice;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
