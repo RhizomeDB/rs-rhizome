@@ -3,6 +3,8 @@
 #![deny(unreachable_pub, private_in_public)]
 
 //! rhizome
+
+pub mod graph;
 pub mod lattice;
 pub mod timestamp;
 
