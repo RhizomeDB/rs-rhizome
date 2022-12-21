@@ -7,6 +7,8 @@ use crate::{
     id::{AttributeId, RelationId, VariableId},
 };
 
+pub mod parser;
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Program {
     clauses: Vec<Clause>,
