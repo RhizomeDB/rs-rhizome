@@ -4,6 +4,7 @@
 
 //! rhizome
 
+pub mod datum;
 pub mod graph;
 pub mod id;
 pub mod lattice;
