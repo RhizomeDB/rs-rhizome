@@ -7,6 +7,7 @@ use crate::{
     id::{AttributeId, RelationId, VariableId},
 };
 
+pub mod lower_to_ram;
 pub mod parser;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
