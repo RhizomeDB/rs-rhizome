@@ -5,6 +5,7 @@
 //! rhizome
 
 pub mod graph;
+pub mod id;
 pub mod lattice;
 pub mod timestamp;
 

@@ -18,6 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0"
+derive_more = "0.99"
 paste = { version = "1.0" }
 petgraph = { version = "0.6", features = ["graphmap"] }
 proptest = { version = "1.0", optional = true }
