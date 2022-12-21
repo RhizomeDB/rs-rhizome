@@ -1,4 +1,5 @@
 pub mod pretty;
+pub mod vm;
 
 use std::collections::BTreeMap;
 
