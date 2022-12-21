@@ -10,6 +10,7 @@ pub mod fact;
 pub mod graph;
 pub mod id;
 pub mod lattice;
+pub mod pretty;
 pub mod ram;
 pub mod timestamp;
 
