@@ -23,6 +23,7 @@ paste = { version = "1.0" }
 petgraph = { version = "0.6", features = ["graphmap"] }
 proptest = { version = "1.0", optional = true }
 serde = { version = "1.0", features = ["rc"] }
+thiserror = "1.0"
 tracing = "0.1"
 
 [dev-dependencies]
