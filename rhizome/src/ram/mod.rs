@@ -1,3 +1,5 @@
+pub mod pretty;
+
 use std::collections::BTreeMap;
 
 use derive_more::{From, IsVariant, TryInto};
@@ -14,9 +16,7 @@ pub struct Program {
 
 impl Program {
     pub fn new(statements: Vec<Statement>) -> Self {
-        Self {
-            statements: statements,
-        }
+        Self { statements }
     }
 }
 
