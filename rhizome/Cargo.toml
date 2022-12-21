@@ -25,6 +25,7 @@ serde = { version = "1.0", features = ["rc"] }
 tracing = "0.1"
 
 [dev-dependencies]
+pretty_assertions = "1.3.0"
 proptest = { version = "1.0" }
 
 [features]
