@@ -1,9 +1,9 @@
+use im::{vector, HashMap, HashSet, Vector};
 use petgraph::{
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
     Direction,
 };
-use std::collections::{BTreeMap, HashSet};
 
 use crate::{error::Error, id::RelationId, ram};
 
@@ -135,14 +135,14 @@ pub fn lower_fact_to_ram(
 
 struct TermMetadata {
     alias: Option<ram::ast::AliasId>,
-    bindings: BTreeMap<Variable, ram::ast::Term>,
+    bindings: HashMap<Variable, ram::ast::Term>,
     is_dynamic: bool,
 }
 
 impl TermMetadata {
     fn new(
         alias: Option<ram::ast::AliasId>,
-        bindings: BTreeMap<Variable, ram::ast::Term>,
+        bindings: HashMap<Variable, ram::ast::Term>,
         is_dynamic: bool,
     ) -> Self {
         Self {
@@ -158,22 +158,23 @@ pub fn lower_rule_to_ram(
     stratum: &Stratum,
     version: ram::ast::RelationVersion,
 ) -> Result<Vec<ram::ast::Statement>, Error> {
-    let mut next_alias: BTreeMap<RelationId, Option<ram::ast::AliasId>> = BTreeMap::default();
-    let mut bindings: BTreeMap<Variable, ram::ast::Term> = BTreeMap::default();
-    let mut term_metadata: Vec<(BodyTerm, TermMetadata)> = Vec::default();
+    let mut next_alias = HashMap::<RelationId, Option<ram::ast::AliasId>>::default();
+    let mut bindings = HashMap::<Variable, ram::ast::Term>::default();
+    let mut term_metadata = Vec::<(BodyTerm, TermMetadata)>::default();
 
     for body_term in rule.body() {
         match body_term {
             BodyTerm::Predicate(predicate) => {
-                let alias = next_alias.entry(*predicate.id()).or_default().clone();
+                let alias = next_alias.get(predicate.id()).cloned().unwrap_or_default();
 
-                // TODO: I truly, truly, hate this
-                next_alias.entry(*predicate.id()).and_modify(|a| {
-                    match a {
-                        None => *a = Some(ram::ast::AliasId::new(0)),
-                        Some(id) => *a = Some(id.next()),
-                    };
-                });
+                // TODO: Remove the extra layer of Option
+                next_alias = next_alias.alter(
+                    |old| match old {
+                        Some(alias) => Some(alias.map(|a| a.next())),
+                        None => Some(Some(ram::ast::AliasId::new(0))),
+                    },
+                    *predicate.id(),
+                );
 
                 for (attribute_id, attribute_value) in predicate.args().clone() {
                     match attribute_value {
@@ -361,35 +362,56 @@ pub fn lower_rule_to_ram(
 }
 
 pub fn stratify(program: &Program) -> Result<Vec<Stratum>, Error> {
-    let clauses_by_relation: BTreeMap<RelationId, Vec<Clause>> = program.clauses().iter().fold(
-        BTreeMap::<RelationId, Vec<Clause>>::default(),
-        |mut accum, clause| {
-            accum
-                .entry(*clause.head())
-                .and_modify(|clauses| clauses.push(clause.clone()))
-                .or_insert_with(|| vec![clause.clone()]);
-            accum
-        },
-    );
-
-    let mut edg = DiGraph::<RelationId, BodyTermPolarity>::default();
-    let mut nodes = BTreeMap::<RelationId, NodeIndex>::default();
+    let mut clauses_by_relation = HashMap::<RelationId, Vector<Clause>>::default();
 
     for clause in program.clauses() {
-        nodes
-            .entry(*clause.head())
-            .or_insert_with(|| edg.add_node(*clause.head()));
+        clauses_by_relation = clauses_by_relation.alter(
+            |old| match old {
+                Some(clauses) => {
+                    let mut new = clauses;
+                    new.push_back(clause.clone());
+
+                    Some(new)
+                }
+                None => Some(vector![clause.clone()]),
+            },
+            *clause.head(),
+        );
+    }
+
+    let mut edg = DiGraph::<RelationId, BodyTermPolarity>::default();
+    let mut nodes = HashMap::<RelationId, NodeIndex>::default();
+
+    for clause in program.clauses() {
+        nodes = nodes.alter(
+            |old| match old {
+                Some(id) => Some(id),
+                None => Some(edg.add_node(*clause.head())),
+            },
+            *clause.head(),
+        );
 
         for dependency in clause.depends_on() {
-            let to = *nodes
-                .entry(*dependency.to())
-                .or_insert_with(|| edg.add_node(*dependency.to()));
+            nodes = nodes.alter(
+                |old| match old {
+                    Some(id) => Some(id),
+                    None => Some(edg.add_node(*dependency.to())),
+                },
+                *dependency.to(),
+            );
 
-            let from = *nodes
-                .entry(*dependency.from())
-                .or_insert_with(|| edg.add_node(*dependency.from()));
+            nodes = nodes.alter(
+                |old| match old {
+                    Some(id) => Some(id),
+                    None => Some(edg.add_node(*dependency.from())),
+                },
+                *dependency.from(),
+            );
 
-            edg.add_edge(from, to, dependency.polarity().clone());
+            let to = nodes.get(dependency.to()).unwrap();
+            let from = nodes.get(dependency.from()).unwrap();
+
+            edg.add_edge(*from, *to, dependency.polarity().clone());
         }
     }
 

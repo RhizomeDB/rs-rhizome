@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use im::HashMap;
 
 use crate::{
     datum::Datum,
@@ -10,12 +10,12 @@ use crate::{
 pub struct Fact<T: Timestamp> {
     name: RelationId,
     timestamp: T,
-    attributes: BTreeMap<AttributeId, Datum>,
+    attributes: HashMap<AttributeId, Datum>,
 }
 
 impl<T: Timestamp> Fact<T> {
     pub fn new(name: RelationId, timestamp: T, attributes: Vec<(AttributeId, Datum)>) -> Self {
-        let attributes = BTreeMap::from_iter(attributes);
+        let attributes = HashMap::from_iter(attributes);
 
         Self {
             name,

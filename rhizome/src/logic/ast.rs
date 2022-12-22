@@ -1,5 +1,5 @@
 use derive_more::{From, IsVariant, TryInto};
-use std::collections::{BTreeMap, BTreeSet};
+use im::{HashMap, HashSet};
 
 use crate::{
     datum::Datum,
@@ -90,7 +90,7 @@ impl Clause {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Fact {
     head: RelationId,
-    args: BTreeMap<AttributeId, Literal>,
+    args: HashMap<AttributeId, Literal>,
 }
 
 impl Fact {
@@ -105,7 +105,7 @@ impl Fact {
         &self.head
     }
 
-    pub fn args(&self) -> &BTreeMap<AttributeId, Literal> {
+    pub fn args(&self) -> &HashMap<AttributeId, Literal> {
         &self.args
     }
 
@@ -117,7 +117,7 @@ impl Fact {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rule {
     head: RelationId,
-    args: BTreeMap<AttributeId, AttributeValue>,
+    args: HashMap<AttributeId, AttributeValue>,
     body: Vec<BodyTerm>,
 }
 
@@ -128,10 +128,10 @@ impl Rule {
         body: Vec<BodyTerm>,
     ) -> Result<Self, Error> {
         let head = relation_id.into();
-        let args: BTreeMap<AttributeId, AttributeValue> =
+        let args: HashMap<AttributeId, AttributeValue> =
             args.into_iter().map(|(k, v)| (k.into(), v)).collect();
 
-        let mut positive_rhs_variables = BTreeSet::default();
+        let mut positive_rhs_variables = HashSet::<Variable>::default();
         for term in &body {
             if let Some(BodyTermPolarity::Positive) = BodyTerm::polarity(term) {
                 for variable in term.variables() {
@@ -171,7 +171,7 @@ impl Rule {
         &self.head
     }
 
-    pub fn args(&self) -> &BTreeMap<AttributeId, AttributeValue> {
+    pub fn args(&self) -> &HashMap<AttributeId, AttributeValue> {
         &self.args
     }
 
@@ -286,7 +286,7 @@ pub enum BodyTerm {
 }
 
 impl BodyTerm {
-    pub fn variables(&self) -> BTreeSet<Variable> {
+    pub fn variables(&self) -> HashSet<Variable> {
         match self {
             BodyTerm::Predicate(predicate) => predicate.variables(),
             BodyTerm::Negation(negation) => negation.variables(),
@@ -311,7 +311,7 @@ impl BodyTerm {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Predicate {
     id: RelationId,
-    args: BTreeMap<AttributeId, AttributeValue>,
+    args: HashMap<AttributeId, AttributeValue>,
 }
 
 impl Predicate {
@@ -329,11 +329,11 @@ impl Predicate {
         &self.id
     }
 
-    pub fn args(&self) -> &BTreeMap<AttributeId, AttributeValue> {
+    pub fn args(&self) -> &HashMap<AttributeId, AttributeValue> {
         &self.args
     }
 
-    pub fn variables(&self) -> BTreeSet<Variable> {
+    pub fn variables(&self) -> HashSet<Variable> {
         self.args
             .iter()
             .filter_map(|(_, v)| Variable::try_from(v.clone()).ok())
@@ -344,7 +344,7 @@ impl Predicate {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Negation {
     id: RelationId,
-    args: BTreeMap<AttributeId, AttributeValue>,
+    args: HashMap<AttributeId, AttributeValue>,
 }
 
 impl Negation {
@@ -362,11 +362,11 @@ impl Negation {
         &self.id
     }
 
-    pub fn args(&self) -> &BTreeMap<AttributeId, AttributeValue> {
+    pub fn args(&self) -> &HashMap<AttributeId, AttributeValue> {
         &self.args
     }
 
-    pub fn variables(&self) -> BTreeSet<Variable> {
+    pub fn variables(&self) -> HashSet<Variable> {
         self.args
             .iter()
             .filter_map(|(_, v)| Variable::try_from(v.clone()).ok())

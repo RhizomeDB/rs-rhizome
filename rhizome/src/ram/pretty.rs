@@ -244,8 +244,8 @@ impl Pretty for Literal {
 
 #[cfg(test)]
 mod tests {
+    use im::hashmap;
     use pretty_assertions::assert_eq;
-    use std::collections::BTreeMap;
 
     use super::*;
 
@@ -266,7 +266,7 @@ mod tests {
         );
 
         let project = Operation::Project {
-            attributes: BTreeMap::from_iter([("age".into(), Literal::new(29).into())]),
+            attributes: hashmap! {"age".into() => Literal::new(29).into()},
             into: Relation::new("person".into(), RelationVersion::Total),
         };
 
