@@ -158,9 +158,8 @@ impl<T: Timestamp> VM<T> {
                             !self
                                 .relations
                                 .get(not_in.relation())
-                                .cloned()
-                                .unwrap_or_default()
-                                .contains(&bound_fact)
+                                .map(|r| r.contains(&bound_fact))
+                                .unwrap_or(false)
                         }
                     });
 
@@ -209,11 +208,11 @@ impl<T: Timestamp> VM<T> {
     }
 
     fn handle_swap(&mut self, left: Relation, right: Relation) {
-        let left_relation = self.relations.get(&left).cloned().unwrap_or_default();
-        let right_relation = self.relations.get(&right).cloned().unwrap_or_default();
+        let left_relation = self.relations.remove(&left).unwrap_or_else(HashSet::new);
+        let right_relation = self.relations.remove(&right).unwrap_or_else(HashSet::new);
 
-        self.relations = self.relations.update(left, right_relation);
-        self.relations = self.relations.update(right, left_relation);
+        self.relations.insert(left, right_relation);
+        self.relations.insert(right, left_relation);
     }
 
     fn handle_purge(&mut self, relation: Relation) {
@@ -221,13 +220,9 @@ impl<T: Timestamp> VM<T> {
     }
 
     fn handle_exit(&mut self, relations: Vec<Relation>) {
-        let is_done = relations.iter().all(|r| {
-            self.relations
-                .get(r)
-                .cloned()
-                .unwrap_or_default()
-                .is_empty()
-        });
+        let is_done = relations
+            .iter()
+            .all(|r| self.relations.get(r).map_or(false, HashSet::is_empty));
 
         if is_done {
             self.pc.1 = None;
