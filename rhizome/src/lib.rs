@@ -4,6 +4,9 @@
 
 //! rhizome
 
+use anyhow::Result;
+use logic::{ast::Program, parser};
+
 pub mod datum;
 pub mod error;
 pub mod fact;
@@ -19,14 +22,8 @@ pub mod timestamp;
 #[cfg_attr(docsrs, doc(cfg(feature = "test_utils")))]
 pub mod test_utils;
 
-/// Add two integers together.
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-/// Multiplies two integers together.
-pub fn mult(a: i32, b: i32) -> i32 {
-    a * b
+pub fn parse(i: &str) -> Result<Program> {
+    parser::parse(i)
 }
 
 #[cfg(test)]
@@ -34,7 +31,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mult() {
-        assert_eq!(mult(3, 2), 6);
+    fn test_parse() {
+        assert!(parse(
+            r#"
+        edge(from: 0, to: 1).
+        edge(from: 1, to: 2).
+        edge(from: 2, to: 3).
+        edge(from: 3, to: 4).
+
+        path(from: X, to: Y) :- edge(from: X, to: Y).
+        path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
+        "#,
+        )
+        .is_ok());
     }
 }

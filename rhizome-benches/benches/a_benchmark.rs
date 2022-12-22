@@ -1,13 +1,20 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 
 pub fn add_benchmark(c: &mut Criterion) {
-    let mut rvg = rhizome::test_utils::Rvg::deterministic();
-    let int_val_1 = rvg.sample(&(0..100i32));
-    let int_val_2 = rvg.sample(&(0..100i32));
-
     c.bench_function("add", |b| {
         b.iter(|| {
-            rhizome::add(int_val_1, int_val_2);
+            rhizome::parse(
+                r#"
+            edge(from: 0, to: 1).
+            edge(from: 1, to: 2).
+            edge(from: 2, to: 3).
+            edge(from: 3, to: 4).
+
+            path(from: X, to: Y) :- edge(from: X, to: Y).
+            path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
+            "#,
+            )
+            .unwrap();
         })
     });
 }
