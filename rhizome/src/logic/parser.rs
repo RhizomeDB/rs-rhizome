@@ -8,9 +8,10 @@ use nom::{
     IResult,
 };
 
-use super::{
+use super::ast::{
     AttributeValue, BodyTerm, Clause, Fact, Literal, Negation, Predicate, Program, Rule, Variable,
 };
+
 use crate::{
     datum::Datum,
     error::Error,

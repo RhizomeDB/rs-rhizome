@@ -7,7 +7,7 @@ use crate::{
     timestamp::Timestamp,
 };
 
-use super::{Operation, Program, Relation, Statement};
+use super::ast::*;
 
 // TODO: Should probably put this into the AST to be
 // reused in the other parts of the AST that support aliases
@@ -61,14 +61,14 @@ impl<T: Timestamp> VM<T> {
     fn step_pc(&self) -> (usize, Option<usize>) {
         match self.pc {
             (outer, None) => {
-                if let Some(Statement::Loop { .. }) = self.program.statements.get(self.pc.0 + 1) {
-                    ((outer + 1) % self.program.statements.len(), Some(0))
+                if let Some(Statement::Loop { .. }) = self.program.statements().get(self.pc.0 + 1) {
+                    ((outer + 1) % self.program.statements().len(), Some(0))
                 } else {
-                    ((outer + 1) % self.program.statements.len(), None)
+                    ((outer + 1) % self.program.statements().len(), None)
                 }
             }
             (outer, Some(inner)) => {
-                if let Some(Statement::Loop { body }) = self.program.statements.get(self.pc.0) {
+                if let Some(Statement::Loop { body }) = self.program.statements().get(self.pc.0) {
                     (outer, Some((inner + 1) % body.len()))
                 } else {
                     unreachable!("Current statement must be a loop!")
@@ -78,7 +78,7 @@ impl<T: Timestamp> VM<T> {
     }
 
     fn load_statement(&self) -> &Statement {
-        match self.program.statements.get(self.pc.0).unwrap() {
+        match self.program.statements().get(self.pc.0).unwrap() {
             Statement::Loop { body } => {
                 assert!(self.pc.1.is_some());
 
@@ -106,77 +106,93 @@ impl<T: Timestamp> VM<T> {
                 when,
                 operation,
             } => {
-                let fact_ref = FactRef(relation.id(), alias);
+                let fact_ref = FactRef(relation.id().clone(), alias);
                 let facts = self.relations.entry(relation).or_default().clone();
 
                 for fact in facts.iter() {
                     let mut next_bindings = bindings.clone();
 
                     let is_satisfied = when.iter().all(|f| match f {
-                        super::Formula::Equality(equality) => {
+                        Formula::Equality(equality) => {
                             // TODO: Dry up dereferencing Term -> Datum
-                            let left_value = match &equality.left {
-                                super::Term::Attribute(attribute)
-                                    if FactRef(attribute.relation(), attribute.alias())
-                                        == fact_ref =>
+                            let left_value = match &equality.left() {
+                                Term::Attribute(attribute)
+                                    if FactRef(
+                                        attribute.relation().clone(),
+                                        attribute.alias().clone(),
+                                    ) == fact_ref =>
                                 {
-                                    fact.attribute(&attribute.id()).unwrap()
+                                    fact.attribute(attribute.id()).unwrap()
                                 }
-                                super::Term::Attribute(attribute) => next_bindings
-                                    .get(&FactRef(attribute.relation(), attribute.alias()))
+                                Term::Attribute(attribute) => next_bindings
+                                    .get(&FactRef(
+                                        attribute.relation().clone(),
+                                        attribute.alias().clone(),
+                                    ))
                                     .cloned()
                                     .unwrap()
-                                    .attribute(&attribute.id())
+                                    .attribute(attribute.id())
                                     .unwrap(),
-                                super::Term::Literal(literal) => literal.datum.clone(),
+                                Term::Literal(literal) => literal.datum().clone(),
                             };
 
-                            let right_value = match &equality.right {
-                                super::Term::Attribute(attribute)
-                                    if FactRef(attribute.relation(), attribute.alias())
-                                        == fact_ref =>
+                            let right_value = match &equality.right() {
+                                Term::Attribute(attribute)
+                                    if FactRef(
+                                        attribute.relation().clone(),
+                                        attribute.alias().clone(),
+                                    ) == fact_ref =>
                                 {
-                                    fact.attribute(&attribute.id()).unwrap()
+                                    fact.attribute(attribute.id()).unwrap()
                                 }
-                                super::Term::Attribute(attribute) => next_bindings
-                                    .get(&FactRef(attribute.relation(), attribute.alias()))
+                                Term::Attribute(attribute) => next_bindings
+                                    .get(&FactRef(
+                                        attribute.relation().clone(),
+                                        attribute.alias().clone(),
+                                    ))
                                     .cloned()
                                     .unwrap()
-                                    .attribute(&attribute.id())
+                                    .attribute(attribute.id())
                                     .unwrap(),
-                                super::Term::Literal(literal) => literal.datum.clone(),
+                                Term::Literal(literal) => literal.datum().clone(),
                             };
 
                             left_value == right_value
                         }
-                        super::Formula::NotIn(not_in) => {
+                        Formula::NotIn(not_in) => {
                             // TODO: Dry up constructing a fact from BTreeMap<AttributeId, Term>
                             let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
 
-                            for (id, term) in &not_in.attributes {
+                            for (id, term) in not_in.attributes() {
                                 match term {
-                                    super::Term::Attribute(attribute) => {
+                                    Term::Attribute(attribute) => {
                                         let fact = next_bindings
-                                            .get(&FactRef(attribute.relation(), attribute.alias()))
+                                            .get(&FactRef(
+                                                attribute.relation().clone(),
+                                                attribute.alias().clone(),
+                                            ))
                                             .unwrap();
 
                                         bound.push((
                                             id.clone(),
-                                            fact.attribute(&attribute.id()).unwrap(),
+                                            fact.attribute(attribute.id()).unwrap(),
                                         ));
                                     }
-                                    super::Term::Literal(literal) => {
-                                        bound.push((id.clone(), literal.datum.clone()))
+                                    Term::Literal(literal) => {
+                                        bound.push((id.clone(), literal.datum().clone()))
                                     }
                                 }
                             }
 
-                            let bound_fact =
-                                Fact::new(not_in.relation.id(), self.timestamp.clone(), bound);
+                            let bound_fact = Fact::new(
+                                not_in.relation().id().clone(),
+                                self.timestamp.clone(),
+                                bound,
+                            );
 
                             !self
                                 .relations
-                                .entry(not_in.relation.clone())
+                                .entry(not_in.relation().clone())
                                 .or_default()
                                 .contains(&bound_fact)
                         }
@@ -196,20 +212,21 @@ impl<T: Timestamp> VM<T> {
 
                 for (id, term) in &attributes {
                     match term {
-                        super::Term::Attribute(attribute) => {
+                        Term::Attribute(attribute) => {
                             let fact = bindings
-                                .get(&FactRef(attribute.relation(), attribute.alias()))
+                                .get(&FactRef(
+                                    attribute.relation().clone(),
+                                    attribute.alias().clone(),
+                                ))
                                 .unwrap();
 
-                            bound.push((id.clone(), fact.attribute(&attribute.id()).unwrap()));
+                            bound.push((id.clone(), fact.attribute(attribute.id()).unwrap()));
                         }
-                        super::Term::Literal(literal) => {
-                            bound.push((id.clone(), literal.datum.clone()))
-                        }
+                        Term::Literal(literal) => bound.push((id.clone(), literal.datum().clone())),
                     }
                 }
 
-                let fact = Fact::new(into.id.clone(), self.timestamp.clone(), bound);
+                let fact = Fact::new(into.id().clone(), self.timestamp.clone(), bound);
 
                 self.relations.entry(into).or_default().insert(fact);
             }
@@ -263,7 +280,6 @@ mod tests {
 
     use crate::{
         logic::{lower_to_ram, parser},
-        ram::RelationVersion,
         timestamp::PairTimestamp,
     };
 
