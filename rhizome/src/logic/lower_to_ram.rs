@@ -35,7 +35,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         // Partition the stratum's rules based on whether they depend on relations
         // that change during this stratum
         let (dynamic_rules, static_rules): (Vec<Rule>, Vec<Rule>) =
-            stratum.rules().iter().cloned().partition(|r| {
+            stratum.rules().into_iter().partition(|r| {
                 r.predicates()
                     .iter()
                     .any(|p| stratum.relations().contains(p.id()))
@@ -77,8 +77,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
             relations: stratum
                 .relations()
                 .iter()
-                .cloned()
-                .map(|id| ram::ast::Relation::new(id, ram::ast::RelationVersion::New))
+                .map(|id| ram::ast::Relation::new(*id, ram::ast::RelationVersion::New))
                 .collect(),
         });
 
