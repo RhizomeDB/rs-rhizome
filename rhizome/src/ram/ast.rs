@@ -101,7 +101,7 @@ pub enum Statement {
 
 #[derive(Clone, Debug)]
 pub struct Insert {
-    pub operation: Operation,
+    operation: Operation,
 }
 
 impl Insert {
@@ -116,8 +116,8 @@ impl Insert {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Merge {
-    pub from: Relation,
-    pub into: Relation,
+    from: Relation,
+    into: Relation,
 }
 
 impl Merge {
@@ -201,16 +201,68 @@ impl Exit {
 
 #[derive(Clone, Debug, IsVariant)]
 pub enum Operation {
-    Search {
+    Search(Search),
+    Project(Project),
+}
+
+#[derive(Clone, Debug)]
+pub struct Search {
+    relation: Relation,
+    alias: Option<AliasId>,
+    when: Vec<Formula>,
+    operation: Box<Operation>,
+}
+
+impl Search {
+    pub fn new(
         relation: Relation,
         alias: Option<AliasId>,
         when: Vec<Formula>,
-        operation: Box<Operation>,
-    },
-    Project {
-        attributes: HashMap<AttributeId, Term>,
-        into: Relation,
-    },
+        operation: Operation,
+    ) -> Self {
+        Self {
+            relation,
+            alias,
+            when,
+            operation: Box::new(operation),
+        }
+    }
+
+    pub fn relation(&self) -> &Relation {
+        &self.relation
+    }
+
+    pub fn alias(&self) -> &Option<AliasId> {
+        &self.alias
+    }
+
+    pub fn when(&self) -> &Vec<Formula> {
+        &self.when
+    }
+
+    pub fn operation(&self) -> &Operation {
+        &self.operation
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Project {
+    attributes: HashMap<AttributeId, Term>,
+    into: Relation,
+}
+
+impl Project {
+    pub fn new(attributes: HashMap<AttributeId, Term>, into: Relation) -> Self {
+        Self { attributes, into }
+    }
+
+    pub fn attributes(&self) -> &HashMap<AttributeId, Term> {
+        &self.attributes
+    }
+
+    pub fn into(&self) -> &Relation {
+        &self.into
+    }
 }
 
 #[derive(Clone, Debug, IsVariant, From)]

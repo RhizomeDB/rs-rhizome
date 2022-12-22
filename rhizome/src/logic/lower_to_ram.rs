@@ -10,7 +10,7 @@ use crate::{
     id::RelationId,
     ram::{
         self,
-        ast::{Exit, Insert, Loop, Merge, Purge, Swap},
+        ast::{Exit, Insert, Loop, Merge, Project, Purge, Search, Swap},
     },
 };
 
@@ -131,12 +131,12 @@ pub fn lower_fact_to_ram(
         .map(|(k, v)| (*k, ram::ast::Literal::new(*v.datum()).into()))
         .collect();
 
-    Ok(ram::ast::Statement::Insert(Insert {
-        operation: ram::ast::Operation::Project {
+    Ok(ram::ast::Statement::Insert(Insert::new(
+        ram::ast::Operation::Project(Project::new(
             attributes,
-            into: ram::ast::Relation::new(*fact.head(), version),
-        },
-    }))
+            ram::ast::Relation::new(*fact.head(), version),
+        )),
+    )))
 }
 
 struct TermMetadata {
@@ -218,10 +218,10 @@ pub fn lower_rule_to_ram(
         })
         .collect();
 
-    let projection = ram::ast::Operation::Project {
-        attributes: projection_attributes,
-        into: ram::ast::Relation::new(*rule.head(), version),
-    };
+    let projection = ram::ast::Operation::Project(Project::new(
+        projection_attributes,
+        ram::ast::Relation::new(*rule.head(), version),
+    ));
 
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
 
@@ -340,13 +340,12 @@ pub fn lower_rule_to_ram(
                         ram::ast::RelationVersion::Total
                     };
 
-                    previous = ram::ast::Operation::Search {
-                        // TODO: semi-naive
-                        relation: ram::ast::Relation::new(*predicate.id(), version),
-                        alias: metadata.alias,
-                        when: formulae,
-                        operation: Box::new(previous),
-                    };
+                    previous = ram::ast::Operation::Search(Search::new(
+                        ram::ast::Relation::new(*predicate.id(), version),
+                        metadata.alias,
+                        formulae,
+                        previous,
+                    ));
                 }
                 BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
             };
@@ -356,9 +355,7 @@ pub fn lower_rule_to_ram(
             }
         }
 
-        statements.push(ram::ast::Statement::Insert(Insert {
-            operation: previous,
-        }));
+        statements.push(ram::ast::Statement::Insert(Insert::new(previous)));
     }
 
     Ok(statements)
