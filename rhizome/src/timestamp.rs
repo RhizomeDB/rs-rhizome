@@ -1,12 +1,8 @@
 use std::{cmp::Ordering, fmt::Debug, hash::Hash};
 
-use serde::Serialize;
-
 use crate::lattice::Lattice;
 
-pub trait Timestamp:
-    Lattice + Serialize + Ord + Debug + Clone + Eq + Hash + Default + 'static
-{
+pub trait Timestamp: Lattice + Ord + Debug + Clone + Eq + Hash + Default + 'static {
     type Epoch;
     type Iteration;
 
@@ -23,7 +19,7 @@ pub trait Timestamp:
     fn advance_iteration(&self) -> Self;
 }
 
-#[derive(Default, Serialize, Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Hash)]
+#[derive(Default, Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Hash)]
 pub struct PairTimestamp(pub u32, pub u32);
 
 impl Lattice for PairTimestamp {
