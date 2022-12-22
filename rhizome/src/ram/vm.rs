@@ -2,7 +2,7 @@ use im::{HashMap, HashSet};
 
 use crate::{datum::Datum, fact::Fact, id::AttributeId, timestamp::Timestamp};
 
-use super::ast::*;
+use super::ast::{Exit, Loop, Merge, Purge, Swap, *};
 
 #[derive(Clone, Debug)]
 pub struct VM<T: Timestamp> {
@@ -25,16 +25,16 @@ impl<T: Timestamp> VM<T> {
 
     pub fn step(&mut self) {
         match self.load_statement().clone() {
-            Statement::Insert { operation } => self.handle_operation(operation),
-            Statement::Merge { from, into } => self.handle_merge(from, into),
-            Statement::Swap { left, right } => self.handle_swap(left, right),
-            Statement::Purge { relation } => self.handle_purge(relation),
-            Statement::Exit { relations } => {
+            Statement::Insert(insert) => self.handle_operation(insert.operation()),
+            Statement::Merge(merge) => self.handle_merge(&merge),
+            Statement::Swap(swap) => self.handle_swap(&swap),
+            Statement::Purge(purge) => self.handle_purge(&purge),
+            Statement::Exit(exit) => {
                 assert!(self.pc.1.is_some());
 
-                self.handle_exit(relations);
+                self.handle_exit(&exit);
             }
-            Statement::Loop { .. } => {
+            Statement::Loop(Loop { .. }) => {
                 unreachable!("load_statement follows loops in the root block")
             }
         };
@@ -51,15 +51,19 @@ impl<T: Timestamp> VM<T> {
     fn step_pc(&self) -> (usize, Option<usize>) {
         match self.pc {
             (outer, None) => {
-                if let Some(Statement::Loop { .. }) = self.program.statements().get(self.pc.0 + 1) {
+                if let Some(Statement::Loop(Loop { .. })) =
+                    self.program.statements().get(self.pc.0 + 1)
+                {
                     ((outer + 1) % self.program.statements().len(), Some(0))
                 } else {
                     ((outer + 1) % self.program.statements().len(), None)
                 }
             }
             (outer, Some(inner)) => {
-                if let Some(Statement::Loop { body }) = self.program.statements().get(self.pc.0) {
-                    (outer, Some((inner + 1) % body.len()))
+                if let Some(Statement::Loop(loop_statement)) =
+                    self.program.statements().get(self.pc.0)
+                {
+                    (outer, Some((inner + 1) % loop_statement.body().len()))
                 } else {
                     unreachable!("Current statement must be a loop!")
                 }
@@ -69,10 +73,10 @@ impl<T: Timestamp> VM<T> {
 
     fn load_statement(&self) -> &Statement {
         match self.program.statements().get(self.pc.0).unwrap() {
-            Statement::Loop { body } => {
+            Statement::Loop(loop_statement) => {
                 assert!(self.pc.1.is_some());
 
-                body.get(self.pc.1.unwrap()).unwrap()
+                loop_statement.body().get(self.pc.1.unwrap()).unwrap()
             }
             s => {
                 assert!(self.pc.1.is_none());
@@ -82,7 +86,7 @@ impl<T: Timestamp> VM<T> {
         }
     }
 
-    fn handle_operation(&mut self, operation: Operation) {
+    fn handle_operation(&mut self, operation: &Operation) {
         let bindings = HashMap::<RelationBinding, Fact<T>>::default();
 
         self.do_handle_operation(operation, bindings);
@@ -90,7 +94,7 @@ impl<T: Timestamp> VM<T> {
 
     fn do_handle_operation(
         &mut self,
-        operation: Operation,
+        operation: &Operation,
         bindings: HashMap<RelationBinding, Fact<T>>,
     ) {
         match operation {
@@ -100,8 +104,8 @@ impl<T: Timestamp> VM<T> {
                 when,
                 operation,
             } => {
-                let relation_binding = RelationBinding::new(*relation.id(), alias);
-                let facts = self.relations.get(&relation).cloned().unwrap_or_default();
+                let relation_binding = RelationBinding::new(*relation.id(), *alias);
+                let facts = self.relations.get(relation).cloned().unwrap_or_default();
 
                 for fact in facts.iter() {
                     let mut next_bindings = bindings.clone();
@@ -169,13 +173,13 @@ impl<T: Timestamp> VM<T> {
 
                     next_bindings.insert(relation_binding, fact.clone());
 
-                    self.do_handle_operation(*operation.clone(), next_bindings);
+                    self.do_handle_operation(operation, next_bindings);
                 }
             }
             Operation::Project { attributes, into } => {
                 let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
 
-                for (id, term) in &attributes {
+                for (id, term) in attributes {
                     match term {
                         Term::Attribute(attribute) => {
                             let fact = bindings.get(attribute.relation()).unwrap();
@@ -193,34 +197,45 @@ impl<T: Timestamp> VM<T> {
                         Some(facts) => Some(facts.update(fact)),
                         None => Some(HashSet::from_iter([fact])),
                     },
-                    into,
+                    *into,
                 );
             }
         };
     }
 
-    fn handle_merge(&mut self, from: Relation, into: Relation) {
-        let from_relation = self.relations.get(&from).cloned().unwrap_or_default();
+    fn handle_merge(&mut self, merge: &Merge) {
+        let from_relation = self
+            .relations
+            .get(merge.from())
+            .cloned()
+            .unwrap_or_default();
 
         self.relations = self
             .relations
-            .update_with(into, from_relation, |old, new| old.union(new));
+            .update_with(*merge.into(), from_relation, |old, new| old.union(new));
     }
 
-    fn handle_swap(&mut self, left: Relation, right: Relation) {
-        let left_relation = self.relations.remove(&left).unwrap_or_else(HashSet::new);
-        let right_relation = self.relations.remove(&right).unwrap_or_else(HashSet::new);
+    fn handle_swap(&mut self, swap: &Swap) {
+        let left_relation = self
+            .relations
+            .remove(swap.left())
+            .unwrap_or_else(HashSet::new);
+        let right_relation = self
+            .relations
+            .remove(swap.right())
+            .unwrap_or_else(HashSet::new);
 
-        self.relations.insert(left, right_relation);
-        self.relations.insert(right, left_relation);
+        self.relations.insert(*swap.left(), right_relation);
+        self.relations.insert(*swap.right(), left_relation);
     }
 
-    fn handle_purge(&mut self, relation: Relation) {
-        self.relations = self.relations.update(relation, HashSet::default());
+    fn handle_purge(&mut self, purge: &Purge) {
+        self.relations = self.relations.update(*purge.relation(), HashSet::default());
     }
 
-    fn handle_exit(&mut self, relations: Vec<Relation>) {
-        let is_done = relations
+    fn handle_exit(&mut self, exit: &Exit) {
+        let is_done = exit
+            .relations()
             .iter()
             .all(|r| self.relations.get(r).map_or(false, HashSet::is_empty));
 

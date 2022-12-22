@@ -60,7 +60,7 @@ impl RelationBinding {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Relation {
     id: RelationId,
     version: RelationVersion,
@@ -80,7 +80,7 @@ impl Relation {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum RelationVersion {
     Total,
     Delta,
@@ -91,12 +91,112 @@ pub enum RelationVersion {
 // to make them unrepresentable.
 #[derive(Clone, Debug, IsVariant)]
 pub enum Statement {
-    Insert { operation: Operation },
-    Merge { from: Relation, into: Relation },
-    Swap { left: Relation, right: Relation },
-    Purge { relation: Relation },
-    Loop { body: Vec<Statement> },
-    Exit { relations: Vec<Relation> },
+    Insert(Insert),
+    Merge(Merge),
+    Swap(Swap),
+    Purge(Purge),
+    Loop(Loop),
+    Exit(Exit),
+}
+
+#[derive(Clone, Debug)]
+pub struct Insert {
+    pub operation: Operation,
+}
+
+impl Insert {
+    pub fn new(operation: Operation) -> Self {
+        Self { operation }
+    }
+
+    pub fn operation(&self) -> &Operation {
+        &self.operation
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Merge {
+    pub from: Relation,
+    pub into: Relation,
+}
+
+impl Merge {
+    pub fn new(from: Relation, into: Relation) -> Self {
+        Self { from, into }
+    }
+
+    pub fn from(&self) -> &Relation {
+        &self.from
+    }
+
+    pub fn into(&self) -> &Relation {
+        &self.into
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Swap {
+    left: Relation,
+    right: Relation,
+}
+
+impl Swap {
+    pub fn new(left: Relation, right: Relation) -> Self {
+        Self { left, right }
+    }
+
+    pub fn left(&self) -> &Relation {
+        &self.left
+    }
+
+    pub fn right(&self) -> &Relation {
+        &self.right
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Purge {
+    relation: Relation,
+}
+
+impl Purge {
+    pub fn new(relation: Relation) -> Self {
+        Self { relation }
+    }
+
+    pub fn relation(&self) -> &Relation {
+        &self.relation
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Loop {
+    body: Vec<Statement>,
+}
+
+impl Loop {
+    pub fn new(body: Vec<Statement>) -> Self {
+        Self { body }
+    }
+
+    pub fn body(&self) -> &Vec<Statement> {
+        &self.body
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Exit {
+    relations: Vec<Relation>,
+}
+
+impl Exit {
+    pub fn new(relations: Vec<Relation>) -> Self {
+        Self { relations }
+    }
+
+    pub fn relations(&self) -> &Vec<Relation> {
+        &self.relations
+    }
 }
 
 #[derive(Clone, Debug, IsVariant)]
