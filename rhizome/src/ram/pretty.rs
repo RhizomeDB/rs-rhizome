@@ -124,73 +124,80 @@ impl Pretty for Exit {
 impl Pretty for Operation {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         match self {
-            Operation::Search {
-                relation,
-                alias,
-                when,
-                operation,
-            } => {
-                let relation_doc = match alias {
-                    Some(alias) => RcDoc::concat([
-                        relation.to_doc(),
-                        RcDoc::text(" as "),
-                        RcDoc::as_string(relation.id()),
-                        RcDoc::text("_"),
-                        RcDoc::as_string(alias),
-                    ]),
-                    None => relation.to_doc(),
-                };
-
-                let when_doc = if when.is_empty() {
-                    RcDoc::nil()
-                } else {
-                    RcDoc::text(" where")
-                        .append(RcDoc::hardline())
-                        .append(RcDoc::text("("))
-                        .append(
-                            RcDoc::intersperse(
-                                when.iter().map(|formula| formula.to_doc()),
-                                RcDoc::text(" and "),
-                            )
-                            .nest(1)
-                            .group(),
-                        )
-                        .append(RcDoc::text(")"))
-                };
-
-                RcDoc::concat([
-                    RcDoc::text("search "),
-                    relation_doc,
-                    when_doc,
-                    RcDoc::text(" do"),
-                ])
-                .append(RcDoc::hardline().append(operation.to_doc()).nest(2).group())
-            }
-
-            Operation::Project { attributes, into } => {
-                let attributes_doc = RcDoc::intersperse(
-                    attributes.iter().map(|(attribute, term)| {
-                        RcDoc::concat([
-                            RcDoc::as_string(attribute),
-                            RcDoc::text(": "),
-                            term.to_doc(),
-                        ])
-                    }),
-                    RcDoc::text(",").append(RcDoc::line()),
-                )
-                .nest(2)
-                .group();
-
-                RcDoc::concat([
-                    RcDoc::text("project "),
-                    RcDoc::text("("),
-                    attributes_doc,
-                    RcDoc::text(")"),
-                    RcDoc::text(" into "),
-                    into.to_doc(),
-                ])
-            }
+            Operation::Search(inner) => inner.to_doc(),
+            Operation::Project(inner) => inner.to_doc(),
         }
+    }
+}
+
+impl Pretty for Search {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        let relation_doc = match self.alias() {
+            Some(alias) => RcDoc::concat([
+                self.relation().to_doc(),
+                RcDoc::text(" as "),
+                RcDoc::as_string(self.relation().id()),
+                RcDoc::text("_"),
+                RcDoc::as_string(alias),
+            ]),
+            None => self.relation().to_doc(),
+        };
+
+        let when_doc = if self.when().is_empty() {
+            RcDoc::nil()
+        } else {
+            RcDoc::text(" where")
+                .append(RcDoc::hardline())
+                .append(RcDoc::text("("))
+                .append(
+                    RcDoc::intersperse(
+                        self.when().iter().map(|formula| formula.to_doc()),
+                        RcDoc::text(" and "),
+                    )
+                    .nest(1)
+                    .group(),
+                )
+                .append(RcDoc::text(")"))
+        };
+
+        RcDoc::concat([
+            RcDoc::text("search "),
+            relation_doc,
+            when_doc,
+            RcDoc::text(" do"),
+        ])
+        .append(
+            RcDoc::hardline()
+                .append(self.operation().to_doc())
+                .nest(2)
+                .group(),
+        )
+    }
+}
+
+impl Pretty for Project {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        let attributes_doc = RcDoc::intersperse(
+            self.attributes().iter().map(|(attribute, term)| {
+                RcDoc::concat([
+                    RcDoc::as_string(attribute),
+                    RcDoc::text(": "),
+                    term.to_doc(),
+                ])
+            }),
+            RcDoc::text(",").append(RcDoc::line()),
+        )
+        .nest(2)
+        .group();
+
+        RcDoc::concat([
+            RcDoc::text("project "),
+            RcDoc::text("("),
+            attributes_doc,
+            RcDoc::text(")"),
+            RcDoc::text(" into "),
+            self.into().to_doc(),
+        ])
     }
 }
 
@@ -278,6 +285,8 @@ mod tests {
     use im::hashmap;
     use pretty_assertions::assert_eq;
 
+    use crate::ram::ast::{Project, Search};
+
     use super::*;
 
     #[test]
@@ -296,17 +305,17 @@ mod tests {
             Relation::new("person".into(), RelationVersion::Total),
         );
 
-        let project = Operation::Project {
-            attributes: hashmap! {"age".into() => Literal::new(29).into()},
-            into: Relation::new("person".into(), RelationVersion::Total),
-        };
+        let project = Operation::Project(Project::new(
+            hashmap! {"age".into() => Literal::new(29).into()},
+            Relation::new("person".into(), RelationVersion::Total),
+        ));
 
-        let ast = Operation::Search {
-            relation: Relation::new("person".into(), RelationVersion::Total),
-            alias: None,
-            when: vec![formula1.into(), formula2.into()],
-            operation: Box::new(project),
-        };
+        let ast = Operation::Search(Search::new(
+            Relation::new("person".into(), RelationVersion::Total),
+            None,
+            vec![formula1.into(), formula2.into()],
+            project,
+        ));
 
         let mut w = Vec::new();
         ast.to_doc().render(80, &mut w).unwrap();

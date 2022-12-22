@@ -89,7 +89,7 @@ impl<T: Timestamp> VM<T> {
     fn handle_operation(&mut self, operation: &Operation) {
         let bindings = HashMap::<RelationBinding, Fact<T>>::default();
 
-        self.do_handle_operation(operation, bindings);
+        self.do_handle_operation(operation, bindings)
     }
 
     fn do_handle_operation(
@@ -98,109 +98,107 @@ impl<T: Timestamp> VM<T> {
         bindings: HashMap<RelationBinding, Fact<T>>,
     ) {
         match operation {
-            Operation::Search {
-                relation,
-                alias,
-                when,
-                operation,
-            } => {
-                let relation_binding = RelationBinding::new(*relation.id(), *alias);
-                let facts = self.relations.get(relation).cloned().unwrap_or_default();
+            Operation::Search(inner) => self.handle_search(inner, bindings),
+            Operation::Project(inner) => self.handle_project(inner, bindings),
+        }
+    }
 
-                for fact in facts.iter() {
-                    let mut next_bindings = bindings.clone();
+    fn handle_search(&mut self, search: &Search, bindings: HashMap<RelationBinding, Fact<T>>) {
+        let relation_binding = RelationBinding::new(*search.relation().id(), *search.alias());
+        let facts = self
+            .relations
+            .get(search.relation())
+            .cloned()
+            .unwrap_or_default();
 
-                    let is_satisfied = when.iter().all(|f| match f {
-                        Formula::Equality(equality) => {
-                            // TODO: Dry up dereferencing Term -> Datum
-                            let left_value = match &equality.left() {
-                                Term::Attribute(attribute)
-                                    if *attribute.relation() == relation_binding =>
-                                {
-                                    fact.attribute(attribute.id()).unwrap()
-                                }
-                                Term::Attribute(attribute) => next_bindings
-                                    .get(attribute.relation())
-                                    .map(|f| f.attribute(attribute.id()).unwrap())
-                                    .unwrap(),
-                                Term::Literal(literal) => literal.datum(),
-                            };
+        for fact in facts.iter() {
+            let mut next_bindings = bindings.clone();
 
-                            let right_value = match &equality.right() {
-                                Term::Attribute(attribute)
-                                    if *attribute.relation() == relation_binding =>
-                                {
-                                    fact.attribute(attribute.id()).unwrap()
-                                }
-                                Term::Attribute(attribute) => next_bindings
-                                    .get(attribute.relation())
-                                    .map(|f| f.attribute(attribute.id()).unwrap())
-                                    .unwrap(),
-                                Term::Literal(literal) => literal.datum(),
-                            };
-
-                            left_value == right_value
+            let is_satisfied = search.when().iter().all(|f| match f {
+                Formula::Equality(equality) => {
+                    // TODO: Dry up dereferencing Term -> Datum
+                    let left_value = match &equality.left() {
+                        Term::Attribute(attribute) if *attribute.relation() == relation_binding => {
+                            fact.attribute(attribute.id()).unwrap()
                         }
-                        Formula::NotIn(not_in) => {
-                            // TODO: Dry up constructing a fact from BTreeMap<AttributeId, Term>
-                            let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
+                        Term::Attribute(attribute) => next_bindings
+                            .get(attribute.relation())
+                            .map(|f| f.attribute(attribute.id()).unwrap())
+                            .unwrap(),
+                        Term::Literal(literal) => literal.datum(),
+                    };
 
-                            for (id, term) in not_in.attributes() {
-                                match term {
-                                    Term::Attribute(attribute) => {
-                                        let fact = next_bindings.get(attribute.relation()).unwrap();
+                    let right_value = match &equality.right() {
+                        Term::Attribute(attribute) if *attribute.relation() == relation_binding => {
+                            fact.attribute(attribute.id()).unwrap()
+                        }
+                        Term::Attribute(attribute) => next_bindings
+                            .get(attribute.relation())
+                            .map(|f| f.attribute(attribute.id()).unwrap())
+                            .unwrap(),
+                        Term::Literal(literal) => literal.datum(),
+                    };
 
-                                        bound.push((*id, *fact.attribute(attribute.id()).unwrap()));
-                                    }
-                                    Term::Literal(literal) => bound.push((*id, *literal.datum())),
-                                }
+                    left_value == right_value
+                }
+                Formula::NotIn(not_in) => {
+                    // TODO: Dry up constructing a fact from BTreeMap<AttributeId, Term>
+                    let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
+
+                    for (id, term) in not_in.attributes() {
+                        match term {
+                            Term::Attribute(attribute) => {
+                                let fact = next_bindings.get(attribute.relation()).unwrap();
+
+                                bound.push((*id, *fact.attribute(attribute.id()).unwrap()));
                             }
-
-                            let bound_fact =
-                                Fact::new(*not_in.relation().id(), self.timestamp, bound);
-
-                            !self
-                                .relations
-                                .get(not_in.relation())
-                                .map(|r| r.contains(&bound_fact))
-                                .unwrap_or(false)
+                            Term::Literal(literal) => bound.push((*id, *literal.datum())),
                         }
-                    });
-
-                    if !is_satisfied {
-                        continue;
                     }
 
-                    next_bindings.insert(relation_binding, fact.clone());
+                    let bound_fact = Fact::new(*not_in.relation().id(), self.timestamp, bound);
 
-                    self.do_handle_operation(operation, next_bindings);
+                    !self
+                        .relations
+                        .get(not_in.relation())
+                        .map(|r| r.contains(&bound_fact))
+                        .unwrap_or(false)
                 }
+            });
+
+            if !is_satisfied {
+                continue;
             }
-            Operation::Project { attributes, into } => {
-                let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
 
-                for (id, term) in attributes {
-                    match term {
-                        Term::Attribute(attribute) => {
-                            let fact = bindings.get(attribute.relation()).unwrap();
+            next_bindings.insert(relation_binding, fact.clone());
 
-                            bound.push((*id, *fact.attribute(attribute.id()).unwrap()));
-                        }
-                        Term::Literal(literal) => bound.push((*id, *literal.datum())),
-                    }
+            self.do_handle_operation(search.operation(), next_bindings);
+        }
+    }
+
+    fn handle_project(&mut self, project: &Project, bindings: HashMap<RelationBinding, Fact<T>>) {
+        let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
+
+        for (id, term) in project.attributes() {
+            match term {
+                Term::Attribute(attribute) => {
+                    let fact = bindings.get(attribute.relation()).unwrap();
+
+                    bound.push((*id, *fact.attribute(attribute.id()).unwrap()));
                 }
-
-                let fact = Fact::new(*into.id(), self.timestamp, bound);
-
-                self.relations = self.relations.alter(
-                    |old| match old {
-                        Some(facts) => Some(facts.update(fact)),
-                        None => Some(HashSet::from_iter([fact])),
-                    },
-                    *into,
-                );
+                Term::Literal(literal) => bound.push((*id, *literal.datum())),
             }
-        };
+        }
+
+        let fact = Fact::new(*project.into().id(), self.timestamp, bound);
+
+        self.relations = self.relations.alter(
+            |old| match old {
+                Some(facts) => Some(facts.update(fact)),
+                None => Some(HashSet::from_iter([fact])),
+            },
+            *project.into(),
+        );
     }
 
     fn handle_merge(&mut self, merge: &Merge) {
