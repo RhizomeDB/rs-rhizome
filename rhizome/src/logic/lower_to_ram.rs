@@ -49,11 +49,9 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         }
 
         // Merge the output of the static rules into delta, to be used in the loop
-        for relation in
-            HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| r.head().clone()))
-        {
+        for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| *r.head())) {
             statements.push(ram::ast::Statement::Merge {
-                from: ram::ast::Relation::new(relation.clone(), ram::ast::RelationVersion::Total),
+                from: ram::ast::Relation::new(relation, ram::ast::RelationVersion::Total),
                 into: ram::ast::Relation::new(relation, ram::ast::RelationVersion::Delta),
             });
         }
@@ -63,7 +61,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         // Purge new, computed during the last loop iteration
         for relation in stratum.relations() {
             loop_body.push(ram::ast::Statement::Purge {
-                relation: ram::ast::Relation::new(relation.clone(), ram::ast::RelationVersion::New),
+                relation: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
             });
         }
 
@@ -87,13 +85,13 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         // Merge new into total, then swap new and delta
         for relation in stratum.relations() {
             loop_body.push(ram::ast::Statement::Merge {
-                from: ram::ast::Relation::new(relation.clone(), ram::ast::RelationVersion::New),
-                into: ram::ast::Relation::new(relation.clone(), ram::ast::RelationVersion::Total),
+                from: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
+                into: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Total),
             });
 
             loop_body.push(ram::ast::Statement::Swap {
-                left: ram::ast::Relation::new(relation.clone(), ram::ast::RelationVersion::New),
-                right: ram::ast::Relation::new(relation.clone(), ram::ast::RelationVersion::Delta),
+                left: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
+                right: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Delta),
             });
         }
 
@@ -124,13 +122,13 @@ pub fn lower_fact_to_ram(
     let attributes = fact
         .args()
         .iter()
-        .map(|(k, v)| (k.clone(), ram::ast::Literal::new(v.datum().clone()).into()))
+        .map(|(k, v)| (*k, ram::ast::Literal::new(v.datum().clone()).into()))
         .collect();
 
     Ok(ram::ast::Statement::Insert {
         operation: ram::ast::Operation::Project {
             attributes,
-            into: ram::ast::Relation::new(fact.head().clone(), version),
+            into: ram::ast::Relation::new(*fact.head(), version),
         },
     })
 }
@@ -167,13 +165,10 @@ pub fn lower_rule_to_ram(
     for body_term in rule.body() {
         match body_term {
             BodyTerm::Predicate(predicate) => {
-                let alias = next_alias
-                    .entry(predicate.id().clone())
-                    .or_default()
-                    .clone();
+                let alias = next_alias.entry(*predicate.id()).or_default().clone();
 
                 // TODO: I truly, truly, hate this
-                next_alias.entry(predicate.id().clone()).and_modify(|a| {
+                next_alias.entry(*predicate.id()).and_modify(|a| {
                     match a {
                         None => *a = Some(ram::ast::AliasId::new(0)),
                         Some(id) => *a = Some(id.next()),
@@ -187,11 +182,8 @@ pub fn lower_rule_to_ram(
                             bindings.insert(
                                 variable.clone(),
                                 ram::ast::Attribute::new(
-                                    attribute_id.clone(),
-                                    ram::ast::RelationBinding::new(
-                                        predicate.id().clone(),
-                                        alias.clone(),
-                                    ),
+                                    attribute_id,
+                                    ram::ast::RelationBinding::new(*predicate.id(), alias.clone()),
                                 )
                                 .into(),
                             )
@@ -217,16 +209,14 @@ pub fn lower_rule_to_ram(
         .args()
         .iter()
         .map(|(k, v)| match v {
-            AttributeValue::Literal(c) => {
-                (k.clone(), ram::ast::Literal::new(c.datum().clone()).into())
-            }
-            AttributeValue::Variable(v) => (k.clone(), bindings.get(v).unwrap().clone()),
+            AttributeValue::Literal(c) => (*k, ram::ast::Literal::new(c.datum().clone()).into()),
+            AttributeValue::Variable(v) => (*k, bindings.get(v).unwrap().clone()),
         })
         .collect();
 
     let projection = ram::ast::Operation::Project {
         attributes: projection_attributes,
-        into: ram::ast::Relation::new(rule.head().clone(), version),
+        into: ram::ast::Relation::new(*rule.head(), version),
     };
 
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
@@ -265,9 +255,9 @@ pub fn lower_rule_to_ram(
                             AttributeValue::Literal(literal) => {
                                 let formula = ram::ast::Equality::new(
                                     ram::ast::Attribute::new(
-                                        attribute_id.clone(),
+                                        *attribute_id,
                                         ram::ast::RelationBinding::new(
-                                            predicate.id().clone(),
+                                            *predicate.id(),
                                             metadata.alias.clone(),
                                         ),
                                     )
@@ -282,14 +272,14 @@ pub fn lower_rule_to_ram(
                                 match metadata.bindings.get(variable) {
                                     None => (),
                                     Some(ram::ast::Term::Attribute(inner))
-                                        if *inner.relation().id() == predicate.id().clone()
+                                        if *inner.relation().id() == *predicate.id()
                                             && *inner.relation().alias() == metadata.alias => {}
                                     Some(bound_value) => {
                                         let formula = ram::ast::Equality::new(
                                             ram::ast::Attribute::new(
-                                                attribute_id.clone(),
+                                                *attribute_id,
                                                 ram::ast::RelationBinding::new(
-                                                    predicate.id().clone(),
+                                                    *predicate.id(),
                                                     metadata.alias.clone(),
                                                 ),
                                             )
@@ -319,12 +309,11 @@ pub fn lower_rule_to_ram(
                             .args()
                             .iter()
                             .map(|(k, v)| match v {
-                                AttributeValue::Literal(literal) => (
-                                    k.clone(),
-                                    ram::ast::Literal::new(literal.datum().clone()).into(),
-                                ),
+                                AttributeValue::Literal(literal) => {
+                                    (*k, ram::ast::Literal::new(literal.datum().clone()).into())
+                                }
                                 AttributeValue::Variable(variable) => {
-                                    (k.clone(), metadata.bindings.get(variable).unwrap().clone())
+                                    (*k, metadata.bindings.get(variable).unwrap().clone())
                                 }
                             })
                             .collect();
@@ -333,7 +322,7 @@ pub fn lower_rule_to_ram(
                             ram::ast::NotIn::new(
                                 attributes,
                                 ram::ast::Relation::new(
-                                    negation.id().clone(),
+                                    *negation.id(),
                                     ram::ast::RelationVersion::Total,
                                 ),
                             )
@@ -349,7 +338,7 @@ pub fn lower_rule_to_ram(
 
                     previous = ram::ast::Operation::Search {
                         // TODO: semi-naive
-                        relation: ram::ast::Relation::new(predicate.id().clone(), version),
+                        relation: ram::ast::Relation::new(*predicate.id(), version),
                         alias: metadata.alias.clone(),
                         when: formulae,
                         operation: Box::new(previous),
@@ -376,7 +365,7 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>, Error> {
         BTreeMap::<RelationId, Vec<Clause>>::default(),
         |mut accum, clause| {
             accum
-                .entry(clause.head().clone())
+                .entry(*clause.head())
                 .and_modify(|clauses| clauses.push(clause.clone()))
                 .or_insert_with(|| vec![clause.clone()]);
             accum
@@ -388,17 +377,17 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>, Error> {
 
     for clause in program.clauses() {
         nodes
-            .entry(clause.head().clone())
-            .or_insert_with(|| edg.add_node(clause.head().clone()));
+            .entry(*clause.head())
+            .or_insert_with(|| edg.add_node(*clause.head()));
 
         for dependency in clause.depends_on() {
             let to = *nodes
-                .entry(dependency.to().clone())
-                .or_insert_with(|| edg.add_node(dependency.to().clone()));
+                .entry(*dependency.to())
+                .or_insert_with(|| edg.add_node(*dependency.to()));
 
             let from = *nodes
-                .entry(dependency.from().clone())
-                .or_insert_with(|| edg.add_node(dependency.from().clone()));
+                .entry(*dependency.from())
+                .or_insert_with(|| edg.add_node(*dependency.from()));
 
             edg.add_edge(from, to, dependency.polarity().clone());
         }
@@ -473,18 +462,18 @@ mod tests {
 
         assert_eq!(
             Ok(vec![
-                Stratum::new(vec!["r".into()], vec![], false,),
+                Stratum::new(vec![RelationId::new("r")], vec![], false,),
                 Stratum::new(
-                    vec!["v".into()],
+                    vec![RelationId::new("v")],
                     vec![
                         Rule::new(
-                            "v".into(),
-                            vec![("v".into(), Variable::new("X").into())],
+                            "v",
+                            vec![("v", Variable::new("X").into())],
                             vec![Predicate::new(
-                                "r".into(),
+                                "r",
                                 vec![
-                                    ("r0".into(), Variable::new("X").into()),
-                                    ("r1".into(), Variable::new("Y").into()),
+                                    ("r0", Variable::new("X").into()),
+                                    ("r1", Variable::new("Y").into()),
                                 ],
                             )
                             .into()],
@@ -492,13 +481,13 @@ mod tests {
                         .unwrap()
                         .into(),
                         Rule::new(
-                            "v".into(),
-                            vec![("v".into(), Variable::new("Y").into())],
+                            "v",
+                            vec![("v", Variable::new("Y").into())],
                             vec![Predicate::new(
-                                "r".into(),
+                                "r",
                                 vec![
-                                    ("r0".into(), Variable::new("X").into()),
-                                    ("r1".into(), Variable::new("Y").into()),
+                                    ("r0", Variable::new("X").into()),
+                                    ("r1", Variable::new("Y").into()),
                                 ],
                             )
                             .into()],
@@ -509,19 +498,19 @@ mod tests {
                     false,
                 ),
                 Stratum::new(
-                    vec!["t".into()],
+                    vec![RelationId::new("t")],
                     vec![
                         Rule::new(
-                            "t".into(),
+                            "t",
                             vec![
-                                ("t0".into(), Variable::new("X").into()),
-                                ("t1".into(), Variable::new("Y").into()),
+                                ("t0", Variable::new("X").into()),
+                                ("t1", Variable::new("Y").into()),
                             ],
                             vec![Predicate::new(
-                                "r".into(),
+                                "r",
                                 vec![
-                                    ("r0".into(), Variable::new("X").into()),
-                                    ("r1".into(), Variable::new("Y").into()),
+                                    ("r0", Variable::new("X").into()),
+                                    ("r1", Variable::new("Y").into()),
                                 ],
                             )
                             .into()],
@@ -529,25 +518,25 @@ mod tests {
                         .unwrap()
                         .into(),
                         Rule::new(
-                            "t".into(),
+                            "t",
                             vec![
-                                ("t0".into(), Variable::new("X").into()),
-                                ("t1".into(), Variable::new("Y").into()),
+                                ("t0", Variable::new("X").into()),
+                                ("t1", Variable::new("Y").into()),
                             ],
                             vec![
                                 Predicate::new(
-                                    "t".into(),
+                                    "t",
                                     vec![
-                                        ("t0".into(), Variable::new("X").into()),
-                                        ("t1".into(), Variable::new("Z").into()),
+                                        ("t0", Variable::new("X").into()),
+                                        ("t1", Variable::new("Z").into()),
                                     ],
                                 )
                                 .into(),
                                 Predicate::new(
-                                    "r".into(),
+                                    "r",
                                     vec![
-                                        ("r0".into(), Variable::new("Z").into()),
-                                        ("r1".into(), Variable::new("Y").into()),
+                                        ("r0", Variable::new("Z").into()),
+                                        ("r1", Variable::new("Y").into()),
                                     ],
                                 )
                                 .into(),
@@ -559,29 +548,21 @@ mod tests {
                     true,
                 ),
                 Stratum::new(
-                    vec!["tc".into()],
+                    vec![RelationId::new("tc")],
                     vec![Rule::new(
-                        "tc".into(),
+                        "tc",
                         vec![
-                            ("tc0".into(), Variable::new("X").into()),
-                            ("tc1".into(), Variable::new("Y").into()),
+                            ("tc0", Variable::new("X").into()),
+                            ("tc1", Variable::new("Y").into()),
                         ],
                         vec![
-                            Predicate::new(
-                                "v".into(),
-                                vec![("v".into(), Variable::new("X").into())],
-                            )
-                            .into(),
-                            Predicate::new(
-                                "v".into(),
-                                vec![("v".into(), Variable::new("Y").into())],
-                            )
-                            .into(),
+                            Predicate::new("v", vec![("v", Variable::new("X").into())],).into(),
+                            Predicate::new("v", vec![("v", Variable::new("Y").into())],).into(),
                             Negation::new(
-                                "t".into(),
+                                "t",
                                 vec![
-                                    ("t0".into(), Variable::new("X").into()),
-                                    ("t1".into(), Variable::new("Y").into()),
+                                    ("t0", Variable::new("X").into()),
+                                    ("t1", Variable::new("Y").into()),
                                 ],
                             )
                             .into(),
