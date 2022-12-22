@@ -129,11 +129,10 @@ impl<T: Timestamp> VM<T> {
                                         attribute.relation().clone(),
                                         attribute.alias().clone(),
                                     ))
-                                    .cloned()
                                     .unwrap()
                                     .attribute(attribute.id())
                                     .unwrap(),
-                                Term::Literal(literal) => literal.datum().clone(),
+                                Term::Literal(literal) => literal.datum(),
                             };
 
                             let right_value = match &equality.right() {
@@ -150,11 +149,10 @@ impl<T: Timestamp> VM<T> {
                                         attribute.relation().clone(),
                                         attribute.alias().clone(),
                                     ))
-                                    .cloned()
                                     .unwrap()
                                     .attribute(attribute.id())
                                     .unwrap(),
-                                Term::Literal(literal) => literal.datum().clone(),
+                                Term::Literal(literal) => literal.datum(),
                             };
 
                             left_value == right_value
@@ -175,7 +173,7 @@ impl<T: Timestamp> VM<T> {
 
                                         bound.push((
                                             id.clone(),
-                                            fact.attribute(attribute.id()).unwrap(),
+                                            fact.attribute(attribute.id()).unwrap().clone(),
                                         ));
                                     }
                                     Term::Literal(literal) => {
@@ -220,7 +218,10 @@ impl<T: Timestamp> VM<T> {
                                 ))
                                 .unwrap();
 
-                            bound.push((id.clone(), fact.attribute(attribute.id()).unwrap()));
+                            bound.push((
+                                id.clone(),
+                                fact.attribute(attribute.id()).unwrap().clone(),
+                            ));
                         }
                         Term::Literal(literal) => bound.push((id.clone(), literal.datum().clone())),
                     }
