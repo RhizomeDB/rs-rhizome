@@ -1,18 +1,25 @@
 use derive_more::{From, TryInto};
+use ustr::Ustr;
 
-#[derive(Debug, Clone, From, Eq, Hash, PartialEq, TryInto)]
+#[derive(Debug, Clone, Copy, From, Eq, Hash, PartialEq, TryInto)]
 pub enum Datum {
     Bool(bool),
     Int(i64),
-    // TODO: strings should be interned. Maybe using this:
-    // https://docs.rs/string-interner/latest/string_interner/
-    // Another good reference:
-    // https://matklad.github.io/2020/03/22/fast-simple-rust-interner.html
-    String(String),
+    String(Ustr),
 }
 
 impl Datum {
-    pub fn new(inner: impl Into<Self>) -> Self {
-        inner.into()
+    pub fn bool(data: bool) -> Self {
+        Self::Bool(data)
+    }
+
+    pub fn int(data: i64) -> Self {
+        Self::Int(data)
+    }
+
+    pub fn string<T: AsRef<str>>(data: T) -> Self {
+        let symbol = Ustr::from(data.as_ref());
+
+        Self::String(symbol)
     }
 }

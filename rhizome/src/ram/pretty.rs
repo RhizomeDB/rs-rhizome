@@ -257,7 +257,7 @@ mod tests {
                 RelationBinding::new("person".into(), Some(1.into())),
             )
             .into(),
-            Literal::new("Quinn".to_string()).into(),
+            Literal::new(Datum::string("Quinn")).into(),
         );
 
         let formula2 = NotIn::new(
@@ -282,7 +282,7 @@ mod tests {
 
         assert_eq!(
             r#"search person_total where
-(person_1.name = "Quinn" and (age: 29) notin person_total) do
+(person_1.name = u!("Quinn") and (age: 29) notin person_total) do
   project (age: 29) into person_total"#,
             String::from_utf8(w).unwrap()
         );

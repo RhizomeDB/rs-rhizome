@@ -148,14 +148,9 @@ impl<T: Timestamp> VM<T> {
                                     Term::Attribute(attribute) => {
                                         let fact = next_bindings.get(attribute.relation()).unwrap();
 
-                                        bound.push((
-                                            *id,
-                                            fact.attribute(attribute.id()).unwrap().clone(),
-                                        ));
+                                        bound.push((*id, *fact.attribute(attribute.id()).unwrap()));
                                     }
-                                    Term::Literal(literal) => {
-                                        bound.push((*id, literal.datum().clone()))
-                                    }
+                                    Term::Literal(literal) => bound.push((*id, *literal.datum())),
                                 }
                             }
 
@@ -187,9 +182,9 @@ impl<T: Timestamp> VM<T> {
                         Term::Attribute(attribute) => {
                             let fact = bindings.get(attribute.relation()).unwrap();
 
-                            bound.push((*id, fact.attribute(attribute.id()).unwrap().clone()));
+                            bound.push((*id, *fact.attribute(attribute.id()).unwrap()));
                         }
-                        Term::Literal(literal) => bound.push((*id, literal.datum().clone())),
+                        Term::Literal(literal) => bound.push((*id, *literal.datum())),
                     }
                 }
 
