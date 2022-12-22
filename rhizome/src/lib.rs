@@ -7,7 +7,6 @@
 pub mod datum;
 pub mod error;
 pub mod fact;
-pub mod graph;
 pub mod id;
 pub mod lattice;
 pub mod logic;
