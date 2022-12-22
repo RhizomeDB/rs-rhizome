@@ -1,3 +1,4 @@
+use anyhow::Result;
 use im::{vector, HashMap, HashSet, Vector};
 use petgraph::{
     graph::{DiGraph, NodeIndex},
@@ -6,7 +7,7 @@ use petgraph::{
 };
 
 use crate::{
-    error::Error,
+    error::{error, Error},
     id::RelationId,
     ram::{
         self,
@@ -16,7 +17,7 @@ use crate::{
 
 use super::ast::*;
 
-pub fn lower_to_ram(program: &Program) -> Result<ram::ast::Program, Error> {
+pub fn lower_to_ram(program: &Program) -> Result<ram::ast::Program> {
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
 
     for stratum in &stratify(program)? {
@@ -28,7 +29,7 @@ pub fn lower_to_ram(program: &Program) -> Result<ram::ast::Program, Error> {
     Ok(ram::ast::Program::new(statements))
 }
 
-pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement>, Error> {
+pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement>> {
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
 
     if stratum.is_recursive() {
@@ -124,7 +125,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
 pub fn lower_fact_to_ram(
     fact: &Fact,
     version: ram::ast::RelationVersion,
-) -> Result<ram::ast::Statement, Error> {
+) -> Result<ram::ast::Statement> {
     let attributes = fact
         .args()
         .iter()
@@ -163,7 +164,7 @@ pub fn lower_rule_to_ram(
     rule: &Rule,
     stratum: &Stratum,
     version: ram::ast::RelationVersion,
-) -> Result<Vec<ram::ast::Statement>, Error> {
+) -> Result<Vec<ram::ast::Statement>> {
     let mut next_alias = HashMap::<RelationId, ram::ast::AliasId>::default();
     let mut bindings = HashMap::<Variable, ram::ast::Term>::default();
     let mut term_metadata = Vec::<(BodyTerm, TermMetadata)>::default();
@@ -361,7 +362,7 @@ pub fn lower_rule_to_ram(
     Ok(statements)
 }
 
-pub fn stratify(program: &Program) -> Result<Vec<Stratum>, Error> {
+pub fn stratify(program: &Program) -> Result<Vec<Stratum>> {
     let mut clauses_by_relation = HashMap::<RelationId, Vector<Clause>>::default();
 
     for clause in program.clauses() {
@@ -421,7 +422,7 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>, Error> {
         for node in scc {
             for edge in edg.edges_directed(*node, Direction::Outgoing) {
                 if edge.weight().is_negative() && scc.contains(&edge.target()) {
-                    return Err(Error::ProgramUnstratifiable);
+                    return error(Error::ProgramUnstratifiable);
                 }
             }
         }
@@ -456,7 +457,7 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>, Error> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::{logic::parser, pretty::Pretty};
+    use crate::logic::parser;
 
     use super::*;
 
@@ -475,15 +476,8 @@ mod tests {
         )
         .unwrap();
 
-        let ast = lower_to_ram(&program).unwrap();
-        let mut w = Vec::new();
-        ast.to_doc().render(80, &mut w).unwrap();
-        println!("{}", String::from_utf8(w).unwrap());
-
-        let stratification = stratify(&program);
-
         assert_eq!(
-            Ok(vec![
+            vec![
                 Stratum::new(vec![RelationId::new("r")], vec![], false,),
                 Stratum::new(
                     vec![RelationId::new("v")],
@@ -594,8 +588,8 @@ mod tests {
                     .into(),],
                     false,
                 )
-            ]),
-            stratification
+            ],
+            stratify(&program).unwrap()
         );
     }
 
@@ -608,8 +602,9 @@ mod tests {
         )
         .unwrap();
 
-        let stratification = stratify(&program);
-
-        assert_eq!(Err(Error::ProgramUnstratifiable), stratification);
+        assert_eq!(
+            Some(&Error::ProgramUnstratifiable),
+            stratify(&program).unwrap_err().downcast_ref()
+        );
     }
 }
