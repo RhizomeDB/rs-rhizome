@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670453785564,
+  "lastUpdate": 1671749275570,
   "repoUrl": "https://github.com/fission-codes/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -113,6 +113,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fission-codes/rs-rhizome/commit/82510c0ace76d6edf8fbe83ae4b7773b3f52216d"
         },
         "date": 1670453784331,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "6705ed622c377c2f9ad32170cbc040617f1f1d89",
+          "message": "chore: allow MPL-2.0+ and BSD-2-Clause-Patent licenses",
+          "timestamp": "2022-12-22T14:45:42-08:00",
+          "tree_id": "23ceb198d37ca2ca9c1ea016ebd3d656d508ebb6",
+          "url": "https://github.com/fission-codes/rs-rhizome/commit/6705ed622c377c2f9ad32170cbc040617f1f1d89"
+        },
+        "date": 1671749274791,
         "tool": "cargo",
         "benches": [
           {
