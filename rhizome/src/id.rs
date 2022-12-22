@@ -1,15 +1,6 @@
 use derive_more::{AsRef, Constructor, Display, From};
 use serde::{Deserialize, Serialize};
 
-#[derive(Constructor, Display, Clone, Debug, From, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct AliasId(usize);
-
-impl AliasId {
-    pub fn next(&self) -> Self {
-        AliasId::new(self.0 + 1)
-    }
-}
-
 #[derive(
     Constructor,
     Display,

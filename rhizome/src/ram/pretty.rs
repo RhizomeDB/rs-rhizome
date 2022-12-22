@@ -219,13 +219,13 @@ impl Pretty for Term {
 
 impl Pretty for Attribute {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        let relation_doc = match self.alias() {
+        let relation_doc = match self.relation().alias() {
             Some(alias) => RcDoc::concat([
-                RcDoc::as_string(self.relation().clone()),
+                RcDoc::as_string(self.relation().id().clone()),
                 RcDoc::text("_"),
                 RcDoc::as_string(alias),
             ]),
-            None => RcDoc::as_string(self.relation().clone()),
+            None => RcDoc::as_string(self.relation().id().clone()),
         };
 
         RcDoc::concat([relation_doc, RcDoc::text("."), RcDoc::as_string(self.id())])
@@ -252,7 +252,11 @@ mod tests {
     #[test]
     fn test() {
         let formula1 = Equality::new(
-            Attribute::new("name".into(), "person".into(), Some(1.into())).into(),
+            Attribute::new(
+                "name".into(),
+                RelationBinding::new("person".into(), Some(1.into())),
+            )
+            .into(),
             Literal::new("Quinn".to_string()).into(),
         );
 

@@ -5,11 +5,7 @@ use petgraph::{
 };
 use std::collections::{BTreeMap, HashSet};
 
-use crate::{
-    error::Error,
-    id::{AliasId, RelationId},
-    ram,
-};
+use crate::{error::Error, id::RelationId, ram};
 
 use super::ast::*;
 
@@ -140,14 +136,14 @@ pub fn lower_fact_to_ram(
 }
 
 struct TermMetadata {
-    alias: Option<AliasId>,
+    alias: Option<ram::ast::AliasId>,
     bindings: BTreeMap<Variable, ram::ast::Term>,
     is_dynamic: bool,
 }
 
 impl TermMetadata {
     fn new(
-        alias: Option<AliasId>,
+        alias: Option<ram::ast::AliasId>,
         bindings: BTreeMap<Variable, ram::ast::Term>,
         is_dynamic: bool,
     ) -> Self {
@@ -164,7 +160,7 @@ pub fn lower_rule_to_ram(
     stratum: &Stratum,
     version: ram::ast::RelationVersion,
 ) -> Result<Vec<ram::ast::Statement>, Error> {
-    let mut next_alias: BTreeMap<RelationId, Option<AliasId>> = BTreeMap::default();
+    let mut next_alias: BTreeMap<RelationId, Option<ram::ast::AliasId>> = BTreeMap::default();
     let mut bindings: BTreeMap<Variable, ram::ast::Term> = BTreeMap::default();
     let mut term_metadata: Vec<(BodyTerm, TermMetadata)> = Vec::default();
 
@@ -179,7 +175,7 @@ pub fn lower_rule_to_ram(
                 // TODO: I truly, truly, hate this
                 next_alias.entry(predicate.id().clone()).and_modify(|a| {
                     match a {
-                        None => *a = Some(AliasId::new(0)),
+                        None => *a = Some(ram::ast::AliasId::new(0)),
                         Some(id) => *a = Some(id.next()),
                     };
                 });
@@ -192,8 +188,10 @@ pub fn lower_rule_to_ram(
                                 variable.clone(),
                                 ram::ast::Attribute::new(
                                     attribute_id.clone(),
-                                    predicate.id().clone(),
-                                    alias.clone(),
+                                    ram::ast::RelationBinding::new(
+                                        predicate.id().clone(),
+                                        alias.clone(),
+                                    ),
                                 )
                                 .into(),
                             )
@@ -268,8 +266,10 @@ pub fn lower_rule_to_ram(
                                 let formula = ram::ast::Equality::new(
                                     ram::ast::Attribute::new(
                                         attribute_id.clone(),
-                                        predicate.id().clone(),
-                                        metadata.alias.clone(),
+                                        ram::ast::RelationBinding::new(
+                                            predicate.id().clone(),
+                                            metadata.alias.clone(),
+                                        ),
                                     )
                                     .into(),
                                     ram::ast::Literal::new(literal.datum().clone()).into(),
@@ -282,14 +282,16 @@ pub fn lower_rule_to_ram(
                                 match metadata.bindings.get(variable) {
                                     None => (),
                                     Some(ram::ast::Term::Attribute(inner))
-                                        if *inner.relation() == predicate.id().clone()
-                                            && *inner.alias() == metadata.alias => {}
+                                        if *inner.relation().id() == predicate.id().clone()
+                                            && *inner.relation().alias() == metadata.alias => {}
                                     Some(bound_value) => {
                                         let formula = ram::ast::Equality::new(
                                             ram::ast::Attribute::new(
                                                 attribute_id.clone(),
-                                                predicate.id().clone(),
-                                                metadata.alias.clone(),
+                                                ram::ast::RelationBinding::new(
+                                                    predicate.id().clone(),
+                                                    metadata.alias.clone(),
+                                                ),
                                             )
                                             .into(),
                                             bound_value.clone(),

@@ -1,11 +1,20 @@
 use std::collections::BTreeMap;
 
-use derive_more::{From, IsVariant, TryInto};
+use derive_more::{Constructor, Display, From, IsVariant, TryInto};
 
 use crate::{
     datum::Datum,
-    id::{AliasId, AttributeId, RelationId},
+    id::{AttributeId, RelationId},
 };
+
+#[derive(Constructor, Clone, Debug, Display, From, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct AliasId(usize);
+
+impl AliasId {
+    pub fn next(&self) -> Self {
+        AliasId::new(self.0 + 1)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Program {
@@ -19,6 +28,26 @@ impl Program {
 
     pub fn statements(&self) -> &Vec<Statement> {
         &self.statements
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct RelationBinding {
+    id: RelationId,
+    alias: Option<AliasId>,
+}
+
+impl RelationBinding {
+    pub fn new(id: RelationId, alias: Option<AliasId>) -> Self {
+        Self { id, alias }
+    }
+
+    pub fn id(&self) -> &RelationId {
+        &self.id
+    }
+
+    pub fn alias(&self) -> &Option<AliasId> {
+        &self.alias
     }
 }
 
@@ -135,29 +164,20 @@ pub enum Term {
 #[derive(Clone, Debug)]
 pub struct Attribute {
     id: AttributeId,
-    relation: RelationId,
-    alias: Option<AliasId>,
+    relation: RelationBinding,
 }
 
 impl Attribute {
-    pub fn new(id: AttributeId, relation: RelationId, alias: Option<AliasId>) -> Self {
-        Self {
-            id,
-            relation,
-            alias,
-        }
+    pub fn new(id: AttributeId, relation: RelationBinding) -> Self {
+        Self { id, relation }
     }
 
     pub fn id(&self) -> &AttributeId {
         &self.id
     }
 
-    pub fn relation(&self) -> &RelationId {
+    pub fn relation(&self) -> &RelationBinding {
         &self.relation
-    }
-
-    pub fn alias(&self) -> &Option<AliasId> {
-        &self.alias
     }
 }
 

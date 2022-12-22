@@ -1,18 +1,8 @@
 use std::collections::{BTreeMap, HashSet};
 
-use crate::{
-    datum::Datum,
-    fact::Fact,
-    id::{AliasId, AttributeId, RelationId},
-    timestamp::Timestamp,
-};
+use crate::{datum::Datum, fact::Fact, id::AttributeId, timestamp::Timestamp};
 
 use super::ast::*;
-
-// TODO: Should probably put this into the AST to be
-// reused in the other parts of the AST that support aliases
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct FactRef(RelationId, Option<AliasId>);
 
 #[derive(Clone, Debug)]
 pub struct VM<T: Timestamp> {
@@ -93,12 +83,16 @@ impl<T: Timestamp> VM<T> {
     }
 
     fn handle_operation(&mut self, operation: Operation) {
-        let bindings: BTreeMap<FactRef, Fact<T>> = BTreeMap::default();
+        let bindings: BTreeMap<RelationBinding, Fact<T>> = BTreeMap::default();
 
         self.do_handle_operation(operation, bindings);
     }
 
-    fn do_handle_operation(&mut self, operation: Operation, bindings: BTreeMap<FactRef, Fact<T>>) {
+    fn do_handle_operation(
+        &mut self,
+        operation: Operation,
+        bindings: BTreeMap<RelationBinding, Fact<T>>,
+    ) {
         match operation {
             Operation::Search {
                 relation,
@@ -106,7 +100,7 @@ impl<T: Timestamp> VM<T> {
                 when,
                 operation,
             } => {
-                let fact_ref = FactRef(relation.id().clone(), alias);
+                let relation_binding = RelationBinding::new(relation.id().clone(), alias);
                 let facts = self.relations.entry(relation).or_default().clone();
 
                 for fact in facts.iter() {
@@ -117,18 +111,12 @@ impl<T: Timestamp> VM<T> {
                             // TODO: Dry up dereferencing Term -> Datum
                             let left_value = match &equality.left() {
                                 Term::Attribute(attribute)
-                                    if FactRef(
-                                        attribute.relation().clone(),
-                                        attribute.alias().clone(),
-                                    ) == fact_ref =>
+                                    if *attribute.relation() == relation_binding =>
                                 {
                                     fact.attribute(attribute.id()).unwrap()
                                 }
                                 Term::Attribute(attribute) => next_bindings
-                                    .get(&FactRef(
-                                        attribute.relation().clone(),
-                                        attribute.alias().clone(),
-                                    ))
+                                    .get(attribute.relation())
                                     .unwrap()
                                     .attribute(attribute.id())
                                     .unwrap(),
@@ -137,18 +125,12 @@ impl<T: Timestamp> VM<T> {
 
                             let right_value = match &equality.right() {
                                 Term::Attribute(attribute)
-                                    if FactRef(
-                                        attribute.relation().clone(),
-                                        attribute.alias().clone(),
-                                    ) == fact_ref =>
+                                    if *attribute.relation() == relation_binding =>
                                 {
                                     fact.attribute(attribute.id()).unwrap()
                                 }
                                 Term::Attribute(attribute) => next_bindings
-                                    .get(&FactRef(
-                                        attribute.relation().clone(),
-                                        attribute.alias().clone(),
-                                    ))
+                                    .get(attribute.relation())
                                     .unwrap()
                                     .attribute(attribute.id())
                                     .unwrap(),
@@ -164,12 +146,7 @@ impl<T: Timestamp> VM<T> {
                             for (id, term) in not_in.attributes() {
                                 match term {
                                     Term::Attribute(attribute) => {
-                                        let fact = next_bindings
-                                            .get(&FactRef(
-                                                attribute.relation().clone(),
-                                                attribute.alias().clone(),
-                                            ))
-                                            .unwrap();
+                                        let fact = next_bindings.get(attribute.relation()).unwrap();
 
                                         bound.push((
                                             id.clone(),
@@ -200,7 +177,7 @@ impl<T: Timestamp> VM<T> {
                         continue;
                     }
 
-                    next_bindings.insert(fact_ref.clone(), fact.clone());
+                    next_bindings.insert(relation_binding.clone(), fact.clone());
 
                     self.do_handle_operation(*operation.clone(), next_bindings.clone());
                 }
@@ -211,12 +188,7 @@ impl<T: Timestamp> VM<T> {
                 for (id, term) in &attributes {
                     match term {
                         Term::Attribute(attribute) => {
-                            let fact = bindings
-                                .get(&FactRef(
-                                    attribute.relation().clone(),
-                                    attribute.alias().clone(),
-                                ))
-                                .unwrap();
+                            let fact = bindings.get(attribute.relation()).unwrap();
 
                             bound.push((
                                 id.clone(),
