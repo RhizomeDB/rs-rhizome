@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use im::{HashMap, HashSet};
 
 use crate::{datum::Datum, fact::Fact, id::AttributeId, timestamp::Timestamp};
 
@@ -10,7 +10,7 @@ pub struct VM<T: Timestamp> {
     pc: (usize, Option<usize>),
     program: Program,
     // TODO: Better data structure
-    relations: BTreeMap<Relation, HashSet<Fact<T>>>,
+    relations: HashMap<Relation, HashSet<Fact<T>>>,
 }
 
 impl<T: Timestamp> VM<T> {
@@ -19,7 +19,7 @@ impl<T: Timestamp> VM<T> {
             timestamp: T::default(),
             pc: (0, None),
             program,
-            relations: BTreeMap::<Relation, HashSet<Fact<T>>>::default(),
+            relations: HashMap::<Relation, HashSet<Fact<T>>>::default(),
         }
     }
 
@@ -83,7 +83,7 @@ impl<T: Timestamp> VM<T> {
     }
 
     fn handle_operation(&mut self, operation: Operation) {
-        let bindings: BTreeMap<RelationBinding, Fact<T>> = BTreeMap::default();
+        let bindings = HashMap::<RelationBinding, Fact<T>>::default();
 
         self.do_handle_operation(operation, bindings);
     }
@@ -91,7 +91,7 @@ impl<T: Timestamp> VM<T> {
     fn do_handle_operation(
         &mut self,
         operation: Operation,
-        bindings: BTreeMap<RelationBinding, Fact<T>>,
+        bindings: HashMap<RelationBinding, Fact<T>>,
     ) {
         match operation {
             Operation::Search {
@@ -101,7 +101,7 @@ impl<T: Timestamp> VM<T> {
                 operation,
             } => {
                 let relation_binding = RelationBinding::new(*relation.id(), alias);
-                let facts = self.relations.entry(relation).or_default().clone();
+                let facts = self.relations.get(&relation).cloned().unwrap_or_default();
 
                 for fact in facts.iter() {
                     let mut next_bindings = bindings.clone();
@@ -117,8 +117,7 @@ impl<T: Timestamp> VM<T> {
                                 }
                                 Term::Attribute(attribute) => next_bindings
                                     .get(attribute.relation())
-                                    .unwrap()
-                                    .attribute(attribute.id())
+                                    .map(|f| f.attribute(attribute.id()).unwrap())
                                     .unwrap(),
                                 Term::Literal(literal) => literal.datum(),
                             };
@@ -131,8 +130,7 @@ impl<T: Timestamp> VM<T> {
                                 }
                                 Term::Attribute(attribute) => next_bindings
                                     .get(attribute.relation())
-                                    .unwrap()
-                                    .attribute(attribute.id())
+                                    .map(|f| f.attribute(attribute.id()).unwrap())
                                     .unwrap(),
                                 Term::Literal(literal) => literal.datum(),
                             };
@@ -159,8 +157,9 @@ impl<T: Timestamp> VM<T> {
 
                             !self
                                 .relations
-                                .entry(not_in.relation().clone())
-                                .or_default()
+                                .get(not_in.relation())
+                                .cloned()
+                                .unwrap_or_default()
                                 .contains(&bound_fact)
                         }
                     });
@@ -190,45 +189,45 @@ impl<T: Timestamp> VM<T> {
 
                 let fact = Fact::new(*into.id(), self.timestamp.clone(), bound);
 
-                self.relations.entry(into).or_default().insert(fact);
+                self.relations = self.relations.alter(
+                    |old| match old {
+                        Some(facts) => Some(facts.update(fact)),
+                        None => Some(HashSet::from_iter([fact])),
+                    },
+                    into,
+                );
             }
         };
     }
 
     fn handle_merge(&mut self, from: Relation, into: Relation) {
-        let from_relation = self.relations.entry(from).or_default().clone();
+        let from_relation = self.relations.get(&from).cloned().unwrap_or_default();
 
-        self.relations
-            .entry(into)
-            .and_modify(|r| {
-                *r = r.union(&from_relation).cloned().collect();
-            })
-            .or_insert_with(|| from_relation.clone());
+        self.relations = self
+            .relations
+            .update_with(into, from_relation, |old, new| old.union(new));
     }
 
     fn handle_swap(&mut self, left: Relation, right: Relation) {
-        let left_relation = self.relations.entry(left.clone()).or_default().clone();
-        let right_relation = self.relations.entry(right.clone()).or_default().clone();
+        let left_relation = self.relations.get(&left).cloned().unwrap_or_default();
+        let right_relation = self.relations.get(&right).cloned().unwrap_or_default();
 
-        self.relations
-            .entry(left)
-            .and_modify(|r| *r = right_relation);
-
-        self.relations
-            .entry(right)
-            .and_modify(|r| *r = left_relation);
+        self.relations = self.relations.update(left, right_relation);
+        self.relations = self.relations.update(right, left_relation);
     }
 
     fn handle_purge(&mut self, relation: Relation) {
-        self.relations.entry(relation).and_modify(|r| {
-            *r = HashSet::default();
-        });
+        self.relations = self.relations.update(relation, HashSet::default());
     }
 
     fn handle_exit(&mut self, relations: Vec<Relation>) {
-        let is_done = relations
-            .iter()
-            .all(|r| self.relations.entry(r.clone()).or_default().is_empty());
+        let is_done = relations.iter().all(|r| {
+            self.relations
+                .get(r)
+                .cloned()
+                .unwrap_or_default()
+                .is_empty()
+        });
 
         if is_done {
             self.pc.1 = None;

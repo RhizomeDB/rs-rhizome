@@ -1,6 +1,5 @@
-use std::collections::BTreeMap;
-
 use derive_more::{Constructor, Display, From, IsVariant, TryInto};
+use im::HashMap;
 
 use crate::{
     datum::Datum,
@@ -99,7 +98,7 @@ pub enum Operation {
         operation: Box<Operation>,
     },
     Project {
-        attributes: BTreeMap<AttributeId, Term>,
+        attributes: HashMap<AttributeId, Term>,
         into: Relation,
     },
 }
@@ -132,13 +131,13 @@ impl Equality {
 
 #[derive(Clone, Debug)]
 pub struct NotIn {
-    attributes: BTreeMap<AttributeId, Term>,
+    attributes: HashMap<AttributeId, Term>,
     relation: Relation,
 }
 
 impl NotIn {
     pub fn new(attributes: Vec<(AttributeId, Term)>, relation: Relation) -> Self {
-        let attributes = BTreeMap::from_iter(attributes.into_iter());
+        let attributes = HashMap::from_iter(attributes.into_iter());
 
         Self {
             attributes,
@@ -146,7 +145,7 @@ impl NotIn {
         }
     }
 
-    pub fn attributes(&self) -> &BTreeMap<AttributeId, Term> {
+    pub fn attributes(&self) -> &HashMap<AttributeId, Term> {
         &self.attributes
     }
 
