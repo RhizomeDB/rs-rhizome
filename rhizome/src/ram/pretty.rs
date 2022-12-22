@@ -39,61 +39,85 @@ impl Pretty for RelationVersion {
 impl Pretty for Statement {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         match self {
-            Statement::Insert(insert) => RcDoc::text("insert").append(
-                RcDoc::hardline()
-                    .append(insert.operation().to_doc())
-                    .nest(2)
-                    .group(),
-            ),
-
-            Statement::Merge(merge) => RcDoc::text("merge ")
-                .append(merge.from().to_doc())
-                .append(RcDoc::text(" into "))
-                .append(merge.into().to_doc()),
-
-            Statement::Swap(swap) => RcDoc::text("swap ")
-                .append(swap.left().to_doc())
-                .append(RcDoc::text(" and "))
-                .append(swap.right().to_doc()),
-
-            Statement::Purge(purge) => RcDoc::text("purge ").append(purge.relation().to_doc()),
-
-            Statement::Loop(loop_statement) => {
-                let body_doc = RcDoc::hardline()
-                    .append(RcDoc::intersperse(
-                        loop_statement
-                            .body()
-                            .iter()
-                            .map(|statement| statement.to_doc()),
-                        RcDoc::text(";")
-                            .append(RcDoc::hardline())
-                            .append(RcDoc::hardline()),
-                    ))
-                    .nest(2)
-                    .group();
-
-                RcDoc::text("loop do")
-                    .append(body_doc)
-                    .append(RcDoc::text(";"))
-                    .append(RcDoc::hardline())
-                    .append(RcDoc::text("end"))
-            }
-
-            Statement::Exit(exit) => {
-                let relations_doc = RcDoc::intersperse(
-                    exit.relations().iter().map(|r| {
-                        RcDoc::text("count(")
-                            .append(r.to_doc())
-                            .append(RcDoc::text(") == 0"))
-                    }),
-                    RcDoc::text(" or "),
-                )
-                .nest(1)
-                .group();
-
-                RcDoc::text("exit if ").append(relations_doc)
-            }
+            Statement::Insert(inner) => inner.to_doc(),
+            Statement::Merge(inner) => inner.to_doc(),
+            Statement::Swap(inner) => inner.to_doc(),
+            Statement::Purge(inner) => inner.to_doc(),
+            Statement::Loop(inner) => inner.to_doc(),
+            Statement::Exit(inner) => inner.to_doc(),
         }
+    }
+}
+
+impl Pretty for Insert {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        RcDoc::text("insert").append(
+            RcDoc::hardline()
+                .append(self.operation().to_doc())
+                .nest(2)
+                .group(),
+        )
+    }
+}
+
+impl Pretty for Merge {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        RcDoc::text("merge ")
+            .append(self.from().to_doc())
+            .append(RcDoc::text(" into "))
+            .append(self.into().to_doc())
+    }
+}
+
+impl Pretty for Swap {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        RcDoc::text("swap ")
+            .append(self.left().to_doc())
+            .append(RcDoc::text(" and "))
+            .append(self.right().to_doc())
+    }
+}
+
+impl Pretty for Purge {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        RcDoc::text("purge ").append(self.relation().to_doc())
+    }
+}
+
+impl Pretty for Loop {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        let body_doc = RcDoc::hardline()
+            .append(RcDoc::intersperse(
+                self.body().iter().map(|statement| statement.to_doc()),
+                RcDoc::text(";")
+                    .append(RcDoc::hardline())
+                    .append(RcDoc::hardline()),
+            ))
+            .nest(2)
+            .group();
+
+        RcDoc::text("loop do")
+            .append(body_doc)
+            .append(RcDoc::text(";"))
+            .append(RcDoc::hardline())
+            .append(RcDoc::text("end"))
+    }
+}
+
+impl Pretty for Exit {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        let relations_doc = RcDoc::intersperse(
+            self.relations().iter().map(|r| {
+                RcDoc::text("count(")
+                    .append(r.to_doc())
+                    .append(RcDoc::text(") == 0"))
+            }),
+            RcDoc::text(" or "),
+        )
+        .nest(1)
+        .group();
+
+        RcDoc::text("exit if ").append(relations_doc)
     }
 }
 
