@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1671749275570,
+  "lastUpdate": 1671751471901,
   "repoUrl": "https://github.com/fission-codes/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -143,6 +143,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fission-codes/rs-rhizome/commit/6705ed622c377c2f9ad32170cbc040617f1f1d89"
         },
         "date": 1671749274791,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b8991b39fe4bd64d3118787b0809ddb47aec0093",
+          "message": "refactor: return anyhow::Result instead of Result (#8)",
+          "timestamp": "2022-12-22T15:23:31-08:00",
+          "tree_id": "9f78cfd2aec274b88581a346f17d17004b930a84",
+          "url": "https://github.com/fission-codes/rs-rhizome/commit/b8991b39fe4bd64d3118787b0809ddb47aec0093"
+        },
+        "date": 1671751470938,
         "tool": "cargo",
         "benches": [
           {
