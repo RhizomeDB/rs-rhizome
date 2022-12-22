@@ -1,4 +1,1 @@
-#[test]
-fn test_add() {
-    assert_eq!(rhizome::add(3, 2), 5);
-}
+// Placeholder because `cargo fmt` fails if this is empty
