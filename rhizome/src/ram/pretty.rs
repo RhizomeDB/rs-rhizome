@@ -221,11 +221,11 @@ impl Pretty for Attribute {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relation_doc = match self.relation().alias() {
             Some(alias) => RcDoc::concat([
-                RcDoc::as_string(self.relation().id().clone()),
+                RcDoc::as_string(*self.relation().id()),
                 RcDoc::text("_"),
                 RcDoc::as_string(alias),
             ]),
-            None => RcDoc::as_string(self.relation().id().clone()),
+            None => RcDoc::as_string(*self.relation().id()),
         };
 
         RcDoc::concat([relation_doc, RcDoc::text("."), RcDoc::as_string(self.id())])
@@ -261,18 +261,12 @@ mod tests {
         );
 
         let formula2 = NotIn::new(
-            vec![
-                ("age".into(), Literal::new(29).into()),
-                ("foo".into(), Literal::new("bar".to_string()).into()),
-            ],
+            vec![("age".into(), Literal::new(29).into())],
             Relation::new("person".into(), RelationVersion::Total),
         );
 
         let project = Operation::Project {
-            attributes: BTreeMap::from_iter([
-                ("age".into(), Literal::new(29).into()),
-                ("foo".into(), Literal::new("bar".to_string()).into()),
-            ]),
+            attributes: BTreeMap::from_iter([("age".into(), Literal::new(29).into())]),
             into: Relation::new("person".into(), RelationVersion::Total),
         };
 
@@ -288,8 +282,8 @@ mod tests {
 
         assert_eq!(
             r#"search person_total where
-(person_1.name = "Quinn" and (age: 29, foo: "bar") notin person_total) do
-  project (age: 29, foo: "bar") into person_total"#,
+(person_1.name = "Quinn" and (age: 29) notin person_total) do
+  project (age: 29) into person_total"#,
             String::from_utf8(w).unwrap()
         );
     }

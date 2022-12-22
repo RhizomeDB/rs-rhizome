@@ -94,10 +94,10 @@ pub struct Fact {
 }
 
 impl Fact {
-    pub fn new(relation_id: RelationId, args: Vec<(AttributeId, Literal)>) -> Self {
+    pub fn new(id: impl Into<RelationId>, args: Vec<(AttributeId, Literal)>) -> Self {
         Self {
-            head: relation_id,
-            args: BTreeMap::from_iter(args.into_iter()),
+            head: id.into(),
+            args: args.into_iter().map(|(k, v)| (k, v)).collect(),
         }
     }
 
@@ -123,12 +123,13 @@ pub struct Rule {
 
 impl Rule {
     pub fn new(
-        relation_id: RelationId,
-        args: Vec<(AttributeId, AttributeValue)>,
+        relation_id: impl Into<RelationId>,
+        args: Vec<(impl Into<AttributeId>, AttributeValue)>,
         body: Vec<BodyTerm>,
     ) -> Result<Self, Error> {
-        let head = relation_id;
-        let args = BTreeMap::from_iter(args.into_iter());
+        let head = relation_id.into();
+        let args: BTreeMap<AttributeId, AttributeValue> =
+            args.into_iter().map(|(k, v)| (k.into(), v)).collect();
 
         let mut positive_rhs_variables = BTreeSet::default();
         for term in &body {
@@ -139,13 +140,10 @@ impl Rule {
             }
         }
 
-        for (id, value) in &args {
+        for (id, value) in args.clone() {
             if let AttributeValue::Variable(variable) = value {
-                if !positive_rhs_variables.contains(variable) {
-                    return Err(Error::RuleNotRangeRestricted(
-                        id.clone(),
-                        variable.id.clone(),
-                    ));
+                if !positive_rhs_variables.contains(&variable) {
+                    return Err(Error::RuleNotRangeRestricted(id, variable.id));
                 }
             }
         }
@@ -197,8 +195,8 @@ impl Rule {
                     term.depends_on()
                         .iter()
                         .map(|d| ClauseDependency {
-                            from: d.clone(),
-                            to: self.head.clone(),
+                            from: *d,
+                            to: self.head,
                             polarity: polarity.clone(),
                         })
                         .collect()
@@ -297,8 +295,8 @@ impl BodyTerm {
 
     pub fn depends_on(&self) -> Vec<RelationId> {
         match self {
-            BodyTerm::Predicate(predicate) => vec![predicate.id.clone()],
-            BodyTerm::Negation(negation) => vec![negation.id.clone()],
+            BodyTerm::Predicate(predicate) => vec![predicate.id],
+            BodyTerm::Negation(negation) => vec![negation.id],
         }
     }
 
@@ -317,10 +315,13 @@ pub struct Predicate {
 }
 
 impl Predicate {
-    pub fn new(id: RelationId, args: Vec<(AttributeId, AttributeValue)>) -> Self {
+    pub fn new(
+        id: impl Into<RelationId>,
+        args: Vec<(impl Into<AttributeId>, AttributeValue)>,
+    ) -> Self {
         Self {
-            id,
-            args: BTreeMap::from_iter(args.into_iter()),
+            id: id.into(),
+            args: args.into_iter().map(|(k, v)| (k.into(), v)).collect(),
         }
     }
 
@@ -347,10 +348,13 @@ pub struct Negation {
 }
 
 impl Negation {
-    pub fn new(id: RelationId, args: Vec<(AttributeId, AttributeValue)>) -> Self {
+    pub fn new(
+        id: impl Into<RelationId>,
+        args: Vec<(impl Into<AttributeId>, AttributeValue)>,
+    ) -> Self {
         Self {
-            id,
-            args: BTreeMap::from_iter(args.into_iter()),
+            id: id.into(),
+            args: args.into_iter().map(|(k, v)| (k.into(), v)).collect(),
         }
     }
 
@@ -379,24 +383,24 @@ mod tests {
     #[test]
     fn test_range_restriction() {
         assert_eq!(
-            Err(Error::RuleNotRangeRestricted("p".into(), "X".into())),
+            Err(Error::RuleNotRangeRestricted(
+                AttributeId::new("p0"),
+                VariableId::new("X")
+            )),
             Rule::new(
-                "P".into(),
-                vec![("p".into(), Variable::new("X").into())],
-                vec![
-                    Negation::new("Q".into(), vec![("q".into(), Variable::new("X").into())]).into(),
-                ],
+                "p",
+                vec![("p0", Variable::new("X").into())],
+                vec![Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),],
             ),
         );
 
         assert!(matches!(
             Rule::new(
-                "P".into(),
-                vec![("p".into(), Variable::new("X").into())],
+                "p",
+                vec![("p0", Variable::new("X").into())],
                 vec![
-                    Predicate::new("T".into(), vec![("t".into(), Variable::new("X").into())])
-                        .into(),
-                    Negation::new("Q".into(), vec![("q".into(), Variable::new("X").into())]).into(),
+                    Predicate::new("t", vec![("t", Variable::new("X").into())]).into(),
+                    Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),
                 ],
             ),
             Ok(_)
@@ -407,27 +411,27 @@ mod tests {
     fn test_domain_independence() {
         assert_eq!(
             Err(Error::RuleNotDomainIndependent(
-                "Q".into(),
-                "q".into(),
-                "X".into()
+                RelationId::new("q"),
+                AttributeId::new("q0"),
+                VariableId::new("X")
             )),
             Rule::new(
-                "P".into(),
-                vec![],
+                "p",
+                vec![("p0", Variable::new("P").into())],
                 vec![
-                    Negation::new("Q".into(), vec![("q".into(), Variable::new("X").into())]).into(),
+                    Predicate::new("t", vec![("t0", Variable::new("P").into())]).into(),
+                    Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),
                 ],
             ),
         );
 
         assert!(matches!(
             Rule::new(
-                "P".into(),
-                vec![],
+                "p",
+                vec![("p0", Variable::new("X").into())],
                 vec![
-                    Predicate::new("T".into(), vec![("t".into(), Variable::new("X").into())])
-                        .into(),
-                    Negation::new("Q".into(), vec![("q".into(), Variable::new("X").into())]).into(),
+                    Predicate::new("t", vec![("t0", Variable::new("X").into())]).into(),
+                    Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),
                 ],
             ),
             Ok(_)

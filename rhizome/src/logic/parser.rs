@@ -138,15 +138,15 @@ fn upper_identifier(i: &str) -> IResult<&str, &str> {
 }
 
 fn attribute_id(i: &str) -> IResult<&str, AttributeId> {
-    map(lower_identifier, |s| AttributeId::new(String::from(s)))(i)
+    map(lower_identifier, AttributeId::new)(i)
 }
 
 fn relation_id(i: &str) -> IResult<&str, RelationId> {
-    map(lower_identifier, |s| RelationId::new(String::from(s)))(i)
+    map(lower_identifier, RelationId::new)(i)
 }
 
 fn variable_id(i: &str) -> IResult<&str, VariableId> {
-    map(upper_identifier, |s| VariableId::new(String::from(s)))(i)
+    map(upper_identifier, VariableId::new)(i)
 }
 
 fn variable(i: &str) -> IResult<&str, Variable> {
@@ -375,7 +375,7 @@ mod tests {
             predicate("foo(x: 1 )"),
             Ok((
                 "",
-                Predicate::new("foo".into(), vec![("x".into(), Literal::new(1).into())])
+                Predicate::new("foo", vec![("x", Literal::new(1).into())])
             ))
         );
 
@@ -384,10 +384,10 @@ mod tests {
             Ok((
                 "",
                 Predicate::new(
-                    "foo".into(),
+                    "foo",
                     vec![
-                        ("a".into(), Variable::new("X").into()),
-                        ("b".into(), Literal::new(2).into())
+                        ("a", Variable::new("X").into()),
+                        ("b", Literal::new(2).into())
                     ]
                 )
             ))
@@ -400,7 +400,7 @@ mod tests {
             negation("!foo(x: 1)"),
             Ok((
                 "",
-                Negation::new("foo".into(), vec![("x".into(), Literal::new(1).into())])
+                Negation::new("foo", vec![("x", Literal::new(1).into())])
             ))
         );
 
@@ -409,10 +409,10 @@ mod tests {
             Ok((
                 "",
                 Negation::new(
-                    "foo".into(),
+                    "foo",
                     vec![
-                        ("a".into(), Variable::new("X").into()),
-                        ("b".into(), Literal::new(2).into())
+                        ("a", Variable::new("X").into()),
+                        ("b", Literal::new(2).into())
                     ]
                 )
             ))
@@ -425,7 +425,7 @@ mod tests {
             body_term("foo(x: 1)"),
             Ok((
                 "",
-                Predicate::new("foo".into(), vec![("x".into(), Literal::new(1).into())]).into()
+                Predicate::new("foo", vec![("x", Literal::new(1).into())]).into()
             ))
         );
 
@@ -434,10 +434,10 @@ mod tests {
             Ok((
                 "",
                 Negation::new(
-                    "foo".into(),
+                    "foo",
                     vec![
-                        ("a".into(), Variable::new("X").into()),
-                        ("b".into(), Literal::new(2).into())
+                        ("a", Variable::new("X").into()),
+                        ("b", Literal::new(2).into())
                     ]
                 )
                 .into()
@@ -451,9 +451,7 @@ mod tests {
             body(":- foo(x: 1)."),
             Ok((
                 "",
-                vec![
-                    Predicate::new("foo".into(), vec![("x".into(), Literal::new(1).into())]).into()
-                ]
+                vec![Predicate::new("foo", vec![("x", Literal::new(1).into())]).into()]
             ))
         );
 
@@ -462,12 +460,12 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    Predicate::new("foo".into(), vec![("x".into(), Literal::new(1).into())]).into(),
+                    Predicate::new("foo", vec![("x", Literal::new(1).into())]).into(),
                     Negation::new(
-                        "foo".into(),
+                        "foo",
                         vec![
-                            ("a".into(), Variable::new("X").into()),
-                            ("b".into(), Literal::new(2).into())
+                            ("a", Variable::new("X").into()),
+                            ("b", Literal::new(2).into())
                         ]
                     )
                     .into()
@@ -480,10 +478,7 @@ mod tests {
     fn test_fact() {
         assert_eq!(
             fact("foo(x: 1)."),
-            Ok((
-                "",
-                Fact::new("foo".into(), vec![("x".into(), Literal::new(1))])
-            ))
+            Ok(("", Fact::new("foo", vec![("x".into(), Literal::new(1))])))
         );
 
         assert_eq!(
@@ -491,7 +486,7 @@ mod tests {
             Ok((
                 "",
                 Fact::new(
-                    "foo".into(),
+                    "foo",
                     vec![("x".into(), Literal::new(1)), ("y".into(), Literal::new(2))]
                 )
             ))
@@ -505,13 +500,9 @@ mod tests {
             Ok((
                 "",
                 Rule::new(
-                    "foo".into(),
-                    vec![("x".into(), Variable::new("X").into())],
-                    vec![Predicate::new(
-                        "bar".into(),
-                        vec![("x".into(), Variable::new("X").into())]
-                    )
-                    .into()]
+                    "foo",
+                    vec![("x", Variable::new("X").into())],
+                    vec![Predicate::new("bar", vec![("x", Variable::new("X").into())]).into()]
                 )
                 .unwrap()
             ))
@@ -522,13 +513,11 @@ mod tests {
             Ok((
                 "",
                 Rule::new(
-                    "foo".into(),
-                    vec![("x".into(), Variable::new("X").into())],
+                    "foo",
+                    vec![("x", Variable::new("X").into())],
                     vec![
-                        Predicate::new("bar".into(), vec![("x".into(), Variable::new("X").into())])
-                            .into(),
-                        Negation::new("baz".into(), vec![("x".into(), Variable::new("X").into())])
-                            .into()
+                        Predicate::new("bar", vec![("x", Variable::new("X").into())]).into(),
+                        Negation::new("baz", vec![("x", Variable::new("X").into())]).into()
                     ]
                 )
                 .unwrap()
@@ -542,7 +531,7 @@ mod tests {
             clause("foo(x: 5)."),
             Ok((
                 "",
-                Fact::new("foo".into(), vec![("x".into(), Literal::new(5))]).into()
+                Fact::new("foo", vec![("x".into(), Literal::new(5))]).into()
             ))
         );
 
@@ -551,13 +540,11 @@ mod tests {
             Ok((
                 "",
                 Rule::new(
-                    "foo".into(),
-                    vec![("x".into(), Variable::new("X").into())],
+                    "foo",
+                    vec![("x", Variable::new("X").into())],
                     vec![
-                        Predicate::new("bar".into(), vec![("x".into(), Variable::new("X").into())])
-                            .into(),
-                        Negation::new("baz".into(), vec![("x".into(), Variable::new("X").into())])
-                            .into()
+                        Predicate::new("bar", vec![("x", Variable::new("X").into())]).into(),
+                        Negation::new("baz", vec![("x", Variable::new("X").into())]).into()
                     ]
                 )
                 .unwrap()
@@ -584,13 +571,13 @@ mod tests {
                 "",
                 Program::new(vec![
                     Rule::new(
-                        "v".into(),
-                        vec![("v".into(), Variable::new("X").into())],
+                        "v",
+                        vec![("v", Variable::new("X").into())],
                         vec![Predicate::new(
-                            "r".into(),
+                            "r",
                             vec![
-                                ("r0".into(), Variable::new("X").into()),
-                                ("r1".into(), Variable::new("Y").into()),
+                                ("r0", Variable::new("X").into()),
+                                ("r1", Variable::new("Y").into()),
                             ],
                         )
                         .into()],
@@ -598,13 +585,13 @@ mod tests {
                     .unwrap()
                     .into(),
                     Rule::new(
-                        "v".into(),
-                        vec![("v".into(), Variable::new("Y").into())],
+                        "v",
+                        vec![("v", Variable::new("Y").into())],
                         vec![Predicate::new(
-                            "r".into(),
+                            "r",
                             vec![
-                                ("r0".into(), Variable::new("X").into()),
-                                ("r1".into(), Variable::new("Y").into()),
+                                ("r0", Variable::new("X").into()),
+                                ("r1", Variable::new("Y").into()),
                             ],
                         )
                         .into()],
@@ -612,16 +599,16 @@ mod tests {
                     .unwrap()
                     .into(),
                     Rule::new(
-                        "t".into(),
+                        "t",
                         vec![
-                            ("t0".into(), Variable::new("X").into()),
-                            ("t1".into(), Variable::new("Y").into()),
+                            ("t0", Variable::new("X").into()),
+                            ("t1", Variable::new("Y").into()),
                         ],
                         vec![Predicate::new(
-                            "r".into(),
+                            "r",
                             vec![
-                                ("r0".into(), Variable::new("X").into()),
-                                ("r1".into(), Variable::new("Y").into()),
+                                ("r0", Variable::new("X").into()),
+                                ("r1", Variable::new("Y").into()),
                             ],
                         )
                         .into()],
@@ -629,25 +616,25 @@ mod tests {
                     .unwrap()
                     .into(),
                     Rule::new(
-                        "t".into(),
+                        "t",
                         vec![
-                            ("t0".into(), Variable::new("X").into()),
-                            ("t1".into(), Variable::new("Y").into()),
+                            ("t0", Variable::new("X").into()),
+                            ("t1", Variable::new("Y").into()),
                         ],
                         vec![
                             Predicate::new(
-                                "t".into(),
+                                "t",
                                 vec![
-                                    ("t0".into(), Variable::new("X").into()),
-                                    ("t1".into(), Variable::new("Z").into()),
+                                    ("t0", Variable::new("X").into()),
+                                    ("t1", Variable::new("Z").into()),
                                 ],
                             )
                             .into(),
                             Predicate::new(
-                                "r".into(),
+                                "r",
                                 vec![
-                                    ("r0".into(), Variable::new("Z").into()),
-                                    ("r1".into(), Variable::new("Y").into()),
+                                    ("r0", Variable::new("Z").into()),
+                                    ("r1", Variable::new("Y").into()),
                                 ],
                             )
                             .into(),
@@ -656,27 +643,19 @@ mod tests {
                     .unwrap()
                     .into(),
                     Rule::new(
-                        "tc".into(),
+                        "tc",
                         vec![
-                            ("tc0".into(), Variable::new("X").into()),
-                            ("tc1".into(), Variable::new("Y").into()),
+                            ("tc0", Variable::new("X").into()),
+                            ("tc1", Variable::new("Y").into()),
                         ],
                         vec![
-                            Predicate::new(
-                                "v".into(),
-                                vec![("v".into(), Variable::new("X").into())]
-                            )
-                            .into(),
-                            Predicate::new(
-                                "v".into(),
-                                vec![("v".into(), Variable::new("Y").into())]
-                            )
-                            .into(),
+                            Predicate::new("v", vec![("v", Variable::new("X").into())]).into(),
+                            Predicate::new("v", vec![("v", Variable::new("Y").into())]).into(),
                             Negation::new(
-                                "t".into(),
+                                "t",
                                 vec![
-                                    ("t0".into(), Variable::new("X").into()),
-                                    ("t1".into(), Variable::new("Y").into()),
+                                    ("t0", Variable::new("X").into()),
+                                    ("t1", Variable::new("Y").into()),
                                 ],
                             )
                             .into(),

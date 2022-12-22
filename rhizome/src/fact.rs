@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::{
@@ -7,7 +6,7 @@ use crate::{
     timestamp::Timestamp,
 };
 
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize, Hash)]
+#[derive(Eq, PartialEq, Debug, Clone, Hash)]
 pub struct Fact<T: Timestamp> {
     name: RelationId,
     timestamp: T,

@@ -100,7 +100,7 @@ impl<T: Timestamp> VM<T> {
                 when,
                 operation,
             } => {
-                let relation_binding = RelationBinding::new(relation.id().clone(), alias);
+                let relation_binding = RelationBinding::new(*relation.id(), alias);
                 let facts = self.relations.entry(relation).or_default().clone();
 
                 for fact in facts.iter() {
@@ -149,21 +149,18 @@ impl<T: Timestamp> VM<T> {
                                         let fact = next_bindings.get(attribute.relation()).unwrap();
 
                                         bound.push((
-                                            id.clone(),
+                                            *id,
                                             fact.attribute(attribute.id()).unwrap().clone(),
                                         ));
                                     }
                                     Term::Literal(literal) => {
-                                        bound.push((id.clone(), literal.datum().clone()))
+                                        bound.push((*id, literal.datum().clone()))
                                     }
                                 }
                             }
 
-                            let bound_fact = Fact::new(
-                                not_in.relation().id().clone(),
-                                self.timestamp.clone(),
-                                bound,
-                            );
+                            let bound_fact =
+                                Fact::new(*not_in.relation().id(), self.timestamp.clone(), bound);
 
                             !self
                                 .relations
@@ -190,16 +187,13 @@ impl<T: Timestamp> VM<T> {
                         Term::Attribute(attribute) => {
                             let fact = bindings.get(attribute.relation()).unwrap();
 
-                            bound.push((
-                                id.clone(),
-                                fact.attribute(attribute.id()).unwrap().clone(),
-                            ));
+                            bound.push((*id, fact.attribute(attribute.id()).unwrap().clone()));
                         }
-                        Term::Literal(literal) => bound.push((id.clone(), literal.datum().clone())),
+                        Term::Literal(literal) => bound.push((*id, literal.datum().clone())),
                     }
                 }
 
-                let fact = Fact::new(into.id().clone(), self.timestamp.clone(), bound);
+                let fact = Fact::new(*into.id(), self.timestamp.clone(), bound);
 
                 self.relations.entry(into).or_default().insert(fact);
             }

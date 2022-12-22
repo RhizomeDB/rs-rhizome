@@ -1,58 +1,71 @@
-use derive_more::{AsRef, Constructor, Display, From};
-use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+use ustr::Ustr;
 
-#[derive(
-    Constructor,
-    Display,
-    From,
-    Serialize,
-    Deserialize,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-#[from(forward)]
-#[serde(transparent)]
-pub struct AttributeId(String);
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct AttributeId(Ustr);
 
-#[derive(
-    Constructor,
-    Display,
-    From,
-    Serialize,
-    Deserialize,
-    AsRef,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-#[from(forward)]
-#[serde(transparent)]
-pub struct RelationId(String);
+impl AttributeId {
+    pub fn new(id: &str) -> Self {
+        let symbol = Ustr::from(id);
 
-#[derive(
-    Constructor,
-    Display,
-    From,
-    Serialize,
-    Deserialize,
-    AsRef,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-#[from(forward)]
-#[serde(transparent)]
-pub struct VariableId(String);
+        Self(symbol)
+    }
+}
+
+impl Display for AttributeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
+impl From<&str> for AttributeId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct RelationId(Ustr);
+
+impl RelationId {
+    pub fn new(id: &str) -> Self {
+        let symbol = Ustr::from(id);
+
+        Self(symbol)
+    }
+}
+
+impl Display for RelationId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
+impl From<&str> for RelationId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct VariableId(Ustr);
+
+impl VariableId {
+    pub fn new(id: &str) -> Self {
+        let symbol = Ustr::from(id);
+
+        Self(symbol)
+    }
+}
+
+impl Display for VariableId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
+impl From<&str> for VariableId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
