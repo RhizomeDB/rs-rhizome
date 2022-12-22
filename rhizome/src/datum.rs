@@ -1,7 +1,6 @@
 use derive_more::{From, TryInto};
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, From, Serialize, Deserialize, Eq, Hash, PartialEq, TryInto)]
+#[derive(Debug, Clone, From, Eq, Hash, PartialEq, TryInto)]
 pub enum Datum {
     Bool(bool),
     Int(i64),
