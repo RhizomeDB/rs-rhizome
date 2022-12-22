@@ -5,7 +5,14 @@ use petgraph::{
     Direction,
 };
 
-use crate::{error::Error, id::RelationId, ram};
+use crate::{
+    error::Error,
+    id::RelationId,
+    ram::{
+        self,
+        ast::{Exit, Insert, Loop, Merge, Purge, Swap},
+    },
+};
 
 use super::ast::*;
 
@@ -50,19 +57,19 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
 
         // Merge the output of the static rules into delta, to be used in the loop
         for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| *r.head())) {
-            statements.push(ram::ast::Statement::Merge {
-                from: ram::ast::Relation::new(relation, ram::ast::RelationVersion::Total),
-                into: ram::ast::Relation::new(relation, ram::ast::RelationVersion::Delta),
-            });
+            statements.push(ram::ast::Statement::Merge(Merge::new(
+                ram::ast::Relation::new(relation, ram::ast::RelationVersion::Total),
+                ram::ast::Relation::new(relation, ram::ast::RelationVersion::Delta),
+            )));
         }
 
         let mut loop_body: Vec<ram::ast::Statement> = Vec::default();
 
         // Purge new, computed during the last loop iteration
         for relation in stratum.relations() {
-            loop_body.push(ram::ast::Statement::Purge {
-                relation: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
-            });
+            loop_body.push(ram::ast::Statement::Purge(Purge::new(
+                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
+            )));
         }
 
         // Evaluate dynamic rules within the loop, inserting into new
@@ -73,28 +80,28 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         }
 
         // Exit the loop if all of the dynamic relations have reached a fixed point
-        loop_body.push(ram::ast::Statement::Exit {
-            relations: stratum
+        loop_body.push(ram::ast::Statement::Exit(Exit::new(
+            stratum
                 .relations()
                 .iter()
                 .map(|id| ram::ast::Relation::new(*id, ram::ast::RelationVersion::New))
                 .collect(),
-        });
+        )));
 
         // Merge new into total, then swap new and delta
         for relation in stratum.relations() {
-            loop_body.push(ram::ast::Statement::Merge {
-                from: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
-                into: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Total),
-            });
+            loop_body.push(ram::ast::Statement::Merge(Merge::new(
+                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
+                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Total),
+            )));
 
-            loop_body.push(ram::ast::Statement::Swap {
-                left: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
-                right: ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Delta),
-            });
+            loop_body.push(ram::ast::Statement::Swap(Swap::new(
+                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
+                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Delta),
+            )));
         }
 
-        statements.push(ram::ast::Statement::Loop { body: loop_body })
+        statements.push(ram::ast::Statement::Loop(Loop::new(loop_body)))
     } else {
         // Merge facts into total
         for fact in stratum.facts() {
@@ -124,12 +131,12 @@ pub fn lower_fact_to_ram(
         .map(|(k, v)| (*k, ram::ast::Literal::new(*v.datum()).into()))
         .collect();
 
-    Ok(ram::ast::Statement::Insert {
+    Ok(ram::ast::Statement::Insert(Insert {
         operation: ram::ast::Operation::Project {
             attributes,
             into: ram::ast::Relation::new(*fact.head(), version),
         },
-    })
+    }))
 }
 
 struct TermMetadata {
@@ -349,9 +356,9 @@ pub fn lower_rule_to_ram(
             }
         }
 
-        statements.push(ram::ast::Statement::Insert {
+        statements.push(ram::ast::Statement::Insert(Insert {
             operation: previous,
-        });
+        }));
     }
 
     Ok(statements)
