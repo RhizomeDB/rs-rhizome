@@ -168,9 +168,9 @@ impl<T: Timestamp> VM<T> {
                         continue;
                     }
 
-                    next_bindings.insert(relation_binding.clone(), fact.clone());
+                    next_bindings.insert(relation_binding, fact.clone());
 
-                    self.do_handle_operation(*operation.clone(), next_bindings.clone());
+                    self.do_handle_operation(*operation.clone(), next_bindings);
                 }
             }
             Operation::Project { attributes, into } => {
