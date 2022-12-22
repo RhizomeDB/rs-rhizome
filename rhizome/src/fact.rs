@@ -25,7 +25,7 @@ impl<T: Timestamp> Fact<T> {
         }
     }
 
-    pub fn attribute(&self, id: &AttributeId) -> Option<Datum> {
-        self.attributes.get(&id.clone()).cloned()
+    pub fn attribute(&self, id: &AttributeId) -> Option<&Datum> {
+        self.attributes.get(id)
     }
 }
