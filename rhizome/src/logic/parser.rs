@@ -1,3 +1,4 @@
+use anyhow::Result;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while_m_n},
@@ -14,15 +15,15 @@ use super::ast::{
 
 use crate::{
     datum::Datum,
-    error::Error,
+    error::{error, Error},
     id::{AttributeId, RelationId, VariableId},
 };
 
-pub fn parse(i: &str) -> Result<Program, Error> {
+pub fn parse(i: &str) -> Result<Program> {
     match program(i) {
         Ok((_, program)) => Ok(program),
         // Propagate Error::* errors (RuleNotRangeRestricted, etc)
-        Err(_) => Err(Error::ProgramParseError),
+        Err(_) => error(Error::ProgramParseError),
     }
 }
 
