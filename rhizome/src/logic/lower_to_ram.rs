@@ -157,22 +157,19 @@ pub fn lower_rule_to_ram(
     stratum: &Stratum,
     version: ram::ast::RelationVersion,
 ) -> Result<Vec<ram::ast::Statement>, Error> {
-    let mut next_alias = HashMap::<RelationId, Option<ram::ast::AliasId>>::default();
+    let mut next_alias = HashMap::<RelationId, ram::ast::AliasId>::default();
     let mut bindings = HashMap::<Variable, ram::ast::Term>::default();
     let mut term_metadata = Vec::<(BodyTerm, TermMetadata)>::default();
 
     for body_term in rule.body() {
         match body_term {
             BodyTerm::Predicate(predicate) => {
-                let alias = next_alias.get(predicate.id()).cloned().unwrap_or_default();
+                let alias = next_alias.get(predicate.id()).copied();
 
-                // TODO: Remove the extra layer of Option
-                next_alias = next_alias.alter(
-                    |old| match old {
-                        Some(alias) => Some(alias.map(|a| a.next())),
-                        None => Some(Some(ram::ast::AliasId::new(0))),
-                    },
+                next_alias = next_alias.update_with(
                     *predicate.id(),
+                    ram::ast::AliasId::default(),
+                    |old, _| old.next(),
                 );
 
                 for (attribute_id, attribute_value) in predicate.args().clone() {
