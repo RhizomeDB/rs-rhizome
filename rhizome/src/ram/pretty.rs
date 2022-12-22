@@ -2,15 +2,12 @@ use pretty::RcDoc;
 
 use crate::{datum::Datum, pretty::Pretty};
 
-use super::{
-    Attribute, Equality, Formula, Literal, NotIn, Operation, Program, Relation, RelationVersion,
-    Statement, Term,
-};
+use super::ast::*;
 
 impl Pretty for Program {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::intersperse(
-            self.statements.iter().map(|statement| statement.to_doc()),
+            self.statements().iter().map(|statement| statement.to_doc()),
             RcDoc::text(";")
                 .append(RcDoc::hardline())
                 .append(RcDoc::hardline()),
@@ -22,9 +19,9 @@ impl Pretty for Program {
 impl Pretty for Relation {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::concat([
-            RcDoc::as_string(self.id.clone()),
+            RcDoc::as_string(self.id()),
             RcDoc::text("_"),
-            self.version.to_doc(),
+            self.version().to_doc(),
         ])
     }
 }
@@ -177,14 +174,19 @@ impl Pretty for Formula {
 
 impl Pretty for Equality {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        RcDoc::concat([self.left.to_doc(), RcDoc::text(" = "), self.right.to_doc()]).group()
+        RcDoc::concat([
+            self.left().to_doc(),
+            RcDoc::text(" = "),
+            self.right().to_doc(),
+        ])
+        .group()
     }
 }
 
 impl Pretty for NotIn {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let attributes_doc = RcDoc::intersperse(
-            self.attributes.iter().map(|(attribute, term)| {
+            self.attributes().iter().map(|(attribute, term)| {
                 RcDoc::concat([
                     RcDoc::as_string(attribute),
                     RcDoc::text(": "),
@@ -201,7 +203,7 @@ impl Pretty for NotIn {
             attributes_doc,
             RcDoc::text(")"),
             RcDoc::text(" notin "),
-            self.relation.to_doc(),
+            self.relation().to_doc(),
         ])
     }
 }
@@ -219,11 +221,11 @@ impl Pretty for Attribute {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relation_doc = match self.alias() {
             Some(alias) => RcDoc::concat([
-                RcDoc::as_string(self.relation.clone()),
+                RcDoc::as_string(self.relation().clone()),
                 RcDoc::text("_"),
                 RcDoc::as_string(alias),
             ]),
-            None => RcDoc::as_string(self.relation.clone()),
+            None => RcDoc::as_string(self.relation().clone()),
         };
 
         RcDoc::concat([relation_doc, RcDoc::text("."), RcDoc::as_string(self.id())])
@@ -245,16 +247,14 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::collections::BTreeMap;
 
-    use crate::ram::{Equality, NotIn};
-
     use super::*;
 
     #[test]
     fn test() {
-        let formula1 = Formula::Equality(Equality {
-            left: Attribute::new("name".into(), "person".into(), Some(1.into())).into(),
-            right: Literal::new("Quinn".to_string()).into(),
-        });
+        let formula1 = Equality::new(
+            Attribute::new("name".into(), "person".into(), Some(1.into())).into(),
+            Literal::new("Quinn".to_string()).into(),
+        );
 
         let formula2 = NotIn::new(
             vec![
@@ -262,8 +262,7 @@ mod tests {
                 ("foo".into(), Literal::new("bar".to_string()).into()),
             ],
             Relation::new("person".into(), RelationVersion::Total),
-        )
-        .into();
+        );
 
         let project = Operation::Project {
             attributes: BTreeMap::from_iter([
@@ -276,7 +275,7 @@ mod tests {
         let ast = Operation::Search {
             relation: Relation::new("person".into(), RelationVersion::Total),
             alias: None,
-            when: vec![formula1, formula2],
+            when: vec![formula1.into(), formula2.into()],
             operation: Box::new(project),
         };
 
