@@ -197,7 +197,7 @@ impl Rule {
                         .map(|d| ClauseDependency {
                             from: *d,
                             to: self.head,
-                            polarity: polarity.clone(),
+                            polarity,
                         })
                         .collect()
                 } else {
@@ -218,7 +218,7 @@ impl Rule {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ClauseDependency {
     from: RelationId,
     to: RelationId,
@@ -239,19 +239,19 @@ impl ClauseDependency {
     }
 }
 
-#[derive(Debug, Clone, IsVariant)]
+#[derive(Debug, Clone, Copy, IsVariant)]
 pub enum BodyTermPolarity {
     Positive,
     Negative,
 }
 
-#[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
+#[derive(Debug, Clone, Copy, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum AttributeValue {
     Literal(Literal),
     Variable(Variable),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Literal {
     datum: Datum,
 }
@@ -268,7 +268,7 @@ impl Literal {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Hash, Ord)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Hash, Ord)]
 pub struct Variable {
     id: VariableId,
 }
@@ -336,7 +336,7 @@ impl Predicate {
     pub fn variables(&self) -> HashSet<Variable> {
         self.args
             .iter()
-            .filter_map(|(_, v)| Variable::try_from(v.clone()).ok())
+            .filter_map(|(_, v)| Variable::try_from(*v).ok())
             .collect()
     }
 }
@@ -369,7 +369,7 @@ impl Negation {
     pub fn variables(&self) -> HashSet<Variable> {
         self.args
             .iter()
-            .filter_map(|(_, v)| Variable::try_from(v.clone()).ok())
+            .filter_map(|(_, v)| Variable::try_from(*v).ok())
             .collect()
     }
 }

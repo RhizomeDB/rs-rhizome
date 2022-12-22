@@ -6,7 +6,7 @@ use crate::{
     id::{AttributeId, RelationId},
 };
 
-#[derive(Constructor, Clone, Debug, Display, From, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Constructor, Clone, Copy, Debug, Display, From, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct AliasId(usize);
 
 impl AliasId {
@@ -30,7 +30,7 @@ impl Program {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct RelationBinding {
     id: RelationId,
     alias: Option<AliasId>,
@@ -109,7 +109,7 @@ pub enum Formula {
     NotIn(NotIn),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Equality {
     left: Term,
     right: Term,
@@ -154,13 +154,13 @@ impl NotIn {
     }
 }
 
-#[derive(Clone, Debug, From, IsVariant, TryInto)]
+#[derive(Clone, Copy, Debug, From, IsVariant, TryInto)]
 pub enum Term {
     Attribute(Attribute),
     Literal(Literal),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Attribute {
     id: AttributeId,
     relation: RelationBinding,
@@ -180,7 +180,7 @@ impl Attribute {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Literal {
     datum: Datum,
 }

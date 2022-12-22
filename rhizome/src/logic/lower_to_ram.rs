@@ -181,10 +181,10 @@ pub fn lower_rule_to_ram(
                         AttributeValue::Literal(_) => continue,
                         AttributeValue::Variable(variable) if !bindings.contains_key(&variable) => {
                             bindings.insert(
-                                variable.clone(),
+                                variable,
                                 ram::ast::Attribute::new(
                                     attribute_id,
-                                    ram::ast::RelationBinding::new(*predicate.id(), alias.clone()),
+                                    ram::ast::RelationBinding::new(*predicate.id(), alias),
                                 )
                                 .into(),
                             )
@@ -196,7 +196,7 @@ pub fn lower_rule_to_ram(
                 term_metadata.push((
                     body_term.clone(),
                     TermMetadata::new(
-                        alias.clone(),
+                        alias,
                         bindings.clone(),
                         stratum.is_recursive() && stratum.relations().contains(predicate.id()),
                     ),
@@ -211,7 +211,7 @@ pub fn lower_rule_to_ram(
         .iter()
         .map(|(k, v)| match v {
             AttributeValue::Literal(c) => (*k, ram::ast::Literal::new(*c.datum()).into()),
-            AttributeValue::Variable(v) => (*k, bindings.get(v).unwrap().clone()),
+            AttributeValue::Variable(v) => (*k, *bindings.get(v).unwrap()),
         })
         .collect();
 
@@ -259,7 +259,7 @@ pub fn lower_rule_to_ram(
                                         *attribute_id,
                                         ram::ast::RelationBinding::new(
                                             *predicate.id(),
-                                            metadata.alias.clone(),
+                                            metadata.alias,
                                         ),
                                     )
                                     .into(),
@@ -281,11 +281,11 @@ pub fn lower_rule_to_ram(
                                                 *attribute_id,
                                                 ram::ast::RelationBinding::new(
                                                     *predicate.id(),
-                                                    metadata.alias.clone(),
+                                                    metadata.alias,
                                                 ),
                                             )
                                             .into(),
-                                            bound_value.clone(),
+                                            *bound_value,
                                         )
                                         .into();
 
@@ -314,7 +314,7 @@ pub fn lower_rule_to_ram(
                                     (*k, ram::ast::Literal::new(*literal.datum()).into())
                                 }
                                 AttributeValue::Variable(variable) => {
-                                    (*k, metadata.bindings.get(variable).unwrap().clone())
+                                    (*k, *metadata.bindings.get(variable).unwrap())
                                 }
                             })
                             .collect();
@@ -340,7 +340,7 @@ pub fn lower_rule_to_ram(
                     previous = ram::ast::Operation::Search {
                         // TODO: semi-naive
                         relation: ram::ast::Relation::new(*predicate.id(), version),
-                        alias: metadata.alias.clone(),
+                        alias: metadata.alias,
                         when: formulae,
                         operation: Box::new(previous),
                     };
@@ -411,7 +411,7 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>, Error> {
             let to = nodes.get(dependency.to()).unwrap();
             let from = nodes.get(dependency.from()).unwrap();
 
-            edg.add_edge(*from, *to, dependency.polarity().clone());
+            edg.add_edge(*from, *to, *dependency.polarity());
         }
     }
 
