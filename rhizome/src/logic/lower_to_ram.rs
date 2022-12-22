@@ -122,7 +122,7 @@ pub fn lower_fact_to_ram(
     let attributes = fact
         .args()
         .iter()
-        .map(|(k, v)| (*k, ram::ast::Literal::new(v.datum().clone()).into()))
+        .map(|(k, v)| (*k, ram::ast::Literal::new(*v.datum()).into()))
         .collect();
 
     Ok(ram::ast::Statement::Insert {
@@ -209,7 +209,7 @@ pub fn lower_rule_to_ram(
         .args()
         .iter()
         .map(|(k, v)| match v {
-            AttributeValue::Literal(c) => (*k, ram::ast::Literal::new(c.datum().clone()).into()),
+            AttributeValue::Literal(c) => (*k, ram::ast::Literal::new(*c.datum()).into()),
             AttributeValue::Variable(v) => (*k, bindings.get(v).unwrap().clone()),
         })
         .collect();
@@ -262,7 +262,7 @@ pub fn lower_rule_to_ram(
                                         ),
                                     )
                                     .into(),
-                                    ram::ast::Literal::new(literal.datum().clone()).into(),
+                                    ram::ast::Literal::new(*literal.datum()).into(),
                                 )
                                 .into();
 
@@ -310,7 +310,7 @@ pub fn lower_rule_to_ram(
                             .iter()
                             .map(|(k, v)| match v {
                                 AttributeValue::Literal(literal) => {
-                                    (*k, ram::ast::Literal::new(literal.datum().clone()).into())
+                                    (*k, ram::ast::Literal::new(*literal.datum()).into())
                                 }
                                 AttributeValue::Variable(variable) => {
                                     (*k, metadata.bindings.get(variable).unwrap().clone())

@@ -112,9 +112,9 @@ fn datum(i: &str) -> IResult<&str, Datum> {
     preceded(
         sp,
         alt((
-            map(boolean, Datum::new),
-            map(int, Datum::new),
-            map(string, Datum::new),
+            map(boolean, Datum::bool),
+            map(int, Datum::int),
+            map(string, Datum::string),
         )),
     )(i)
 }
@@ -291,11 +291,11 @@ mod tests {
 
     #[test]
     fn test_datum() {
-        assert_eq!(datum("true"), Ok(("", Datum::new(true))));
-        assert_eq!(datum("-158"), Ok(("", Datum::new(-158))));
+        assert_eq!(datum("true"), Ok(("", Datum::bool(true))));
+        assert_eq!(datum("-158"), Ok(("", Datum::int(-158))));
         assert_eq!(
             datum(r#""Emoji! \"👀\"""#),
-            Ok(("", Datum::new("Emoji! \"👀\"".to_string())))
+            Ok(("", Datum::string("Emoji! \"👀\"")))
         );
     }
 
@@ -305,7 +305,7 @@ mod tests {
         assert_eq!(literal("-158"), Ok(("", Literal::new(-158))));
         assert_eq!(
             literal(r#""Emoji! \"👀\"""#),
-            Ok(("", Literal::new("Emoji! \"👀\"".to_string())))
+            Ok(("", Literal::new(Datum::string("Emoji! \"👀\""))))
         );
     }
 
