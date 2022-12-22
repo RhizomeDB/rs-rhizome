@@ -153,7 +153,7 @@ impl<T: Timestamp> VM<T> {
                             }
 
                             let bound_fact =
-                                Fact::new(*not_in.relation().id(), self.timestamp.clone(), bound);
+                                Fact::new(*not_in.relation().id(), self.timestamp, bound);
 
                             !self
                                 .relations
@@ -187,7 +187,7 @@ impl<T: Timestamp> VM<T> {
                     }
                 }
 
-                let fact = Fact::new(*into.id(), self.timestamp.clone(), bound);
+                let fact = Fact::new(*into.id(), self.timestamp, bound);
 
                 self.relations = self.relations.alter(
                     |old| match old {
