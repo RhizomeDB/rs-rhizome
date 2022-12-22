@@ -1,4 +1,4 @@
-use derive_more::{Constructor, Display, From, IsVariant, TryInto};
+use derive_more::{Display, From, IsVariant, TryInto};
 use im::HashMap;
 
 use crate::{
@@ -6,12 +6,22 @@ use crate::{
     id::{AttributeId, RelationId},
 };
 
-#[derive(Constructor, Clone, Copy, Debug, Display, From, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Display, From, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct AliasId(usize);
 
 impl AliasId {
+    pub fn new() -> Self {
+        Self(0)
+    }
+
     pub fn next(&self) -> Self {
-        AliasId::new(self.0 + 1)
+        Self(self.0 + 1)
+    }
+}
+
+impl Default for AliasId {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
