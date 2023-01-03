@@ -2,8 +2,10 @@ use std::{cmp::Ordering, fmt::Debug, hash::Hash};
 
 use crate::lattice::Lattice;
 
-pub trait Timestamp: Lattice + Ord + Debug + Clone + Copy + Eq + Hash + Default + 'static {
-    type Epoch;
+pub trait Timestamp:
+    Lattice + Ord + Debug + Clone + Copy + Eq + Hash + Default + Ord + PartialOrd + PartialEq
+{
+    type Epoch: PartialEq + Eq;
     type Iteration;
 
     fn epoch(&self) -> Self::Epoch;

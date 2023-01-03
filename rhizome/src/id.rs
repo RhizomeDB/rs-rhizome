@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use ustr::Ustr;
 
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[repr(transparent)]
 pub struct AttributeId(Ustr);
 
 impl AttributeId {
@@ -10,11 +12,15 @@ impl AttributeId {
 
         Self(symbol)
     }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 impl Display for AttributeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_str())
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -24,7 +30,8 @@ impl From<&str> for AttributeId {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[repr(transparent)]
 pub struct RelationId(Ustr);
 
 impl RelationId {
@@ -33,11 +40,15 @@ impl RelationId {
 
         Self(symbol)
     }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 impl Display for RelationId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_str())
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -48,6 +59,7 @@ impl From<&str> for RelationId {
 }
 
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(transparent)]
 pub struct VariableId(Ustr);
 
 impl VariableId {
@@ -56,11 +68,15 @@ impl VariableId {
 
         Self(symbol)
     }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 impl Display for VariableId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_str())
+        write!(f, "{}", self.as_str())
     }
 }
 
