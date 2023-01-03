@@ -23,6 +23,25 @@ impl<T: Timestamp> VM<T> {
         }
     }
 
+    pub fn relation(&self, id: &str) -> HashSet<Fact<T>> {
+        self.relations
+            .get(&Relation::new(id.into(), RelationVersion::Total))
+            .unwrap()
+            .clone()
+    }
+
+    pub fn step_epoch(&mut self) {
+        let start = self.timestamp;
+
+        loop {
+            self.step();
+
+            if self.timestamp.epoch() != start.epoch() {
+                break;
+            }
+        }
+    }
+
     pub fn step(&mut self) {
         match self.load_statement().clone() {
             Statement::Insert(insert) => self.handle_operation(insert.operation()),
@@ -245,6 +264,7 @@ impl<T: Timestamp> VM<T> {
 
 #[cfg(test)]
 mod tests {
+    use im::hashset;
     use pretty_assertions::assert_eq;
 
     use crate::{
@@ -272,19 +292,62 @@ mod tests {
         let ast = lower_to_ram::lower_to_ram(&program).unwrap();
         let mut vm: VM<PairTimestamp> = VM::new(ast);
 
-        for _ in 0..20 {
-            vm.step();
-        }
+        vm.step_epoch();
 
-        // TODO: Test specific derived tuples once I actually implement
-        // relations using a data structure that supports easier inspection
         assert_eq!(
-            10,
-            vm.relations
-                .clone()
-                .get(&Relation::new("path".into(), RelationVersion::Total))
-                .unwrap()
-                .len()
+            vm.relation("path"),
+            hashset![
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 0,),
+                    vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 1,),
+                    vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 0,),
+                    vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 0,),
+                    vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 2,),
+                    vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 3,),
+                    vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 1,),
+                    vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 1,),
+                    vec![("from".into(), 0.into()), ("to".into(), 2.into())],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 0,),
+                    vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    PairTimestamp(0, 2,),
+                    vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
+                ),
+            ]
         );
     }
 }

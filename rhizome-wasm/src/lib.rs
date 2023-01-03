@@ -6,11 +6,11 @@
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-/// Add two integers together.
-#[wasm_bindgen]
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
+pub mod fact;
+pub mod program;
+
+pub use fact::*;
+pub use program::*;
 
 //------------------------------------------------------------------------------
 // Utilities
