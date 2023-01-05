@@ -23,6 +23,21 @@ pub trait Timestamp:
     fn advance_iteration(&self) -> Self;
 }
 
+impl Timestamp for () {
+    type Epoch = ();
+    type Iteration = ();
+
+    fn epoch(&self) -> Self::Epoch {}
+    fn iteration(&self) -> Self::Iteration {}
+
+    fn clock_start(&self) -> Self {}
+    fn epoch_start(&self) -> Self {}
+    fn clock_end(&self) -> Self {}
+    fn epoch_end(&self) -> Self {}
+    fn advance_epoch(&self) -> Self {}
+    fn advance_iteration(&self) -> Self {}
+}
+
 #[derive(Default, Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct PairTimestamp(pub u32, pub u32);
 
