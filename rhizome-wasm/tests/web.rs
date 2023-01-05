@@ -22,7 +22,7 @@ path(from: X, to: Y) :- edge(from: X, to: Y).
 path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
     "#;
 
-    let program = Program::parse(source).unwrap();
+    let program = Program::new(source).unwrap();
     let results = Program::run(&program, "path").unwrap();
 
     let expected = BTreeSet::from([
