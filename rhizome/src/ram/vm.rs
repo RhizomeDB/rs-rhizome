@@ -26,8 +26,8 @@ impl<T: Timestamp> VM<T> {
     pub fn relation(&self, id: &str) -> HashSet<Fact<T>> {
         self.relations
             .get(&Relation::new(id.into(), RelationVersion::Total))
-            .unwrap()
-            .clone()
+            .cloned()
+            .unwrap_or_else(HashSet::new)
     }
 
     pub fn step_epoch(&mut self) {
