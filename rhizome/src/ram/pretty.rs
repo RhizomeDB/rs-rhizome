@@ -1,6 +1,6 @@
 use pretty::RcDoc;
 
-use crate::{datum::Datum, pretty::Pretty};
+use crate::pretty::Pretty;
 
 use super::ast::*;
 
@@ -272,11 +272,7 @@ impl Pretty for Attribute {
 
 impl Pretty for Literal {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        match self.datum() {
-            Datum::Bool(data) => RcDoc::as_string(data),
-            Datum::Int(data) => RcDoc::as_string(data),
-            Datum::String(data) => RcDoc::as_string(format!("{data:?}")),
-        }
+        RcDoc::as_string(self.datum())
     }
 }
 
@@ -285,7 +281,10 @@ mod tests {
     use im::hashmap;
     use pretty_assertions::assert_eq;
 
-    use crate::ram::ast::{Project, Search};
+    use crate::{
+        datum::Datum,
+        ram::ast::{Project, Search},
+    };
 
     use super::*;
 
@@ -322,7 +321,7 @@ mod tests {
 
         assert_eq!(
             r#"search person_total where
-(person_1.name = u!("Quinn") and (age: 29) notin person_total) do
+(person_1.name = "Quinn" and (age: 29) notin person_total) do
   project (age: 29) into person_total"#,
             String::from_utf8(w).unwrap()
         );
