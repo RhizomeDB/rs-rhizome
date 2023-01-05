@@ -59,8 +59,8 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         // Merge the output of the static rules into delta, to be used in the loop
         for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| *r.head())) {
             statements.push(ram::ast::Statement::Merge(Merge::new(
-                ram::ast::Relation::new(relation, ram::ast::RelationVersion::Total),
-                ram::ast::Relation::new(relation, ram::ast::RelationVersion::Delta),
+                ram::ast::RelationRef::new(relation, ram::ast::RelationVersion::Total),
+                ram::ast::RelationRef::new(relation, ram::ast::RelationVersion::Delta),
             )));
         }
 
@@ -69,7 +69,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         // Purge new, computed during the last loop iteration
         for relation in stratum.relations() {
             loop_body.push(ram::ast::Statement::Purge(Purge::new(
-                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::New),
             )));
         }
 
@@ -85,20 +85,20 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
             stratum
                 .relations()
                 .iter()
-                .map(|id| ram::ast::Relation::new(*id, ram::ast::RelationVersion::New))
+                .map(|id| ram::ast::RelationRef::new(*id, ram::ast::RelationVersion::New))
                 .collect(),
         )));
 
         // Merge new into total, then swap new and delta
         for relation in stratum.relations() {
             loop_body.push(ram::ast::Statement::Merge(Merge::new(
-                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
-                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Total),
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::New),
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::Total),
             )));
 
             loop_body.push(ram::ast::Statement::Swap(Swap::new(
-                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::New),
-                ram::ast::Relation::new(*relation, ram::ast::RelationVersion::Delta),
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::New),
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::Delta),
             )));
         }
 
@@ -135,7 +135,7 @@ pub fn lower_fact_to_ram(
     Ok(ram::ast::Statement::Insert(Insert::new(
         ram::ast::Operation::Project(Project::new(
             attributes,
-            ram::ast::Relation::new(*fact.head(), version),
+            ram::ast::RelationRef::new(*fact.head(), version),
         )),
     )))
 }
@@ -221,7 +221,7 @@ pub fn lower_rule_to_ram(
 
     let projection = ram::ast::Operation::Project(Project::new(
         projection_attributes,
-        ram::ast::Relation::new(*rule.head(), version),
+        ram::ast::RelationRef::new(*rule.head(), version),
     ));
 
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
@@ -326,7 +326,7 @@ pub fn lower_rule_to_ram(
                         formulae.push(
                             ram::ast::NotIn::new(
                                 attributes,
-                                ram::ast::Relation::new(
+                                ram::ast::RelationRef::new(
                                     *negation.id(),
                                     ram::ast::RelationVersion::Total,
                                 ),
@@ -342,7 +342,7 @@ pub fn lower_rule_to_ram(
                     };
 
                     previous = ram::ast::Operation::Search(Search::new(
-                        ram::ast::Relation::new(*predicate.id(), version),
+                        ram::ast::RelationRef::new(*predicate.id(), version),
                         metadata.alias,
                         formulae,
                         previous,

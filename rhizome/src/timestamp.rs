@@ -82,6 +82,12 @@ impl Timestamp for PairTimestamp {
     }
 }
 
+impl From<(u32, u32)> for PairTimestamp {
+    fn from(p: (u32, u32)) -> Self {
+        Self(p.0, p.1)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

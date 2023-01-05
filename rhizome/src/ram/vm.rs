@@ -1,33 +1,39 @@
-use im::{HashMap, HashSet};
+use im::HashMap;
 
-use crate::{datum::Datum, fact::Fact, id::AttributeId, timestamp::Timestamp};
+use crate::{
+    datum::Datum,
+    fact::Fact,
+    id::AttributeId,
+    relation::{ImmutableHashSetRelation, Relation},
+    timestamp::{PairTimestamp, Timestamp},
+};
 
 use super::ast::{Exit, Loop, Merge, Purge, Swap, *};
 
 #[derive(Clone, Debug)]
-pub struct VM<T: Timestamp> {
+pub struct VM<T: Timestamp = PairTimestamp, R: Relation<T> = ImmutableHashSetRelation<T>> {
     timestamp: T,
     pc: (usize, Option<usize>),
     program: Program,
     // TODO: Better data structure
-    relations: HashMap<Relation, HashSet<Fact<T>>>,
+    relations: HashMap<RelationRef, R>,
 }
 
-impl<T: Timestamp> VM<T> {
+impl<T: Timestamp, R: Relation<T>> VM<T, R> {
     pub fn new(program: Program) -> Self {
         Self {
             timestamp: T::default(),
             pc: (0, None),
             program,
-            relations: HashMap::<Relation, HashSet<Fact<T>>>::default(),
+            relations: HashMap::<RelationRef, R>::default(),
         }
     }
 
-    pub fn relation(&self, id: &str) -> HashSet<Fact<T>> {
+    pub fn relation(&self, id: &str) -> R {
         self.relations
-            .get(&Relation::new(id.into(), RelationVersion::Total))
+            .get(&RelationRef::new(id.into(), RelationVersion::Total))
             .cloned()
-            .unwrap_or_else(HashSet::new)
+            .unwrap_or_default()
     }
 
     pub fn step_epoch(&mut self) {
@@ -130,7 +136,7 @@ impl<T: Timestamp> VM<T> {
             .cloned()
             .unwrap_or_default();
 
-        for fact in facts.iter() {
+        for fact in facts {
             let mut next_bindings = bindings.clone();
 
             let is_satisfied = search.when().iter().all(|f| match f {
@@ -213,8 +219,8 @@ impl<T: Timestamp> VM<T> {
 
         self.relations = self.relations.alter(
             |old| match old {
-                Some(facts) => Some(facts.update(fact)),
-                None => Some(HashSet::from_iter([fact])),
+                Some(facts) => Some(facts.insert(fact)),
+                None => Some(R::from_iter([fact])),
             },
             *project.into(),
         );
@@ -229,32 +235,26 @@ impl<T: Timestamp> VM<T> {
 
         self.relations = self
             .relations
-            .update_with(*merge.into(), from_relation, |old, new| old.union(new));
+            .update_with(*merge.into(), from_relation, |old, new| old.merge(new));
     }
 
     fn handle_swap(&mut self, swap: &Swap) {
-        let left_relation = self
-            .relations
-            .remove(swap.left())
-            .unwrap_or_else(HashSet::new);
-        let right_relation = self
-            .relations
-            .remove(swap.right())
-            .unwrap_or_else(HashSet::new);
+        let left_relation = self.relations.remove(swap.left()).unwrap_or_default();
+        let right_relation = self.relations.remove(swap.right()).unwrap_or_default();
 
         self.relations.insert(*swap.left(), right_relation);
         self.relations.insert(*swap.right(), left_relation);
     }
 
     fn handle_purge(&mut self, purge: &Purge) {
-        self.relations = self.relations.update(*purge.relation(), HashSet::default());
+        self.relations = self.relations.update(*purge.relation(), R::default());
     }
 
     fn handle_exit(&mut self, exit: &Exit) {
         let is_done = exit
             .relations()
             .iter()
-            .all(|r| self.relations.get(r).map_or(false, HashSet::is_empty));
+            .all(|r| self.relations.get(r).map_or(false, R::is_empty));
 
         if is_done {
             self.pc.1 = None;
@@ -264,12 +264,11 @@ impl<T: Timestamp> VM<T> {
 
 #[cfg(test)]
 mod tests {
-    use im::hashset;
     use pretty_assertions::assert_eq;
 
     use crate::{
         logic::{lower_to_ram, parser},
-        timestamp::PairTimestamp,
+        relation::ImmutableHashSetRelation,
     };
 
     use super::*;
@@ -290,64 +289,64 @@ mod tests {
         .unwrap();
 
         let ast = lower_to_ram::lower_to_ram(&program).unwrap();
-        let mut vm: VM<PairTimestamp> = VM::new(ast);
+        let mut vm: VM = VM::new(ast);
 
         vm.step_epoch();
 
         assert_eq!(
             vm.relation("path"),
-            hashset![
+            ImmutableHashSetRelation::from_iter([
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 0,),
+                    (0, 0,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 1,),
+                    (0, 1,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 0,),
+                    (0, 0,).into(),
                     vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 0,),
+                    (0, 0,).into(),
                     vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 2,),
+                    (0, 2,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 3,),
+                    (0, 3,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 1,),
+                    (0, 1,).into(),
                     vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 1,),
+                    (0, 1,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 2.into())],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 0,),
+                    (0, 0,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    PairTimestamp(0, 2,),
+                    (0, 2,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
                 ),
-            ]
+            ])
         );
     }
 }
