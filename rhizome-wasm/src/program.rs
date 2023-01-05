@@ -11,7 +11,7 @@ pub struct Program(Rc<RhizomeProgram>);
 #[wasm_bindgen]
 impl Program {
     #[wasm_bindgen(constructor)]
-    pub fn parse(i: &str) -> Result<Program, JsValue> {
+    pub fn new(i: &str) -> Result<Program, JsValue> {
         rhizome::parse(i).map_or_else(
             |err: anyhow::Error| Err(serde_wasm_bindgen::to_value(&err.to_string())?),
             |p| Ok(Self(Rc::new(p))),
