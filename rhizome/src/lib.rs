@@ -6,11 +6,9 @@
 
 use crate::pretty::Pretty;
 use anyhow::Result;
-use fact::Fact;
-use im::HashSet;
 use logic::{ast::Program, parser};
 use ram::vm;
-use timestamp::PairTimestamp;
+use relation::Relation;
 
 pub mod datum;
 pub mod error;
@@ -21,6 +19,7 @@ pub mod lattice;
 pub mod logic;
 pub mod pretty;
 pub mod ram;
+pub mod relation;
 pub mod timestamp;
 
 pub fn parse(i: &str) -> Result<Program> {
@@ -36,9 +35,9 @@ pub fn pretty(program: &Program) -> Result<String> {
     Ok(String::from_utf8(buf)?)
 }
 
-pub fn run(program: &Program, relation: &str) -> Result<HashSet<Fact<PairTimestamp>>> {
+pub fn run(program: &Program, relation: &str) -> Result<impl Relation> {
     let ram = logic::lower_to_ram::lower_to_ram(program)?;
-    let mut vm = vm::VM::new(ram);
+    let mut vm: vm::VM = vm::VM::new(ram);
 
     vm.step_epoch();
 

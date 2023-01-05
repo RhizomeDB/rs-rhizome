@@ -16,7 +16,7 @@ impl Pretty for Program {
     }
 }
 
-impl Pretty for Relation {
+impl Pretty for RelationRef {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::concat([
             RcDoc::as_string(self.id()),
@@ -301,16 +301,16 @@ mod tests {
 
         let formula2 = NotIn::new(
             vec![("age".into(), Literal::new(29).into())],
-            Relation::new("person".into(), RelationVersion::Total),
+            RelationRef::new("person".into(), RelationVersion::Total),
         );
 
         let project = Operation::Project(Project::new(
             hashmap! {"age".into() => Literal::new(29).into()},
-            Relation::new("person".into(), RelationVersion::Total),
+            RelationRef::new("person".into(), RelationVersion::Total),
         ));
 
         let ast = Operation::Search(Search::new(
-            Relation::new("person".into(), RelationVersion::Total),
+            RelationRef::new("person".into(), RelationVersion::Total),
             None,
             vec![formula1.into(), formula2.into()],
             project,

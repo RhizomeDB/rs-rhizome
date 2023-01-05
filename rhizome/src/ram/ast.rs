@@ -61,12 +61,12 @@ impl RelationBinding {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct Relation {
+pub struct RelationRef {
     id: RelationId,
     version: RelationVersion,
 }
 
-impl Relation {
+impl RelationRef {
     pub fn new(id: RelationId, version: RelationVersion) -> Self {
         Self { id, version }
     }
@@ -116,55 +116,55 @@ impl Insert {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Merge {
-    from: Relation,
-    into: Relation,
+    from: RelationRef,
+    into: RelationRef,
 }
 
 impl Merge {
-    pub fn new(from: Relation, into: Relation) -> Self {
+    pub fn new(from: RelationRef, into: RelationRef) -> Self {
         Self { from, into }
     }
 
-    pub fn from(&self) -> &Relation {
+    pub fn from(&self) -> &RelationRef {
         &self.from
     }
 
-    pub fn into(&self) -> &Relation {
+    pub fn into(&self) -> &RelationRef {
         &self.into
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Swap {
-    left: Relation,
-    right: Relation,
+    left: RelationRef,
+    right: RelationRef,
 }
 
 impl Swap {
-    pub fn new(left: Relation, right: Relation) -> Self {
+    pub fn new(left: RelationRef, right: RelationRef) -> Self {
         Self { left, right }
     }
 
-    pub fn left(&self) -> &Relation {
+    pub fn left(&self) -> &RelationRef {
         &self.left
     }
 
-    pub fn right(&self) -> &Relation {
+    pub fn right(&self) -> &RelationRef {
         &self.right
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Purge {
-    relation: Relation,
+    relation: RelationRef,
 }
 
 impl Purge {
-    pub fn new(relation: Relation) -> Self {
+    pub fn new(relation: RelationRef) -> Self {
         Self { relation }
     }
 
-    pub fn relation(&self) -> &Relation {
+    pub fn relation(&self) -> &RelationRef {
         &self.relation
     }
 }
@@ -186,15 +186,15 @@ impl Loop {
 
 #[derive(Clone, Debug)]
 pub struct Exit {
-    relations: Vec<Relation>,
+    relations: Vec<RelationRef>,
 }
 
 impl Exit {
-    pub fn new(relations: Vec<Relation>) -> Self {
+    pub fn new(relations: Vec<RelationRef>) -> Self {
         Self { relations }
     }
 
-    pub fn relations(&self) -> &Vec<Relation> {
+    pub fn relations(&self) -> &Vec<RelationRef> {
         &self.relations
     }
 }
@@ -207,7 +207,7 @@ pub enum Operation {
 
 #[derive(Clone, Debug)]
 pub struct Search {
-    relation: Relation,
+    relation: RelationRef,
     alias: Option<AliasId>,
     when: Vec<Formula>,
     operation: Box<Operation>,
@@ -215,7 +215,7 @@ pub struct Search {
 
 impl Search {
     pub fn new(
-        relation: Relation,
+        relation: RelationRef,
         alias: Option<AliasId>,
         when: Vec<Formula>,
         operation: Operation,
@@ -228,7 +228,7 @@ impl Search {
         }
     }
 
-    pub fn relation(&self) -> &Relation {
+    pub fn relation(&self) -> &RelationRef {
         &self.relation
     }
 
@@ -248,11 +248,11 @@ impl Search {
 #[derive(Clone, Debug)]
 pub struct Project {
     attributes: HashMap<AttributeId, Term>,
-    into: Relation,
+    into: RelationRef,
 }
 
 impl Project {
-    pub fn new(attributes: HashMap<AttributeId, Term>, into: Relation) -> Self {
+    pub fn new(attributes: HashMap<AttributeId, Term>, into: RelationRef) -> Self {
         Self { attributes, into }
     }
 
@@ -260,7 +260,7 @@ impl Project {
         &self.attributes
     }
 
-    pub fn into(&self) -> &Relation {
+    pub fn into(&self) -> &RelationRef {
         &self.into
     }
 }
@@ -294,11 +294,11 @@ impl Equality {
 #[derive(Clone, Debug)]
 pub struct NotIn {
     attributes: HashMap<AttributeId, Term>,
-    relation: Relation,
+    relation: RelationRef,
 }
 
 impl NotIn {
-    pub fn new(attributes: Vec<(AttributeId, Term)>, relation: Relation) -> Self {
+    pub fn new(attributes: Vec<(AttributeId, Term)>, relation: RelationRef) -> Self {
         let attributes = HashMap::from_iter(attributes.into_iter());
 
         Self {
@@ -311,7 +311,7 @@ impl NotIn {
         &self.attributes
     }
 
-    pub fn relation(&self) -> &Relation {
+    pub fn relation(&self) -> &RelationRef {
         &self.relation
     }
 }
