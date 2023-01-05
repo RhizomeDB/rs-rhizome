@@ -1,17 +1,14 @@
 use std::fmt::Display;
 
 use derive_more::{From, TryInto};
-use serde::{Deserialize, Serialize};
-use ustr::Ustr;
 
-#[derive(
-    Debug, Clone, Copy, From, Eq, Hash, PartialEq, TryInto, Serialize, Deserialize, Ord, PartialOrd,
-)]
-#[serde(untagged)]
+use crate::interner::{self, Symbol};
+
+#[derive(Debug, Clone, Copy, From, Eq, Hash, PartialEq, TryInto, Ord, PartialOrd)]
 pub enum Datum {
     Bool(bool),
     Int(i64),
-    String(Ustr),
+    String(Symbol),
 }
 
 impl Datum {
@@ -24,7 +21,7 @@ impl Datum {
     }
 
     pub fn string<T: AsRef<str>>(data: T) -> Self {
-        let symbol = Ustr::from(data.as_ref());
+        let symbol = interner::get_or_intern(data.as_ref());
 
         Self::String(symbol)
     }
@@ -35,7 +32,7 @@ impl Display for Datum {
         let s = match self {
             Datum::Bool(v) => v.to_string(),
             Datum::Int(v) => v.to_string(),
-            Datum::String(v) => v.to_string(),
+            Datum::String(v) => format!("{:?}", interner::resolve(*v)),
         };
 
         write!(f, "{}", s.as_str())

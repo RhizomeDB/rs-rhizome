@@ -1,10 +1,12 @@
-use rhizome::{datum::Datum, fact::Fact as RhizomeFact, timestamp::Timestamp};
+use rhizome::{datum::Datum as RhizomeDatum, fact::Fact as RhizomeFact, timestamp::Timestamp};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::wasm_bindgen;
 
+use crate::Datum;
+
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Fact {
     id: String,
     attributes: BTreeMap<String, Datum>,
@@ -23,9 +25,9 @@ impl<T: Timestamp> From<RhizomeFact<T>> for Fact {
         let attributes: Vec<(String, Datum)> = f
             .attributes()
             .iter()
-            .map(|(k, v)| (k.clone().as_str().to_string(), *v))
+            .map(|(k, v)| (k.clone().resolve(), <RhizomeDatum as Into<Datum>>::into(*v)))
             .collect();
 
-        Fact::new(f.id().as_str().to_string(), attributes)
+        Fact::new(f.id().resolve(), attributes)
     }
 }

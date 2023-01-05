@@ -6,9 +6,11 @@
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
+pub mod datum;
 pub mod fact;
 pub mod program;
 
+pub use datum::*;
 pub use fact::*;
 pub use program::*;
 

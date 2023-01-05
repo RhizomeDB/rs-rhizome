@@ -1,26 +1,25 @@
-use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use ustr::Ustr;
 
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-#[repr(transparent)]
-pub struct AttributeId(Ustr);
+use crate::interner::{self, Symbol};
+
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct AttributeId(Symbol);
 
 impl AttributeId {
     pub fn new(id: &str) -> Self {
-        let symbol = Ustr::from(id);
+        let symbol = interner::get_or_intern(id);
 
         Self(symbol)
     }
 
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
+    pub fn resolve(&self) -> String {
+        interner::resolve(self.0)
     }
 }
 
 impl Display for AttributeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        write!(f, "{}", self.resolve())
     }
 }
 
@@ -30,25 +29,25 @@ impl From<&str> for AttributeId {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(transparent)]
-pub struct RelationId(Ustr);
+pub struct RelationId(Symbol);
 
 impl RelationId {
     pub fn new(id: &str) -> Self {
-        let symbol = Ustr::from(id);
+        let symbol = interner::get_or_intern(id);
 
         Self(symbol)
     }
 
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
+    pub fn resolve(&self) -> String {
+        interner::resolve(self.0)
     }
 }
 
 impl Display for RelationId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        write!(f, "{}", self.resolve())
     }
 }
 
@@ -60,23 +59,23 @@ impl From<&str> for RelationId {
 
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(transparent)]
-pub struct VariableId(Ustr);
+pub struct VariableId(Symbol);
 
 impl VariableId {
     pub fn new(id: &str) -> Self {
-        let symbol = Ustr::from(id);
+        let symbol = interner::get_or_intern(id);
 
         Self(symbol)
     }
 
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
+    pub fn resolve(&self) -> String {
+        interner::resolve(self.0)
     }
 }
 
 impl Display for VariableId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        write!(f, "{}", self.resolve())
     }
 }
 

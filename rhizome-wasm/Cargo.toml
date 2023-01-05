@@ -24,6 +24,7 @@ path = "src/lib.rs"
 # code size when deploying.
 anyhow = "1.0"
 console_error_panic_hook = { version = "0.1", optional = true }
+derive_more = "0.99"
 js-sys = { version = "0.3", optional = true }
 rhizome = { path = "../rhizome", version = "0.1" }
 serde = { version = "1.0", features = ["derive"] }

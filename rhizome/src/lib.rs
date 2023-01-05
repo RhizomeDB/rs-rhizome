@@ -16,6 +16,7 @@ pub mod datum;
 pub mod error;
 pub mod fact;
 pub mod id;
+pub mod interner;
 pub mod lattice;
 pub mod logic;
 pub mod pretty;
