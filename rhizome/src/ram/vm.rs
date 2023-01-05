@@ -4,14 +4,14 @@ use crate::{
     datum::Datum,
     fact::Fact,
     id::AttributeId,
-    relation::{ImmutableHashSetRelation, Relation},
-    timestamp::{PairTimestamp, Timestamp},
+    relation::{DefaultRelation, Relation},
+    timestamp::{DefaultTimestamp, Timestamp},
 };
 
 use super::ast::{Exit, Loop, Merge, Purge, Swap, *};
 
 #[derive(Clone, Debug)]
-pub struct VM<T: Timestamp = PairTimestamp, R: Relation<T> = ImmutableHashSetRelation<T>> {
+pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation<T> = DefaultRelation> {
     timestamp: T,
     pc: (usize, Option<usize>),
     program: Program,
@@ -268,7 +268,7 @@ mod tests {
 
     use crate::{
         logic::{lower_to_ram, parser},
-        relation::ImmutableHashSetRelation,
+        relation::DefaultRelation,
     };
 
     use super::*;
@@ -295,7 +295,7 @@ mod tests {
 
         assert_eq!(
             vm.relation("path"),
-            ImmutableHashSetRelation::from_iter([
+            DefaultRelation::from_iter([
                 Fact::new(
                     "path".into(),
                     (0, 0,).into(),

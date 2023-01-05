@@ -2,10 +2,12 @@ use im::HashSet;
 
 use crate::{
     fact::Fact,
-    timestamp::{PairTimestamp, Timestamp},
+    timestamp::{DefaultTimestamp, Timestamp},
 };
 
-pub trait Relation<T = PairTimestamp>:
+pub type DefaultRelation<T = DefaultTimestamp> = ImmutableHashSetRelation<T>;
+
+pub trait Relation<T = DefaultTimestamp>:
     IntoIterator<Item = Fact<T>> + FromIterator<Fact<T>> + Default + Clone + Eq + PartialEq
 where
     T: Timestamp,

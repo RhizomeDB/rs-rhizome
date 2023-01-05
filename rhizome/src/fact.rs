@@ -3,11 +3,11 @@ use std::collections::BTreeMap;
 use crate::{
     datum::Datum,
     id::{AttributeId, RelationId},
-    timestamp::{PairTimestamp, Timestamp},
+    timestamp::{DefaultTimestamp, Timestamp},
 };
 
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Ord, PartialOrd)]
-pub struct Fact<T = PairTimestamp> {
+pub struct Fact<T = DefaultTimestamp> {
     id: RelationId,
     timestamp: T,
     attributes: BTreeMap<AttributeId, Datum>,
