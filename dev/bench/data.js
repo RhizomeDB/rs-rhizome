@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1671751471901,
+  "lastUpdate": 1673046906250,
   "repoUrl": "https://github.com/fission-codes/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -179,6 +179,36 @@ window.BENCHMARK_DATA = {
             "name": "add",
             "value": 1,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "6303e55a745f0e9a747f4f471d8d1b314fd7d69e",
+          "message": "feat(vm): support registering sources that pull in facts each epoch",
+          "timestamp": "2023-01-06T18:12:52-05:00",
+          "tree_id": "1890e90343e038cdbf7fdecf87bfe531d2d1793a",
+          "url": "https://github.com/fission-codes/rs-rhizome/commit/6303e55a745f0e9a747f4f471d8d1b314fd7d69e"
+        },
+        "date": 1673046904004,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 18398,
+            "range": "± 24",
             "unit": "ns/iter"
           }
         ]
