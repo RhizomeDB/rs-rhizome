@@ -20,6 +20,7 @@ pub mod logic;
 pub mod pretty;
 pub mod ram;
 pub mod relation;
+pub mod source;
 pub mod timestamp;
 
 pub fn parse(i: &str) -> Result<Program> {
@@ -39,7 +40,7 @@ pub fn run(program: &Program, relation: &str) -> Result<impl Relation> {
     let ram = logic::lower_to_ram::lower_to_ram(program)?;
     let mut vm: vm::VM = vm::VM::new(ram);
 
-    vm.step_epoch();
+    vm.step_epoch()?;
 
     Ok(vm.relation(relation))
 }

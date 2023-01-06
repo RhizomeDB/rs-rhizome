@@ -1,3 +1,4 @@
+use anyhow::Result;
 use im::HashMap;
 
 use crate::{
@@ -5,15 +6,17 @@ use crate::{
     fact::Fact,
     id::AttributeId,
     relation::{DefaultRelation, Relation},
+    source::Source,
     timestamp::{DefaultTimestamp, Timestamp},
 };
 
 use super::ast::{Exit, Loop, Merge, Purge, Swap, *};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation<T> = DefaultRelation> {
     timestamp: T,
     pc: (usize, Option<usize>),
+    sources: Vec<Box<dyn Source>>,
     program: Program,
     // TODO: Better data structure
     relations: HashMap<RelationRef, R>,
@@ -24,9 +27,14 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         Self {
             timestamp: T::default(),
             pc: (0, None),
+            sources: Vec::default(),
             program,
             relations: HashMap::<RelationRef, R>::default(),
         }
+    }
+
+    pub fn timestamp(&self) -> &T {
+        &self.timestamp
     }
 
     pub fn relation(&self, id: &str) -> R {
@@ -36,19 +44,45 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
             .unwrap_or_default()
     }
 
-    pub fn step_epoch(&mut self) {
+    pub fn register_source(&mut self, source: Box<dyn Source>) -> Result<()> {
+        self.sources.push(source);
+
+        Ok(())
+    }
+
+    pub fn step_epoch(&mut self) -> Result<()> {
         let start = self.timestamp;
 
         loop {
-            self.step();
+            self.step()?;
 
             if self.timestamp.epoch() != start.epoch() {
                 break;
             }
         }
+
+        Ok(())
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> Result<()> {
+        if self.timestamp.epoch_start() == self.timestamp {
+            for source in &mut self.sources {
+                for untimed_fact in source.pull()? {
+                    let timed_fact = untimed_fact.with_timestamp::<T>(self.timestamp);
+
+                    self.relations = self.relations.alter(
+                        |old| match old {
+                            Some(facts) => Some(facts.insert(timed_fact)),
+                            None => Some(R::from_iter([timed_fact])),
+                        },
+                        // TODO: Need to differentiate between EDB and IDB relations, so that sources never insert into
+                        // IDB relations, where some rules may be expecting new facts to appear in Delta
+                        RelationRef::new(*untimed_fact.id(), RelationVersion::Total),
+                    );
+                }
+            }
+        }
+
         match self.load_statement().clone() {
             Statement::Insert(insert) => self.handle_operation(insert.operation()),
             Statement::Merge(merge) => self.handle_merge(&merge),
@@ -71,6 +105,8 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         } else if self.pc.1 == Some(0) {
             self.timestamp = self.timestamp.advance_iteration();
         };
+
+        Ok(())
     }
 
     fn step_pc(&self) -> (usize, Option<usize>) {
@@ -269,12 +305,13 @@ mod tests {
     use crate::{
         logic::{lower_to_ram, parser},
         relation::DefaultRelation,
+        source::GeneratorSource,
     };
 
     use super::*;
 
     #[test]
-    fn test_step() {
+    fn test_step_epoch_transitive_closure() {
         let program = parser::parse(
             r#"
         edge(from: 0, to: 1).
@@ -291,7 +328,105 @@ mod tests {
         let ast = lower_to_ram::lower_to_ram(&program).unwrap();
         let mut vm: VM = VM::new(ast);
 
-        vm.step_epoch();
+        vm.step_epoch().unwrap();
+
+        assert_eq!(
+            vm.relation("path"),
+            DefaultRelation::from_iter([
+                Fact::new(
+                    "path".into(),
+                    (0, 0,).into(),
+                    vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 1,).into(),
+                    vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 0,).into(),
+                    vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 0,).into(),
+                    vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 2,).into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 3,).into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 1,).into(),
+                    vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 1,).into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 2.into())],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 0,).into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    (0, 2,).into(),
+                    vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
+                ),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_source_transitive_closure() {
+        let program = parser::parse(
+            r#"
+        path(from: X, to: Y) :- edge(from: X, to: Y).
+        path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
+        "#,
+        )
+        .unwrap();
+
+        let ast = lower_to_ram::lower_to_ram(&program).unwrap();
+        let mut vm: VM = VM::new(ast);
+
+        vm.register_source(Box::new(GeneratorSource::new(|| {
+            Ok(vec![
+                Fact::new(
+                    "edge".into(),
+                    (),
+                    vec![("from".into(), 0.into()), ("to".into(), 1.into())],
+                ),
+                Fact::new(
+                    "edge".into(),
+                    (),
+                    vec![("from".into(), 1.into()), ("to".into(), 2.into())],
+                ),
+                Fact::new(
+                    "edge".into(),
+                    (),
+                    vec![("from".into(), 2.into()), ("to".into(), 3.into())],
+                ),
+                Fact::new(
+                    "edge".into(),
+                    (),
+                    vec![("from".into(), 3.into()), ("to".into(), 4.into())],
+                ),
+            ])
+        })))
+        .unwrap();
+
+        vm.step_epoch().unwrap();
 
         assert_eq!(
             vm.relation("path"),

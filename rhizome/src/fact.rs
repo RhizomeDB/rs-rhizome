@@ -24,6 +24,14 @@ impl<T: Timestamp> Fact<T> {
         }
     }
 
+    pub fn with_timestamp<TS: Timestamp>(&self, timestamp: TS) -> Fact<TS> {
+        Fact::<TS> {
+            id: self.id,
+            timestamp,
+            attributes: self.attributes.clone(),
+        }
+    }
+
     pub fn id(&self) -> &RelationId {
         &self.id
     }
