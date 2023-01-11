@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display};
 
 use crate::{
     datum::Datum,
@@ -42,5 +42,18 @@ impl<T: Timestamp> Fact<T> {
 
     pub fn attribute(&self, id: &AttributeId) -> Option<&Datum> {
         self.attributes.get(id)
+    }
+}
+
+impl<T> Display for Fact<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let attributes = self
+            .attributes
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k, v))
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        write!(f, "{}({})", self.id, attributes)
     }
 }
