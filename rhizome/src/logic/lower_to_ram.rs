@@ -119,6 +119,17 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
         }
     };
 
+    // Run sinks for the stratum
+    // TODO: This always runs the sinks for the total relation, but we'll want
+    // to better support running them for both total and delta
+    statements.push(ram::ast::Statement::Sinks(ram::ast::Sinks::new(
+        stratum
+            .relations()
+            .iter()
+            .map(|relation| ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::Total))
+            .collect(),
+    )));
+
     Ok(statements)
 }
 

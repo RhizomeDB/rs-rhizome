@@ -45,6 +45,7 @@ impl Pretty for Statement {
             Statement::Purge(inner) => inner.to_doc(),
             Statement::Loop(inner) => inner.to_doc(),
             Statement::Exit(inner) => inner.to_doc(),
+            Statement::Sinks(inner) => inner.to_doc(),
         }
     }
 }
@@ -118,6 +119,17 @@ impl Pretty for Exit {
         .group();
 
         RcDoc::text("exit if ").append(relations_doc)
+    }
+}
+
+impl Pretty for Sinks {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        let relations_doc = RcDoc::intersperse(
+            self.relations().iter().map(|r| r.to_doc()),
+            RcDoc::text(", "),
+        );
+
+        RcDoc::text("sinks ").append(relations_doc)
     }
 }
 

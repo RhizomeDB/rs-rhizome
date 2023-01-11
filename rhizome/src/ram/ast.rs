@@ -97,6 +97,7 @@ pub enum Statement {
     Purge(Purge),
     Loop(Loop),
     Exit(Exit),
+    Sinks(Sinks),
 }
 
 #[derive(Clone, Debug)]
@@ -190,6 +191,21 @@ pub struct Exit {
 }
 
 impl Exit {
+    pub fn new(relations: Vec<RelationRef>) -> Self {
+        Self { relations }
+    }
+
+    pub fn relations(&self) -> &Vec<RelationRef> {
+        &self.relations
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Sinks {
+    relations: Vec<RelationRef>,
+}
+
+impl Sinks {
     pub fn new(relations: Vec<RelationRef>) -> Self {
         Self { relations }
     }

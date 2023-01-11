@@ -107,6 +107,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
 
                 self.handle_exit(&exit);
             }
+            Statement::Sinks(sinks) => self.handle_sinks(&sinks)?,
             Statement::Loop(Loop { .. }) => {
                 unreachable!("load_statement follows loops in the root block")
             }
@@ -116,17 +117,6 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
 
         if self.pc.0 == 0 {
             self.timestamp = self.timestamp.advance_epoch();
-
-            // TODO: can schedule sinks per-stratum instead of waiting
-            // for the end of the epoch
-            // TODO: Scheduling sinks should happen as RAM statements
-            for (relation_ref, sinks) in &mut self.sinks {
-                for sink in sinks {
-                    for fact in self.relations.get(relation_ref).unwrap().clone() {
-                        sink.push(fact)?;
-                    }
-                }
-            }
         } else if self.pc.1 == Some(0) {
             self.timestamp = self.timestamp.advance_iteration();
         };
@@ -320,6 +310,23 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         if is_done {
             self.pc.1 = None;
         }
+    }
+
+    fn handle_sinks(&mut self, sinks: &Sinks) -> Result<()> {
+        for (relation_ref, relation_sinks) in &mut self.sinks {
+            // TODO: Slow since sinks.relations() is a Vec
+            if !sinks.relations().contains(relation_ref) {
+                continue;
+            }
+
+            for sink in relation_sinks {
+                for fact in self.relations.get(relation_ref).unwrap().clone() {
+                    sink.push(fact)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
