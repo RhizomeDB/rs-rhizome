@@ -1,5 +1,5 @@
 use derive_more::{Display, From, IsVariant, TryInto};
-use im::HashMap;
+use im::{HashMap, HashSet};
 
 use crate::{
     datum::Datum,
@@ -97,6 +97,7 @@ pub enum Statement {
     Purge(Purge),
     Loop(Loop),
     Exit(Exit),
+    Sources(Sources),
     Sinks(Sinks),
 }
 
@@ -201,7 +202,23 @@ impl Exit {
 }
 
 #[derive(Clone, Debug)]
+pub struct Sources {
+    relations: HashSet<RelationRef>,
+}
+
+impl Sources {
+    pub fn new(relations: HashSet<RelationRef>) -> Self {
+        Self { relations }
+    }
+
+    pub fn relations(&self) -> &HashSet<RelationRef> {
+        &self.relations
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Sinks {
+    // TODO: use HashSet
     relations: Vec<RelationRef>,
 }
 

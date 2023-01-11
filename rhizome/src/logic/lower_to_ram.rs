@@ -20,6 +20,17 @@ use super::ast::*;
 pub fn lower_to_ram(program: &Program) -> Result<ram::ast::Program> {
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
 
+    // Run sources for each input
+    statements.push(ram::ast::Statement::Sources(ram::ast::Sources::new(
+        program
+            .inputs()
+            .iter()
+            .map(|schema| {
+                ram::ast::RelationRef::new(*schema.id(), ram::ast::RelationVersion::Total)
+            })
+            .collect(),
+    )));
+
     for stratum in &stratify(program)? {
         let mut lowered = lower_stratum_to_ram(stratum)?;
 

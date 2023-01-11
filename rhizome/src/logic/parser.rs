@@ -10,7 +10,8 @@ use nom::{
 };
 
 use super::ast::{
-    AttributeValue, BodyTerm, Clause, Fact, Literal, Negation, Predicate, Program, Rule, Variable,
+    AttributeValue, BodyTerm, Clause, Fact, InputSchema, Literal, Negation, Predicate, Program,
+    Rule, Statement, Variable,
 };
 
 use crate::{
@@ -176,6 +177,16 @@ fn attribute_id_literal(i: &str) -> IResult<&str, (AttributeId, Literal)> {
     separated_pair(preceded(sp, attribute_id), preceded(sp, char(':')), literal)(i)
 }
 
+fn attribute_ids(i: &str) -> IResult<&str, Vec<AttributeId>> {
+    preceded(
+        char('('),
+        terminated(
+            separated_list1(preceded(sp, char(',')), attribute_id),
+            preceded(sp, char(')')),
+        ),
+    )(i)
+}
+
 fn arguments(i: &str) -> IResult<&str, Vec<(AttributeId, AttributeValue)>> {
     preceded(
         char('('),
@@ -245,12 +256,35 @@ fn rule(i: &str) -> IResult<&str, Rule> {
     )(i)
 }
 
+fn input_schema(i: &str) -> IResult<&str, InputSchema> {
+    preceded(
+        pair(sp, tag("input ")),
+        preceded(
+            sp,
+            cut(map_res(
+                terminated(pair(relation_id, attribute_ids), preceded(sp, char('.'))),
+                |(relation_id, attribute_ids)| InputSchema::new(relation_id, attribute_ids),
+            )),
+        ),
+    )(i)
+}
+
 fn clause(i: &str) -> IResult<&str, Clause> {
     preceded(sp, alt((map(fact, Clause::from), map(rule, Clause::from))))(i)
 }
 
+fn statement(i: &str) -> IResult<&str, Statement> {
+    preceded(
+        sp,
+        alt((
+            map(input_schema, Statement::from),
+            map(clause, Statement::from),
+        )),
+    )(i)
+}
+
 fn program(i: &str) -> IResult<&str, Program> {
-    map(terminated(many0(preceded(sp, clause)), sp), Program::new)(i)
+    map(terminated(many0(preceded(sp, statement)), sp), Program::new)(i)
 }
 
 #[cfg(test)]
@@ -559,6 +593,8 @@ mod tests {
         assert_eq!(
             program(
                 r#"
+            input r(r0, r1).
+
             v(v: X) :- r(r0: X, r1: Y).
             v(v: Y) :- r(r0: X, r1: Y).
 
@@ -571,99 +607,112 @@ mod tests {
             Ok((
                 "",
                 Program::new(vec![
-                    Rule::new(
-                        "v",
-                        vec![("v", Variable::new("X").into())],
-                        vec![Predicate::new(
-                            "r",
-                            vec![
-                                ("r0", Variable::new("X").into()),
-                                ("r1", Variable::new("Y").into()),
-                            ],
-                        )
-                        .into()],
-                    )
-                    .unwrap()
-                    .into(),
-                    Rule::new(
-                        "v",
-                        vec![("v", Variable::new("Y").into())],
-                        vec![Predicate::new(
-                            "r",
-                            vec![
-                                ("r0", Variable::new("X").into()),
-                                ("r1", Variable::new("Y").into()),
-                            ],
-                        )
-                        .into()],
-                    )
-                    .unwrap()
-                    .into(),
-                    Rule::new(
-                        "t",
-                        vec![
-                            ("t0", Variable::new("X").into()),
-                            ("t1", Variable::new("Y").into()),
-                        ],
-                        vec![Predicate::new(
-                            "r",
-                            vec![
-                                ("r0", Variable::new("X").into()),
-                                ("r1", Variable::new("Y").into()),
-                            ],
-                        )
-                        .into()],
-                    )
-                    .unwrap()
-                    .into(),
-                    Rule::new(
-                        "t",
-                        vec![
-                            ("t0", Variable::new("X").into()),
-                            ("t1", Variable::new("Y").into()),
-                        ],
-                        vec![
-                            Predicate::new(
-                                "t",
-                                vec![
-                                    ("t0", Variable::new("X").into()),
-                                    ("t1", Variable::new("Z").into()),
-                                ],
-                            )
-                            .into(),
-                            Predicate::new(
+                    Statement::InputSchema(
+                        InputSchema::new("r", vec!["r0".into(), "r1".into()]).unwrap()
+                    ),
+                    Statement::Clause(
+                        Rule::new(
+                            "v",
+                            vec![("v", Variable::new("X").into())],
+                            vec![Predicate::new(
                                 "r",
                                 vec![
-                                    ("r0", Variable::new("Z").into()),
+                                    ("r0", Variable::new("X").into()),
                                     ("r1", Variable::new("Y").into()),
                                 ],
                             )
-                            .into(),
-                        ],
-                    )
-                    .unwrap()
-                    .into(),
-                    Rule::new(
-                        "tc",
-                        vec![
-                            ("tc0", Variable::new("X").into()),
-                            ("tc1", Variable::new("Y").into()),
-                        ],
-                        vec![
-                            Predicate::new("v", vec![("v", Variable::new("X").into())]).into(),
-                            Predicate::new("v", vec![("v", Variable::new("Y").into())]).into(),
-                            Negation::new(
-                                "t",
+                            .into()],
+                        )
+                        .unwrap()
+                        .into()
+                    ),
+                    Statement::Clause(
+                        Rule::new(
+                            "v",
+                            vec![("v", Variable::new("Y").into())],
+                            vec![Predicate::new(
+                                "r",
                                 vec![
-                                    ("t0", Variable::new("X").into()),
-                                    ("t1", Variable::new("Y").into()),
+                                    ("r0", Variable::new("X").into()),
+                                    ("r1", Variable::new("Y").into()),
                                 ],
                             )
-                            .into(),
-                        ],
-                    )
-                    .unwrap()
-                    .into(),
+                            .into()],
+                        )
+                        .unwrap()
+                        .into()
+                    ),
+                    Statement::Clause(
+                        Rule::new(
+                            "t",
+                            vec![
+                                ("t0", Variable::new("X").into()),
+                                ("t1", Variable::new("Y").into()),
+                            ],
+                            vec![Predicate::new(
+                                "r",
+                                vec![
+                                    ("r0", Variable::new("X").into()),
+                                    ("r1", Variable::new("Y").into()),
+                                ],
+                            )
+                            .into()],
+                        )
+                        .unwrap()
+                        .into()
+                    ),
+                    Statement::Clause(
+                        Rule::new(
+                            "t",
+                            vec![
+                                ("t0", Variable::new("X").into()),
+                                ("t1", Variable::new("Y").into()),
+                            ],
+                            vec![
+                                Predicate::new(
+                                    "t",
+                                    vec![
+                                        ("t0", Variable::new("X").into()),
+                                        ("t1", Variable::new("Z").into()),
+                                    ],
+                                )
+                                .into(),
+                                Predicate::new(
+                                    "r",
+                                    vec![
+                                        ("r0", Variable::new("Z").into()),
+                                        ("r1", Variable::new("Y").into()),
+                                    ],
+                                )
+                                .into(),
+                            ],
+                        )
+                        .unwrap()
+                        .into()
+                    ),
+                    Statement::Clause(
+                        Rule::new(
+                            "tc",
+                            vec![
+                                ("tc0", Variable::new("X").into()),
+                                ("tc1", Variable::new("Y").into()),
+                            ],
+                            vec![
+                                Predicate::new("v", vec![("v", Variable::new("X").into())]).into(),
+                                Predicate::new("v", vec![("v", Variable::new("Y").into())]).into(),
+                                Negation::new(
+                                    "t",
+                                    vec![
+                                        ("t0", Variable::new("X").into()),
+                                        ("t1", Variable::new("Y").into()),
+                                    ],
+                                )
+                                .into(),
+                            ],
+                        )
+                        .unwrap()
+                        .into()
+                    ),
                 ],)
             ))
         );

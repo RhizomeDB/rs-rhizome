@@ -10,16 +10,30 @@ use crate::{
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Program {
-    clauses: Vec<Clause>,
+    statements: Vec<Statement>,
 }
 
 impl Program {
-    pub fn new(clauses: Vec<Clause>) -> Self {
-        Self { clauses }
+    pub fn new(statements: Vec<Statement>) -> Self {
+        Self { statements }
     }
 
-    pub fn clauses(&self) -> &Vec<Clause> {
-        &self.clauses
+    pub fn inputs(&self) -> Vec<InputSchema> {
+        self.statements_of::<InputSchema>()
+    }
+
+    pub fn clauses(&self) -> Vec<Clause> {
+        self.statements_of::<Clause>()
+    }
+
+    fn statements_of<T>(&self) -> Vec<T>
+    where
+        T: TryFrom<Statement>,
+    {
+        self.statements
+            .iter()
+            .filter_map(|statement| T::try_from(statement.clone()).ok())
+            .collect()
     }
 }
 
@@ -63,6 +77,43 @@ impl Stratum {
             .iter()
             .filter_map(|clause| T::try_from(clause.clone()).ok())
             .collect()
+    }
+}
+
+#[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
+pub enum Statement {
+    InputSchema(InputSchema),
+    Clause(Clause),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct InputSchema {
+    id: RelationId,
+    attributes: HashSet<AttributeId>,
+}
+
+impl InputSchema {
+    pub fn new(id: impl Into<RelationId>, attributes: Vec<AttributeId>) -> Result<Self> {
+        let mut uniq = HashSet::<AttributeId>::default();
+        for attribute in attributes {
+            match uniq.insert(attribute) {
+                Some(_) => return error(Error::DuplicateSchemaAttributeId(attribute)),
+                None => continue,
+            }
+        }
+
+        Ok(Self {
+            id: id.into(),
+            attributes: uniq,
+        })
+    }
+
+    pub fn id(&self) -> &RelationId {
+        &self.id
+    }
+
+    pub fn attributes(&self) -> &HashSet<AttributeId> {
+        &self.attributes
     }
 }
 
