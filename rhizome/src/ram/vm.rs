@@ -1,5 +1,6 @@
 use anyhow::Result;
 use im::HashMap;
+use slotmap::{new_key_type, SlotMap};
 
 use crate::{
     datum::Datum,
@@ -13,12 +14,15 @@ use crate::{
 
 use super::ast::{Exit, Loop, Merge, Purge, Swap, *};
 
+new_key_type! { pub struct SourceKey; }
+new_key_type! { pub struct SinkKey; }
+
 #[derive(Debug)]
 pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation<T> = DefaultRelation> {
     timestamp: T,
     pc: (usize, Option<usize>),
-    sources: Vec<Box<dyn Source>>,
-    sinks: std::collections::HashMap<RelationRef, Vec<Box<dyn Sink<T>>>>,
+    sources: SlotMap<SourceKey, Box<dyn Source>>,
+    sinks: SlotMap<SinkKey, (RelationRef, Box<dyn Sink<T>>)>,
     program: Program,
     // TODO: Better data structure
     relations: HashMap<RelationRef, R>,
@@ -29,8 +33,8 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         Self {
             timestamp: T::default(),
             pc: (0, None),
-            sources: Vec::default(),
-            sinks: std::collections::HashMap::default(),
+            sources: SlotMap::with_key(),
+            sinks: SlotMap::with_key(),
             program,
             relations: HashMap::<RelationRef, R>::default(),
         }
@@ -47,20 +51,20 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
             .unwrap_or_default()
     }
 
-    pub fn register_source(&mut self, source: Box<dyn Source>) -> Result<()> {
-        self.sources.push(source);
-
-        Ok(())
+    pub fn register_source(&mut self, source: Box<dyn Source>) -> SourceKey {
+        self.sources.insert(source)
     }
 
-    pub fn register_sink(
-        &mut self,
-        relation_ref: RelationRef,
-        sink: Box<dyn Sink<T>>,
-    ) -> Result<()> {
-        self.sinks.entry(relation_ref).or_default().push(sink);
+    pub fn unregister_source(&mut self, source_key: SourceKey) {
+        self.sources.remove(source_key);
+    }
 
-        Ok(())
+    pub fn register_sink(&mut self, relation_ref: RelationRef, sink: Box<dyn Sink<T>>) -> SinkKey {
+        self.sinks.insert((relation_ref, sink))
+    }
+
+    pub fn unregister_sink(&mut self, sink_key: SinkKey) {
+        self.sinks.remove(sink_key);
     }
 
     pub fn step_epoch(&mut self) -> Result<()> {
@@ -80,7 +84,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
     pub fn step(&mut self) -> Result<()> {
         if self.timestamp.epoch_start() == self.timestamp {
             // TODO: Scheduling sources should happen as RAM statements
-            for source in &mut self.sources {
+            for (_key, source) in &mut self.sources {
                 for untimed_fact in source.pull()? {
                     let timed_fact = untimed_fact.with_timestamp::<T>(self.timestamp);
 
@@ -313,16 +317,14 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
     }
 
     fn handle_sinks(&mut self, sinks: &Sinks) -> Result<()> {
-        for (relation_ref, relation_sinks) in &mut self.sinks {
-            // TODO: Slow since sinks.relations() is a Vec
+        for (_key, (relation_ref, sink)) in &mut self.sinks {
+            // TODO: Slow. Index sinks by relation_ref
             if !sinks.relations().contains(relation_ref) {
                 continue;
             }
 
-            for sink in relation_sinks {
-                for fact in self.relations.get(relation_ref).unwrap().clone() {
-                    sink.push(fact)?;
-                }
+            for fact in self.relations.get(relation_ref).unwrap().clone() {
+                sink.push(fact)?;
             }
         }
 
@@ -458,8 +460,7 @@ mod tests {
                     vec![("from".into(), 3.into()), ("to".into(), 4.into())],
                 ),
             ])
-        })))
-        .unwrap();
+        })));
 
         vm.step_epoch().unwrap();
 
@@ -544,8 +545,7 @@ mod tests {
         vm.register_sink(
             RelationRef::new("path".into(), RelationVersion::Total),
             Box::new(WriteSink::new(writer)),
-        )
-        .unwrap();
+        );
 
         vm.step_epoch().unwrap();
 
