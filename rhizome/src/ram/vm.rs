@@ -6,6 +6,7 @@ use crate::{
     fact::Fact,
     id::AttributeId,
     relation::{DefaultRelation, Relation},
+    sink::Sink,
     source::Source,
     timestamp::{DefaultTimestamp, Timestamp},
 };
@@ -17,6 +18,7 @@ pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation<T> = DefaultRelation>
     timestamp: T,
     pc: (usize, Option<usize>),
     sources: Vec<Box<dyn Source>>,
+    sinks: std::collections::HashMap<RelationRef, Vec<Box<dyn Sink<T>>>>,
     program: Program,
     // TODO: Better data structure
     relations: HashMap<RelationRef, R>,
@@ -28,6 +30,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
             timestamp: T::default(),
             pc: (0, None),
             sources: Vec::default(),
+            sinks: std::collections::HashMap::default(),
             program,
             relations: HashMap::<RelationRef, R>::default(),
         }
@@ -50,6 +53,16 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         Ok(())
     }
 
+    pub fn register_sink(
+        &mut self,
+        relation_ref: RelationRef,
+        sink: Box<dyn Sink<T>>,
+    ) -> Result<()> {
+        self.sinks.entry(relation_ref).or_default().push(sink);
+
+        Ok(())
+    }
+
     pub fn step_epoch(&mut self) -> Result<()> {
         let start = self.timestamp;
 
@@ -66,6 +79,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
 
     pub fn step(&mut self) -> Result<()> {
         if self.timestamp.epoch_start() == self.timestamp {
+            // TODO: Scheduling sources should happen as RAM statements
             for source in &mut self.sources {
                 for untimed_fact in source.pull()? {
                     let timed_fact = untimed_fact.with_timestamp::<T>(self.timestamp);
@@ -102,6 +116,17 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
 
         if self.pc.0 == 0 {
             self.timestamp = self.timestamp.advance_epoch();
+
+            // TODO: can schedule sinks per-stratum instead of waiting
+            // for the end of the epoch
+            // TODO: Scheduling sinks should happen as RAM statements
+            for (relation_ref, sinks) in &mut self.sinks {
+                for sink in sinks {
+                    for fact in self.relations.get(relation_ref).unwrap().clone() {
+                        sink.push(fact)?;
+                    }
+                }
+            }
         } else if self.pc.1 == Some(0) {
             self.timestamp = self.timestamp.advance_iteration();
         };
@@ -301,10 +326,13 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use std::io::Read;
+    use tempfile::NamedTempFile;
 
     use crate::{
         logic::{lower_to_ram, parser},
         relation::DefaultRelation,
+        sink::WriteSink,
         source::GeneratorSource,
     };
 
@@ -482,6 +510,54 @@ mod tests {
                     vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
                 ),
             ])
+        );
+    }
+
+    #[test]
+    fn test_sink_transitive_closure() {
+        let program = parser::parse(
+            r#"
+        edge(from: 0, to: 1).
+        edge(from: 1, to: 2).
+        edge(from: 2, to: 3).
+        edge(from: 3, to: 4).
+
+        path(from: X, to: Y) :- edge(from: X, to: Y).
+        path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
+        "#,
+        )
+        .unwrap();
+
+        let mut reader = NamedTempFile::new().unwrap();
+        let writer = reader.reopen().unwrap();
+
+        let ast = lower_to_ram::lower_to_ram(&program).unwrap();
+        let mut vm: VM = VM::new(ast);
+
+        vm.register_sink(
+            RelationRef::new("path".into(), RelationVersion::Total),
+            Box::new(WriteSink::new(writer)),
+        )
+        .unwrap();
+
+        vm.step_epoch().unwrap();
+
+        let mut buf = String::new();
+        reader.read_to_string(&mut buf).unwrap();
+
+        assert_eq!(
+            buf,
+            r#"path(from: 0, to: 1)
+path(from: 1, to: 2)
+path(from: 2, to: 3)
+path(from: 3, to: 4)
+path(from: 0, to: 2)
+path(from: 1, to: 3)
+path(from: 2, to: 4)
+path(from: 0, to: 3)
+path(from: 1, to: 4)
+path(from: 0, to: 4)
+"#
         );
     }
 }
