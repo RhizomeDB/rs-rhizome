@@ -23,6 +23,8 @@ pub enum Error {
     SourcePullError,
     #[error("Error while pushing to sink")]
     SinkPushError,
+    #[error("Duplicate attribute ID specified in relation schema: {0}")]
+    DuplicateSchemaAttributeId(AttributeId),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

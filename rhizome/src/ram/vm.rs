@@ -21,7 +21,7 @@ new_key_type! { pub struct SinkKey; }
 pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation<T> = DefaultRelation> {
     timestamp: T,
     pc: (usize, Option<usize>),
-    sources: SlotMap<SourceKey, Box<dyn Source>>,
+    sources: SlotMap<SourceKey, (RelationRef, Box<dyn Source>)>,
     sinks: SlotMap<SinkKey, (RelationRef, Box<dyn Sink<T>>)>,
     program: Program,
     // TODO: Better data structure
@@ -51,8 +51,12 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
             .unwrap_or_default()
     }
 
-    pub fn register_source(&mut self, source: Box<dyn Source>) -> SourceKey {
-        self.sources.insert(source)
+    pub fn register_source(
+        &mut self,
+        relation_ref: RelationRef,
+        source: Box<dyn Source>,
+    ) -> SourceKey {
+        self.sources.insert((relation_ref, source))
     }
 
     pub fn unregister_source(&mut self, source_key: SourceKey) {
@@ -82,25 +86,6 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
     }
 
     pub fn step(&mut self) -> Result<()> {
-        if self.timestamp.epoch_start() == self.timestamp {
-            // TODO: Scheduling sources should happen as RAM statements
-            for (_key, source) in &mut self.sources {
-                for untimed_fact in source.pull()? {
-                    let timed_fact = untimed_fact.with_timestamp::<T>(self.timestamp);
-
-                    self.relations = self.relations.alter(
-                        |old| match old {
-                            Some(facts) => Some(facts.insert(timed_fact)),
-                            None => Some(R::from_iter([timed_fact])),
-                        },
-                        // TODO: Need to differentiate between EDB and IDB relations, so that sources never insert into
-                        // IDB relations, where some rules may be expecting new facts to appear in Delta
-                        RelationRef::new(*untimed_fact.id(), RelationVersion::Total),
-                    );
-                }
-            }
-        }
-
         match self.load_statement().clone() {
             Statement::Insert(insert) => self.handle_operation(insert.operation()),
             Statement::Merge(merge) => self.handle_merge(&merge),
@@ -111,6 +96,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
 
                 self.handle_exit(&exit);
             }
+            Statement::Sources(sources) => self.handle_sources(&sources)?,
             Statement::Sinks(sinks) => self.handle_sinks(&sinks)?,
             Statement::Loop(Loop { .. }) => {
                 unreachable!("load_statement follows loops in the root block")
@@ -316,6 +302,29 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         }
     }
 
+    fn handle_sources(&mut self, sources: &Sources) -> Result<()> {
+        for (_key, (relation_ref, source)) in &mut self.sources {
+            // TODO: Slow. Index sources by relation_ref
+            if !sources.relations().contains(relation_ref) {
+                continue;
+            }
+
+            for untimed_fact in source.pull()? {
+                let timed_fact = untimed_fact.with_timestamp::<T>(self.timestamp);
+
+                self.relations = self.relations.alter(
+                    |old| match old {
+                        Some(facts) => Some(facts.insert(timed_fact)),
+                        None => Some(R::from_iter([timed_fact])),
+                    },
+                    *relation_ref,
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     fn handle_sinks(&mut self, sinks: &Sinks) -> Result<()> {
         for (_key, (relation_ref, sink)) in &mut self.sinks {
             // TODO: Slow. Index sinks by relation_ref
@@ -428,6 +437,8 @@ mod tests {
     fn test_source_transitive_closure() {
         let program = parser::parse(
             r#"
+        input edge(from, to).
+
         path(from: X, to: Y) :- edge(from: X, to: Y).
         path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
         "#,
@@ -437,30 +448,33 @@ mod tests {
         let ast = lower_to_ram::lower_to_ram(&program).unwrap();
         let mut vm: VM = VM::new(ast);
 
-        vm.register_source(Box::new(GeneratorSource::new(|| {
-            Ok(vec![
-                Fact::new(
-                    "edge".into(),
-                    (),
-                    vec![("from".into(), 0.into()), ("to".into(), 1.into())],
-                ),
-                Fact::new(
-                    "edge".into(),
-                    (),
-                    vec![("from".into(), 1.into()), ("to".into(), 2.into())],
-                ),
-                Fact::new(
-                    "edge".into(),
-                    (),
-                    vec![("from".into(), 2.into()), ("to".into(), 3.into())],
-                ),
-                Fact::new(
-                    "edge".into(),
-                    (),
-                    vec![("from".into(), 3.into()), ("to".into(), 4.into())],
-                ),
-            ])
-        })));
+        vm.register_source(
+            RelationRef::new("edge".into(), RelationVersion::Total),
+            Box::new(GeneratorSource::new(|| {
+                Ok(vec![
+                    Fact::new(
+                        "edge".into(),
+                        (),
+                        vec![("from".into(), 0.into()), ("to".into(), 1.into())],
+                    ),
+                    Fact::new(
+                        "edge".into(),
+                        (),
+                        vec![("from".into(), 1.into()), ("to".into(), 2.into())],
+                    ),
+                    Fact::new(
+                        "edge".into(),
+                        (),
+                        vec![("from".into(), 2.into()), ("to".into(), 3.into())],
+                    ),
+                    Fact::new(
+                        "edge".into(),
+                        (),
+                        vec![("from".into(), 3.into()), ("to".into(), 4.into())],
+                    ),
+                ])
+            })),
+        );
 
         vm.step_epoch().unwrap();
 
