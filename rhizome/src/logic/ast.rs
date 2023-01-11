@@ -1,9 +1,10 @@
+use anyhow::Result;
 use derive_more::{From, IsVariant, TryInto};
 use im::{HashMap, HashSet};
 
 use crate::{
     datum::Datum,
-    error::Error,
+    error::{error, Error},
     id::{AttributeId, RelationId, VariableId},
 };
 
@@ -126,7 +127,7 @@ impl Rule {
         relation_id: impl Into<RelationId>,
         args: Vec<(impl Into<AttributeId>, AttributeValue)>,
         body: Vec<BodyTerm>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let head = relation_id.into();
         let args: HashMap<AttributeId, AttributeValue> =
             args.into_iter().map(|(k, v)| (k.into(), v)).collect();
@@ -143,7 +144,7 @@ impl Rule {
         for (id, value) in args.clone() {
             if let AttributeValue::Variable(variable) = value {
                 if !positive_rhs_variables.contains(&variable) {
-                    return Err(Error::RuleNotRangeRestricted(id, variable.id));
+                    return error(Error::RuleNotRangeRestricted(id, variable.id));
                 }
             }
         }
@@ -153,7 +154,7 @@ impl Rule {
                 for (attribute_id, value) in negation.args {
                     if let AttributeValue::Variable(variable) = value {
                         if !positive_rhs_variables.contains(&variable) {
-                            return Err(Error::RuleNotDomainIndependent(
+                            return error(Error::RuleNotDomainIndependent(
                                 negation.id,
                                 attribute_id,
                                 variable.id,
@@ -383,7 +384,7 @@ mod tests {
     #[test]
     fn test_range_restriction() {
         assert_eq!(
-            Err(Error::RuleNotRangeRestricted(
+            Some(&Error::RuleNotRangeRestricted(
                 AttributeId::new("p0"),
                 VariableId::new("X")
             )),
@@ -391,7 +392,9 @@ mod tests {
                 "p",
                 vec![("p0", Variable::new("X").into())],
                 vec![Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),],
-            ),
+            )
+            .unwrap_err()
+            .downcast_ref(),
         );
 
         assert!(matches!(
@@ -410,7 +413,7 @@ mod tests {
     #[test]
     fn test_domain_independence() {
         assert_eq!(
-            Err(Error::RuleNotDomainIndependent(
+            Some(&Error::RuleNotDomainIndependent(
                 RelationId::new("q"),
                 AttributeId::new("q0"),
                 VariableId::new("X")
@@ -422,7 +425,9 @@ mod tests {
                     Predicate::new("t", vec![("t0", Variable::new("P").into())]).into(),
                     Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),
                 ],
-            ),
+            )
+            .unwrap_err()
+            .downcast_ref(),
         );
 
         assert!(matches!(
