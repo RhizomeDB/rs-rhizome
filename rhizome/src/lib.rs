@@ -20,6 +20,7 @@ pub mod logic;
 pub mod pretty;
 pub mod ram;
 pub mod relation;
+pub mod sink;
 pub mod source;
 pub mod timestamp;
 

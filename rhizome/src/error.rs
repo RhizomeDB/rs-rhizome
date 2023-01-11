@@ -19,6 +19,10 @@ pub enum Error {
     RuleNotRangeRestricted(AttributeId, VariableId),
     #[error("Rule not domain independent: variable {2}, in attribute {1} of negated atom {0} must be bound by a positive body term")]
     RuleNotDomainIndependent(RelationId, AttributeId, VariableId),
+    #[error("Error while pulling from source")]
+    SourcePullError,
+    #[error("Error while pushing to sink")]
+    SinkPushError,
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {
