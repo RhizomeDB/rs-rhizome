@@ -1,11 +1,11 @@
-use im::HashSet;
+use im::OrdSet;
 
 use crate::{
     fact::Fact,
     timestamp::{DefaultTimestamp, Timestamp},
 };
 
-pub type DefaultRelation<T = DefaultTimestamp> = ImmutableHashSetRelation<T>;
+pub type DefaultRelation<T = DefaultTimestamp> = ImmutableOrdSetRelation<T>;
 
 pub trait Relation<T = DefaultTimestamp>:
     IntoIterator<Item = Fact<T>> + FromIterator<Fact<T>> + Default + Clone + Eq + PartialEq
@@ -26,61 +26,61 @@ where
 
 // Just a simple (and slow) implementation for initial prototyping
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ImmutableHashSetRelation<T: Timestamp> {
-    hashset: HashSet<Fact<T>>,
+pub struct ImmutableOrdSetRelation<T: Timestamp> {
+    inner: OrdSet<Fact<T>>,
 }
 
-impl<T: Timestamp> Relation<T> for ImmutableHashSetRelation<T> {
+impl<T: Timestamp> Relation<T> for ImmutableOrdSetRelation<T> {
     fn new() -> Self {
         Default::default()
     }
 
     fn len(&self) -> usize {
-        self.hashset.len()
+        self.inner.len()
     }
 
     fn is_empty(&self) -> bool {
-        self.hashset.is_empty()
+        self.inner.is_empty()
     }
 
     fn contains(&self, fact: &Fact<T>) -> bool {
-        self.hashset.contains(fact)
+        self.inner.contains(fact)
     }
 
     fn insert(self, fact: Fact<T>) -> Self {
         Self {
-            hashset: self.hashset.update(fact),
+            inner: self.inner.update(fact),
         }
     }
 
     fn merge(self, rhs: Self) -> Self {
         Self {
-            hashset: self.hashset.union(rhs.hashset),
+            inner: self.inner.union(rhs.inner),
         }
     }
 }
 
-impl<T: Timestamp> IntoIterator for ImmutableHashSetRelation<T> {
+impl<T: Timestamp> IntoIterator for ImmutableOrdSetRelation<T> {
     type Item = Fact<T>;
-    type IntoIter = im::hashset::ConsumingIter<Self::Item>;
+    type IntoIter = im::ordset::ConsumingIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.hashset.into_iter()
+        self.inner.into_iter()
     }
 }
 
-impl<TS: Timestamp> FromIterator<Fact<TS>> for ImmutableHashSetRelation<TS> {
+impl<TS: Timestamp> FromIterator<Fact<TS>> for ImmutableOrdSetRelation<TS> {
     fn from_iter<T: IntoIterator<Item = Fact<TS>>>(iter: T) -> Self {
         Self {
-            hashset: HashSet::from_iter(iter),
+            inner: OrdSet::from_iter(iter),
         }
     }
 }
 
-impl<T: Timestamp> Default for ImmutableHashSetRelation<T> {
+impl<T: Timestamp> Default for ImmutableOrdSetRelation<T> {
     fn default() -> Self {
         Self {
-            hashset: Default::default(),
+            inner: Default::default(),
         }
     }
 }
