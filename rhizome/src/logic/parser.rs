@@ -139,15 +139,15 @@ fn upper_identifier(i: &str) -> IResult<&str, &str> {
 }
 
 fn attribute_id(i: &str) -> IResult<&str, AttributeId> {
-    map(lower_identifier, AttributeId::new)(i)
+    preceded(sp, map(lower_identifier, AttributeId::new))(i)
 }
 
 fn relation_id(i: &str) -> IResult<&str, RelationId> {
-    map(lower_identifier, RelationId::new)(i)
+    preceded(sp, map(lower_identifier, RelationId::new))(i)
 }
 
 fn variable_id(i: &str) -> IResult<&str, VariableId> {
-    map(upper_identifier, VariableId::new)(i)
+    preceded(sp, map(upper_identifier, VariableId::new))(i)
 }
 
 fn variable(i: &str) -> IResult<&str, Variable> {
