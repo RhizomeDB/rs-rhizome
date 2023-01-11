@@ -467,7 +467,6 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>> {
                         clauses_by_relation.get(weight).cloned().unwrap_or_default()
                     })
                     .collect(),
-                // TODO: is this sufficient?
                 nodes.len() > 1 || edg.contains_edge(nodes[0], nodes[0]),
             )
         })
