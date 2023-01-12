@@ -18,17 +18,17 @@ new_key_type! { pub struct SourceKey; }
 new_key_type! { pub struct SinkKey; }
 
 #[derive(Debug)]
-pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation<T> = DefaultRelation> {
+pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation = DefaultRelation> {
     timestamp: T,
     pc: (usize, Option<usize>),
     sources: SlotMap<SourceKey, (RelationRef, Box<dyn Source>)>,
-    sinks: SlotMap<SinkKey, (RelationRef, Box<dyn Sink<T>>)>,
+    sinks: SlotMap<SinkKey, (RelationRef, Box<dyn Sink>)>,
     program: Program,
     // TODO: Better data structure
     relations: HashMap<RelationRef, R>,
 }
 
-impl<T: Timestamp, R: Relation<T>> VM<T, R> {
+impl<T: Timestamp, R: Relation> VM<T, R> {
     pub fn new(program: Program) -> Self {
         Self {
             timestamp: T::default(),
@@ -63,7 +63,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         self.sources.remove(source_key);
     }
 
-    pub fn register_sink(&mut self, relation_ref: RelationRef, sink: Box<dyn Sink<T>>) -> SinkKey {
+    pub fn register_sink(&mut self, relation_ref: RelationRef, sink: Box<dyn Sink>) -> SinkKey {
         self.sinks.insert((relation_ref, sink))
     }
 
@@ -153,7 +153,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
     }
 
     fn handle_operation(&mut self, operation: &Operation) {
-        let bindings = HashMap::<RelationBinding, Fact<T>>::default();
+        let bindings = HashMap::<RelationBinding, Fact>::default();
 
         self.do_handle_operation(operation, bindings)
     }
@@ -161,7 +161,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
     fn do_handle_operation(
         &mut self,
         operation: &Operation,
-        bindings: HashMap<RelationBinding, Fact<T>>,
+        bindings: HashMap<RelationBinding, Fact>,
     ) {
         match operation {
             Operation::Search(inner) => self.handle_search(inner, bindings),
@@ -169,7 +169,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         }
     }
 
-    fn handle_search(&mut self, search: &Search, bindings: HashMap<RelationBinding, Fact<T>>) {
+    fn handle_search(&mut self, search: &Search, bindings: HashMap<RelationBinding, Fact>) {
         let relation_binding = RelationBinding::new(*search.relation().id(), *search.alias());
         let facts = self
             .relations
@@ -222,7 +222,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
                         }
                     }
 
-                    let bound_fact = Fact::new(*not_in.relation().id(), self.timestamp, bound);
+                    let bound_fact = Fact::new(*not_in.relation().id(), bound);
 
                     !self
                         .relations
@@ -242,7 +242,7 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
         }
     }
 
-    fn handle_project(&mut self, project: &Project, bindings: HashMap<RelationBinding, Fact<T>>) {
+    fn handle_project(&mut self, project: &Project, bindings: HashMap<RelationBinding, Fact>) {
         let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
 
         for (id, term) in project.attributes() {
@@ -256,12 +256,12 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
             }
         }
 
-        let fact = Fact::new(*project.into().id(), self.timestamp, bound);
+        let fact = Fact::new(*project.into().id(), bound);
 
         self.relations = self.relations.alter(
             |old| match old {
                 Some(facts) => Some(facts.insert(fact)),
-                None => Some(R::from_iter([fact])),
+                None => Some(R::default().insert(fact)),
             },
             *project.into(),
         );
@@ -309,13 +309,11 @@ impl<T: Timestamp, R: Relation<T>> VM<T, R> {
                 continue;
             }
 
-            for untimed_fact in source.pull()? {
-                let timed_fact = untimed_fact.with_timestamp::<T>(self.timestamp);
-
+            for fact in source.pull()? {
                 self.relations = self.relations.alter(
                     |old| match old {
-                        Some(facts) => Some(facts.insert(timed_fact)),
-                        None => Some(R::from_iter([timed_fact])),
+                        Some(facts) => Some(facts.insert(fact)),
+                        None => Some(R::default().insert(fact)),
                     },
                     *relation_ref,
                 );
@@ -349,7 +347,6 @@ mod tests {
 
     use crate::{
         logic::{lower_to_ram, parser},
-        relation::DefaultRelation,
         sink::WriteSink,
         source::GeneratorSource,
     };
@@ -381,52 +378,42 @@ mod tests {
             DefaultRelation::from_iter([
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 1,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 2,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 3,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 1,).into(),
                     vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 1,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 2.into())],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 2,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
                 ),
             ])
@@ -454,22 +441,18 @@ mod tests {
                 Ok(vec![
                     Fact::new(
                         "edge".into(),
-                        (),
                         vec![("from".into(), 0.into()), ("to".into(), 1.into())],
                     ),
                     Fact::new(
                         "edge".into(),
-                        (),
                         vec![("from".into(), 1.into()), ("to".into(), 2.into())],
                     ),
                     Fact::new(
                         "edge".into(),
-                        (),
                         vec![("from".into(), 2.into()), ("to".into(), 3.into())],
                     ),
                     Fact::new(
                         "edge".into(),
-                        (),
                         vec![("from".into(), 3.into()), ("to".into(), 4.into())],
                     ),
                 ])
@@ -483,52 +466,42 @@ mod tests {
             DefaultRelation::from_iter([
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 1,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 2,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 3,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 1,).into(),
                     vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 1,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 2.into())],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 0,).into(),
                     vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
                 ),
                 Fact::new(
                     "path".into(),
-                    (0, 2,).into(),
                     vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
                 ),
             ])
@@ -569,15 +542,15 @@ mod tests {
         assert_eq!(
             buf,
             r#"path(from: 0, to: 1)
-path(from: 1, to: 2)
-path(from: 2, to: 3)
-path(from: 3, to: 4)
 path(from: 0, to: 2)
-path(from: 1, to: 3)
-path(from: 2, to: 4)
 path(from: 0, to: 3)
-path(from: 1, to: 4)
 path(from: 0, to: 4)
+path(from: 1, to: 2)
+path(from: 1, to: 3)
+path(from: 1, to: 4)
+path(from: 2, to: 3)
+path(from: 2, to: 4)
+path(from: 3, to: 4)
 "#
         );
     }
