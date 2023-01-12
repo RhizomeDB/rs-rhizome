@@ -50,7 +50,7 @@ impl<T> Display for Fact<T> {
         let attributes = self
             .attributes
             .iter()
-            .map(|(k, v)| format!("{}: {}", k, v))
+            .map(|(k, v)| format!("{k}: {v}"))
             .collect::<Vec<String>>()
             .join(", ");
 
