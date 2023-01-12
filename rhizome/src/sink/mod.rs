@@ -5,12 +5,11 @@ use std::io::Write;
 use crate::{
     error::{error, Error},
     fact::Fact,
-    timestamp::Timestamp,
 };
 
-pub trait Sink<T: Timestamp>: Debug {
+pub trait Sink: Debug {
     // TODO: Return metadata about push on success?
-    fn push(&mut self, f: Fact<T>) -> Result<()>;
+    fn push(&mut self, f: Fact) -> Result<()>;
 
     // TODO: likely want a flush method to buffer pushes per epoch
 }
@@ -31,12 +30,11 @@ where
     }
 }
 
-impl<T, W> Sink<T> for WriteSink<W>
+impl<W> Sink for WriteSink<W>
 where
-    T: Timestamp,
     W: Write,
 {
-    fn push(&mut self, f: Fact<T>) -> Result<()> {
+    fn push(&mut self, f: Fact) -> Result<()> {
         writeln!(self.w, "{f}").or_else(|_| error(Error::SinkPushError))
     }
 }
