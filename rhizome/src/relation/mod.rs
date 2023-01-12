@@ -1,16 +1,12 @@
 use im::OrdSet;
 
-use crate::{
-    fact::Fact,
-    timestamp::{DefaultTimestamp, Timestamp},
-};
+use crate::fact::Fact;
 
-pub type DefaultRelation<T = DefaultTimestamp> = ImmutableOrdSetRelation<T>;
+pub type DefaultRelation = ImmutableOrdSetRelation;
 
-pub trait Relation<T = DefaultTimestamp>:
-    IntoIterator<Item = Fact<T>> + FromIterator<Fact<T>> + Default + Clone + Eq + PartialEq
-where
-    T: Timestamp,
+// TODO: Keep track of the timestamp a fact was derived at
+pub trait Relation:
+    IntoIterator<Item = Fact> + FromIterator<Fact> + Default + Clone + Eq + PartialEq
 {
     fn new() -> Self {
         Default::default()
@@ -19,18 +15,18 @@ where
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
 
-    fn contains(&self, fact: &Fact<T>) -> bool;
-    fn insert(self, fact: Fact<T>) -> Self;
+    fn contains(&self, fact: &Fact) -> bool;
+    fn insert(self, fact: Fact) -> Self;
     fn merge(self, rhs: Self) -> Self;
 }
 
 // Just a simple (and slow) implementation for initial prototyping
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ImmutableOrdSetRelation<T: Timestamp> {
-    inner: OrdSet<Fact<T>>,
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ImmutableOrdSetRelation {
+    inner: OrdSet<Fact>,
 }
 
-impl<T: Timestamp> Relation<T> for ImmutableOrdSetRelation<T> {
+impl Relation for ImmutableOrdSetRelation {
     fn new() -> Self {
         Default::default()
     }
@@ -43,11 +39,11 @@ impl<T: Timestamp> Relation<T> for ImmutableOrdSetRelation<T> {
         self.inner.is_empty()
     }
 
-    fn contains(&self, fact: &Fact<T>) -> bool {
+    fn contains(&self, fact: &Fact) -> bool {
         self.inner.contains(fact)
     }
 
-    fn insert(self, fact: Fact<T>) -> Self {
+    fn insert(self, fact: Fact) -> Self {
         Self {
             inner: self.inner.update(fact),
         }
@@ -60,8 +56,8 @@ impl<T: Timestamp> Relation<T> for ImmutableOrdSetRelation<T> {
     }
 }
 
-impl<T: Timestamp> IntoIterator for ImmutableOrdSetRelation<T> {
-    type Item = Fact<T>;
+impl IntoIterator for ImmutableOrdSetRelation {
+    type Item = Fact;
     type IntoIter = im::ordset::ConsumingIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -69,18 +65,10 @@ impl<T: Timestamp> IntoIterator for ImmutableOrdSetRelation<T> {
     }
 }
 
-impl<TS: Timestamp> FromIterator<Fact<TS>> for ImmutableOrdSetRelation<TS> {
-    fn from_iter<T: IntoIterator<Item = Fact<TS>>>(iter: T) -> Self {
+impl FromIterator<Fact> for ImmutableOrdSetRelation {
+    fn from_iter<T: IntoIterator<Item = Fact>>(iter: T) -> Self {
         Self {
             inner: OrdSet::from_iter(iter),
-        }
-    }
-}
-
-impl<T: Timestamp> Default for ImmutableOrdSetRelation<T> {
-    fn default() -> Self {
-        Self {
-            inner: Default::default(),
         }
     }
 }

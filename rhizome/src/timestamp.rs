@@ -5,7 +5,7 @@ use crate::lattice::Lattice;
 pub type DefaultTimestamp = PairTimestamp;
 
 pub trait Timestamp:
-    Lattice + Ord + Debug + Clone + Copy + Eq + Hash + Default + Ord + PartialOrd + PartialEq
+    Lattice + Debug + Clone + Copy + Eq + Hash + Default + Ord + PartialOrd + PartialEq
 {
     type Epoch: PartialEq + Eq;
     type Iteration;

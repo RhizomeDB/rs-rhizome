@@ -1,4 +1,4 @@
-use rhizome::{datum::Datum as RhizomeDatum, fact::Fact as RhizomeFact, timestamp::Timestamp};
+use rhizome::{datum::Datum as RhizomeDatum, fact::Fact as RhizomeFact};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -20,8 +20,8 @@ impl Fact {
     }
 }
 
-impl<T: Timestamp> From<RhizomeFact<T>> for Fact {
-    fn from(f: RhizomeFact<T>) -> Self {
+impl From<RhizomeFact> for Fact {
+    fn from(f: RhizomeFact) -> Self {
         let attributes: Vec<(String, Datum)> = f
             .attributes()
             .iter()
