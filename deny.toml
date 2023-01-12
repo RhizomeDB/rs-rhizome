@@ -74,7 +74,8 @@ allow = [
     "MIT",
     "BSD-3-Clause",
     "MPL-2.0",
-    "BSD-2-Clause-Patent"
+    "BSD-2-Clause-Patent",
+    "Zlib"
 ]
 # List of explicitly disallowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
