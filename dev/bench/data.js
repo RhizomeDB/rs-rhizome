@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673046906250,
+  "lastUpdate": 1673486677053,
   "repoUrl": "https://github.com/fission-codes/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -209,6 +209,36 @@ window.BENCHMARK_DATA = {
             "name": "add",
             "value": 18398,
             "range": "± 24",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "1c25c936dc1584c3a70fe26253718bbac5624612",
+          "message": "chore: allow Zlib license in deny.toml",
+          "timestamp": "2023-01-11T17:22:24-08:00",
+          "tree_id": "8a6fb541838d24a76ef03b3fdc05b211da9569fc",
+          "url": "https://github.com/fission-codes/rs-rhizome/commit/1c25c936dc1584c3a70fe26253718bbac5624612"
+        },
+        "date": 1673486676180,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 18789,
+            "range": "± 116",
             "unit": "ns/iter"
           }
         ]
