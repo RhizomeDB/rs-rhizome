@@ -37,7 +37,7 @@ where
     W: Write,
 {
     fn push(&mut self, f: Fact<T>) -> Result<()> {
-        writeln!(self.w, "{}", f).or_else(|_| error(Error::SinkPushError))
+        writeln!(self.w, "{f}").or_else(|_| error(Error::SinkPushError))
     }
 }
 
