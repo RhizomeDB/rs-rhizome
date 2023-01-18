@@ -20,8 +20,6 @@ pub mod logic;
 pub mod pretty;
 pub mod ram;
 pub mod relation;
-pub mod sink;
-pub mod source;
 pub mod timestamp;
 
 pub fn parse(i: &str) -> Result<Program> {
