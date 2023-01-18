@@ -1,31 +1,49 @@
+use core::fmt::Debug;
+use std::pin::Pin;
+
 use anyhow::Result;
-use im::HashMap;
+use futures::{
+    executor::{block_on, block_on_stream},
+    prelude::*,
+    stream::{select_all::SelectAll, AbortHandle, Abortable},
+};
+use im::HashMap as ImmHashMap;
 use slotmap::{new_key_type, SlotMap};
 
 use crate::{
     datum::Datum,
+    error::Error,
     fact::Fact,
     id::AttributeId,
     relation::{DefaultRelation, Relation},
-    sink::Sink,
-    source::Source,
     timestamp::{DefaultTimestamp, Timestamp},
 };
 
 use super::ast::{Exit, Loop, Merge, Purge, Swap, *};
 
-new_key_type! { pub struct SourceKey; }
 new_key_type! { pub struct SinkKey; }
 
-#[derive(Debug)]
+pub type FactStream = Pin<Box<dyn Stream<Item = Fact>>>;
+pub type FactSink = Pin<Box<dyn Sink<Fact, Error = Error>>>;
+
 pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation = DefaultRelation> {
     timestamp: T,
     pc: (usize, Option<usize>),
-    sources: SlotMap<SourceKey, (RelationRef, Box<dyn Source>)>,
-    sinks: SlotMap<SinkKey, (RelationRef, Box<dyn Sink>)>,
+    sources: SelectAll<Abortable<FactStream>>,
+    // TODO: Find some way of using Abortable with Sink
+    sinks: SlotMap<SinkKey, (RelationRef, FactSink)>,
     program: Program,
     // TODO: Better data structure
-    relations: HashMap<RelationRef, R>,
+    relations: ImmHashMap<RelationRef, R>,
+}
+
+impl<T: Timestamp, R: Relation> Debug for VM<T, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VM")
+            .field("timestamp", &self.timestamp)
+            .field("pc", &self.pc)
+            .finish()
+    }
 }
 
 impl<T: Timestamp, R: Relation> VM<T, R> {
@@ -33,10 +51,10 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         Self {
             timestamp: T::default(),
             pc: (0, None),
-            sources: SlotMap::with_key(),
+            sources: SelectAll::default(),
             sinks: SlotMap::with_key(),
             program,
-            relations: HashMap::<RelationRef, R>::default(),
+            relations: ImmHashMap::<RelationRef, R>::default(),
         }
     }
 
@@ -51,19 +69,20 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
             .unwrap_or_default()
     }
 
-    pub fn register_source(
+    pub fn register_source(&mut self, source: Pin<Box<dyn Stream<Item = Fact>>>) -> AbortHandle {
+        let (abort_handle, abort_registration) = AbortHandle::new_pair();
+
+        self.sources
+            .push(Abortable::new(source, abort_registration));
+
+        abort_handle
+    }
+
+    pub fn register_sink(
         &mut self,
         relation_ref: RelationRef,
-        source: Box<dyn Source>,
-    ) -> SourceKey {
-        self.sources.insert((relation_ref, source))
-    }
-
-    pub fn unregister_source(&mut self, source_key: SourceKey) {
-        self.sources.remove(source_key);
-    }
-
-    pub fn register_sink(&mut self, relation_ref: RelationRef, sink: Box<dyn Sink>) -> SinkKey {
+        sink: Pin<Box<dyn Sink<Fact, Error = Error>>>,
+    ) -> SinkKey {
         self.sinks.insert((relation_ref, sink))
     }
 
@@ -153,7 +172,7 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
     }
 
     fn handle_operation(&mut self, operation: &Operation) {
-        let bindings = HashMap::<RelationBinding, Fact>::default();
+        let bindings = ImmHashMap::<RelationBinding, Fact>::default();
 
         self.do_handle_operation(operation, bindings)
     }
@@ -161,7 +180,7 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
     fn do_handle_operation(
         &mut self,
         operation: &Operation,
-        bindings: HashMap<RelationBinding, Fact>,
+        bindings: ImmHashMap<RelationBinding, Fact>,
     ) {
         match operation {
             Operation::Search(inner) => self.handle_search(inner, bindings),
@@ -169,7 +188,7 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         }
     }
 
-    fn handle_search(&mut self, search: &Search, bindings: HashMap<RelationBinding, Fact>) {
+    fn handle_search(&mut self, search: &Search, bindings: ImmHashMap<RelationBinding, Fact>) {
         let relation_binding = RelationBinding::new(*search.relation().id(), *search.alias());
         let facts = self
             .relations
@@ -242,7 +261,7 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         }
     }
 
-    fn handle_project(&mut self, project: &Project, bindings: HashMap<RelationBinding, Fact>) {
+    fn handle_project(&mut self, project: &Project, bindings: ImmHashMap<RelationBinding, Fact>) {
         let mut bound: Vec<(AttributeId, Datum)> = Vec::default();
 
         for (id, term) in project.attributes() {
@@ -302,22 +321,20 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         }
     }
 
-    fn handle_sources(&mut self, sources: &Sources) -> Result<()> {
-        for (_key, (relation_ref, source)) in &mut self.sources {
-            // TODO: Slow. Index sources by relation_ref
-            if !sources.relations().contains(relation_ref) {
-                continue;
-            }
+    fn handle_sources(&mut self, _sources: &Sources) -> Result<()> {
+        // TODO: should not block here
+        let iter = block_on_stream(&mut self.sources);
 
-            for fact in source.pull()? {
-                self.relations = self.relations.alter(
-                    |old| match old {
-                        Some(facts) => Some(facts.insert(fact)),
-                        None => Some(R::default().insert(fact)),
-                    },
-                    *relation_ref,
-                );
-            }
+        for fact in iter {
+            let relation_ref = RelationRef::new(*fact.id(), RelationVersion::Total);
+
+            self.relations = self.relations.alter(
+                |old| match old {
+                    Some(facts) => Some(facts.insert(fact)),
+                    None => Some(R::default().insert(fact)),
+                },
+                relation_ref,
+            );
         }
 
         Ok(())
@@ -331,8 +348,12 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
             }
 
             for fact in self.relations.get(relation_ref).unwrap().clone() {
-                sink.push(fact)?;
+                // TODO: should not block here
+                block_on(sink.send(fact))?;
             }
+
+            // TODO: should not block here
+            block_on(sink.flush())?;
         }
 
         Ok(())
@@ -341,15 +362,12 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-    use std::io::Read;
-    use tempfile::NamedTempFile;
+    use std::{cell::RefCell, rc::Rc};
 
-    use crate::{
-        logic::{lower_to_ram, parser},
-        sink::WriteSink,
-        source::GeneratorSource,
-    };
+    use futures::{sink::unfold, stream};
+    use pretty_assertions::assert_eq;
+
+    use crate::logic::{lower_to_ram, parser};
 
     use super::*;
 
@@ -435,29 +453,24 @@ mod tests {
         let ast = lower_to_ram::lower_to_ram(&program).unwrap();
         let mut vm: VM = VM::new(ast);
 
-        vm.register_source(
-            RelationRef::new("edge".into(), RelationVersion::Total),
-            Box::new(GeneratorSource::new(|| {
-                Ok(vec![
-                    Fact::new(
-                        "edge".into(),
-                        vec![("from".into(), 0.into()), ("to".into(), 1.into())],
-                    ),
-                    Fact::new(
-                        "edge".into(),
-                        vec![("from".into(), 1.into()), ("to".into(), 2.into())],
-                    ),
-                    Fact::new(
-                        "edge".into(),
-                        vec![("from".into(), 2.into()), ("to".into(), 3.into())],
-                    ),
-                    Fact::new(
-                        "edge".into(),
-                        vec![("from".into(), 3.into()), ("to".into(), 4.into())],
-                    ),
-                ])
-            })),
-        );
+        vm.register_source(Box::pin(stream::iter(vec![
+            Fact::new(
+                "edge".into(),
+                vec![("from".into(), 0.into()), ("to".into(), 1.into())],
+            ),
+            Fact::new(
+                "edge".into(),
+                vec![("from".into(), 1.into()), ("to".into(), 2.into())],
+            ),
+            Fact::new(
+                "edge".into(),
+                vec![("from".into(), 2.into()), ("to".into(), 3.into())],
+            ),
+            Fact::new(
+                "edge".into(),
+                vec![("from".into(), 3.into()), ("to".into(), 4.into())],
+            ),
+        ])));
 
         vm.step_epoch().unwrap();
 
@@ -522,36 +535,70 @@ mod tests {
         "#,
         )
         .unwrap();
-
-        let mut reader = NamedTempFile::new().unwrap();
-        let writer = reader.reopen().unwrap();
-
         let ast = lower_to_ram::lower_to_ram(&program).unwrap();
         let mut vm: VM = VM::new(ast);
 
+        let buf1 = Rc::new(RefCell::new(Vec::<Fact>::new()));
+        let buf2 = Rc::clone(&buf1);
+        let sink = unfold((), move |_, fact: Fact| {
+            let b = Rc::clone(&buf1);
+            async move {
+                Rc::clone(&b).borrow_mut().push(fact);
+                Ok(())
+            }
+        });
+
         vm.register_sink(
             RelationRef::new("path".into(), RelationVersion::Total),
-            Box::new(WriteSink::new(writer)),
+            Box::pin(sink),
         );
 
         vm.step_epoch().unwrap();
 
-        let mut buf = String::new();
-        reader.read_to_string(&mut buf).unwrap();
-
         assert_eq!(
-            buf,
-            r#"path(from: 0, to: 1)
-path(from: 0, to: 2)
-path(from: 0, to: 3)
-path(from: 0, to: 4)
-path(from: 1, to: 2)
-path(from: 1, to: 3)
-path(from: 1, to: 4)
-path(from: 2, to: 3)
-path(from: 2, to: 4)
-path(from: 3, to: 4)
-"#
+            *buf2.borrow(),
+            vec![
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 2.into())],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
+                ),
+                Fact::new(
+                    "path".into(),
+                    vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
+                ),
+            ]
         );
     }
 }
