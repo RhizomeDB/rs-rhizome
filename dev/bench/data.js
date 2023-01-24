@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673486677053,
+  "lastUpdate": 1674590931573,
   "repoUrl": "https://github.com/fission-codes/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -239,6 +239,36 @@ window.BENCHMARK_DATA = {
             "name": "add",
             "value": 18789,
             "range": "± 116",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "andy@fission.codes",
+            "name": "Andrew Vivash",
+            "username": "avivash"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bfec9c658c11d238d75e8e8b8ca4b1f0dac43f5b",
+          "message": "Merge pull request #11 from fission-codes/avivash/update-fission-logo\n\nFix: point readme to new hosted Fission logo",
+          "timestamp": "2023-01-24T12:06:27-08:00",
+          "tree_id": "ae1fd2fa0bb33ebc5c15a4d9993c58240d6cbf71",
+          "url": "https://github.com/fission-codes/rs-rhizome/commit/bfec9c658c11d238d75e8e8b8ca4b1f0dac43f5b"
+        },
+        "date": 1674590930736,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 18808,
+            "range": "± 51",
             "unit": "ns/iter"
           }
         ]
