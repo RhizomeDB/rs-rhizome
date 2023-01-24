@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/fission-codes/rs-rhizome" target="_blank">
-    <img src="https://raw.githubusercontent.com/fission-codes/rs-rhizome/main/assets/a_logo.png" alt="rhizome Logo" width="100"></img>
+    <img src="https://github.com/fission-codes/kit/blob/main/images/logo-icon-coloured.png?raw=true" alt="Fission logo" width="100" />
   </a>
 
   <h1 align="center">rhizome</h1>
