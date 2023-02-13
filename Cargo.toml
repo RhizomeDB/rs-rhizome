@@ -4,6 +4,7 @@ members = [
 	"rhizome",
 	"rhizome-benches",
 	"rhizome-runtime",
+	"rhizome-tokio"
 ]
 exclude = ["rhizome-wasm"]
 

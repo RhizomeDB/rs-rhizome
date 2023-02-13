@@ -25,13 +25,17 @@ path = "src/lib.rs"
 anyhow = "1.0"
 console_error_panic_hook = { version = "0.1", optional = true }
 derive_more = "0.99"
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+gloo-console = "0.2"
 js-sys = { version = "0.3", optional = true }
 rhizome = { path = "../rhizome", version = "0.1" }
+rhizome-runtime = { path = "../rhizome-runtime", version = "0.1" }
 serde = { version = "1.0", features = ["derive"] }
 serde-wasm-bindgen = "0.4"
 tracing = "0.1"
 wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
-wasm-bindgen-futures = { version = "0.4", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true, features = ["futures-core-03-stream"] }
+wasm-bindgen-downcast = "0.1"
 web-sys = { version = "0.3", optional = true }
 
 [dev-dependencies]

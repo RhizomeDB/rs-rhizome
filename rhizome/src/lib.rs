@@ -8,6 +8,7 @@ use crate::pretty::Pretty;
 use anyhow::Result;
 use logic::{ast::Program, parser};
 use ram::vm;
+use reactor::Reactor;
 use relation::Relation;
 
 pub mod datum;
@@ -19,6 +20,7 @@ pub mod lattice;
 pub mod logic;
 pub mod pretty;
 pub mod ram;
+pub mod reactor;
 pub mod relation;
 pub mod timestamp;
 
@@ -42,6 +44,14 @@ pub fn run(program: &Program, relation: &str) -> Result<impl Relation> {
     vm.step_epoch()?;
 
     Ok(vm.relation(relation))
+}
+
+pub fn spawn(program: &Program) -> Result<Reactor> {
+    let ram = logic::lower_to_ram::lower_to_ram(program)?;
+    let vm: vm::VM = vm::VM::new(ram);
+    let reactor = Reactor::new(vm);
+
+    Ok(reactor)
 }
 
 /// Test utilities.

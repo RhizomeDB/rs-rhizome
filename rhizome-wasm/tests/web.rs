@@ -26,46 +26,16 @@ path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
     let results = Program::run(&program, "path").unwrap();
 
     let expected = BTreeSet::from([
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 1.into()), ("to".into(), 2.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 1.into()), ("to".into(), 3.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 3.into()), ("to".into(), 4.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 2.into()), ("to".into(), 3.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 0.into()), ("to".into(), 3.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 0.into()), ("to".into(), 4.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 2.into()), ("to".into(), 4.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 0.into()), ("to".into(), 2.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 0.into()), ("to".into(), 1.into())],
-        ),
-        Fact::new(
-            "path".into(),
-            vec![("from".into(), 1.into()), ("to".into(), 4.into())],
-        ),
+        Fact::new("path", [("from", 1), ("to", 2)]),
+        Fact::new("path", [("from", 1), ("to", 3)]),
+        Fact::new("path", [("from", 3), ("to", 4)]),
+        Fact::new("path", [("from", 2), ("to", 3)]),
+        Fact::new("path", [("from", 0), ("to", 3)]),
+        Fact::new("path", [("from", 0), ("to", 4)]),
+        Fact::new("path", [("from", 2), ("to", 4)]),
+        Fact::new("path", [("from", 0), ("to", 2)]),
+        Fact::new("path", [("from", 0), ("to", 1)]),
+        Fact::new("path", [("from", 1), ("to", 4)]),
     ]);
 
     assert_eq!(
