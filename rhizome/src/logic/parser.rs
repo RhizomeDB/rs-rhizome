@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(literal("-158"), Ok(("", Literal::new(-158))));
         assert_eq!(
             literal(r#""Emoji! \"👀\"""#),
-            Ok(("", Literal::new(Datum::string("Emoji! \"👀\""))))
+            Ok(("", Literal::new("Emoji! \"👀\"")))
         );
     }
 
@@ -369,19 +369,25 @@ mod tests {
 
     #[test]
     fn test_attribute_value() {
-        assert_eq!(attribute_value("X"), Ok(("", Variable::new("X").into())));
-        assert_eq!(attribute_value("true"), Ok(("", Literal::new(true).into())));
+        assert_eq!(
+            attribute_value("X"),
+            Ok(("", AttributeValue::variable("X")))
+        );
+        assert_eq!(
+            attribute_value("true"),
+            Ok(("", AttributeValue::literal(true)))
+        );
     }
 
     #[test]
     fn test_attribute_id_value() {
         assert_eq!(
             attribute_id_value("a: X"),
-            Ok(("", ("a".into(), Variable::new("X").into())))
+            Ok(("", ("a".into(), AttributeValue::variable("X"))))
         );
         assert_eq!(
             attribute_id_value("bA_c_D:      true"),
-            Ok(("", ("bA_c_D".into(), Literal::new(true).into())))
+            Ok(("", ("bA_c_D".into(), AttributeValue::literal(true))))
         );
     }
 
@@ -389,7 +395,7 @@ mod tests {
     fn test_arguments() {
         assert_eq!(
             arguments("(a: X)"),
-            Ok(("", vec![("a".into(), Variable::new("X").into())]))
+            Ok(("", vec![("a".into(), AttributeValue::variable("X"))]))
         );
 
         assert_eq!(
@@ -397,8 +403,8 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    ("a".into(), Variable::new("X").into()),
-                    ("b".into(), Variable::new("Y").into())
+                    ("a".into(), AttributeValue::variable("X")),
+                    ("b".into(), AttributeValue::variable("Y"))
                 ]
             ))
         );
@@ -410,7 +416,7 @@ mod tests {
             predicate("foo(x: 1 )"),
             Ok((
                 "",
-                Predicate::new("foo", vec![("x", Literal::new(1).into())])
+                Predicate::new("foo", vec![("x", AttributeValue::literal(1))])
             ))
         );
 
@@ -421,8 +427,8 @@ mod tests {
                 Predicate::new(
                     "foo",
                     vec![
-                        ("a", Variable::new("X").into()),
-                        ("b", Literal::new(2).into())
+                        ("a", AttributeValue::variable("X")),
+                        ("b", AttributeValue::literal(2))
                     ]
                 )
             ))
@@ -435,7 +441,7 @@ mod tests {
             negation("!foo(x: 1)"),
             Ok((
                 "",
-                Negation::new("foo", vec![("x", Literal::new(1).into())])
+                Negation::new("foo", vec![("x", AttributeValue::literal(1))])
             ))
         );
 
@@ -446,8 +452,8 @@ mod tests {
                 Negation::new(
                     "foo",
                     vec![
-                        ("a", Variable::new("X").into()),
-                        ("b", Literal::new(2).into())
+                        ("a", AttributeValue::variable("X")),
+                        ("b", AttributeValue::literal(2))
                     ]
                 )
             ))
@@ -460,7 +466,7 @@ mod tests {
             body_term("foo(x: 1)"),
             Ok((
                 "",
-                Predicate::new("foo", vec![("x", Literal::new(1).into())]).into()
+                BodyTerm::predicate("foo", vec![("x", AttributeValue::literal(1))])
             ))
         );
 
@@ -468,14 +474,13 @@ mod tests {
             body_term("!foo(a: X, b: 2)"),
             Ok((
                 "",
-                Negation::new(
+                BodyTerm::negation(
                     "foo",
-                    vec![
-                        ("a", Variable::new("X").into()),
-                        ("b", Literal::new(2).into())
+                    [
+                        ("a", AttributeValue::variable("X")),
+                        ("b", AttributeValue::literal(2))
                     ]
                 )
-                .into()
             ))
         );
     }
@@ -486,7 +491,10 @@ mod tests {
             body(":- foo(x: 1)."),
             Ok((
                 "",
-                vec![Predicate::new("foo", vec![("x", Literal::new(1).into())]).into()]
+                vec![BodyTerm::predicate(
+                    "foo",
+                    vec![("x", AttributeValue::literal(1))]
+                )]
             ))
         );
 
@@ -495,15 +503,14 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    Predicate::new("foo", vec![("x", Literal::new(1).into())]).into(),
-                    Negation::new(
+                    BodyTerm::predicate("foo", [("x", AttributeValue::literal(1))]),
+                    BodyTerm::negation(
                         "foo",
-                        vec![
-                            ("a", Variable::new("X").into()),
-                            ("b", Literal::new(2).into())
+                        [
+                            ("a", AttributeValue::variable("X")),
+                            ("b", AttributeValue::literal(2))
                         ]
                     )
-                    .into()
                 ]
             ))
         );
@@ -513,33 +520,32 @@ mod tests {
     fn test_fact() {
         assert_eq!(
             fact("foo(x: 1)."),
-            Ok(("", Fact::new("foo", vec![("x".into(), Literal::new(1))])))
+            Ok(("", Fact::new("foo", [("x", Literal::new(1))])))
         );
 
         assert_eq!(
             fact("foo(    x: 1    ,    y   :    2)    ."),
             Ok((
                 "",
-                Fact::new(
-                    "foo",
-                    vec![("x".into(), Literal::new(1)), ("y".into(), Literal::new(2))]
-                )
+                Fact::new("foo", [("x", Literal::new(1)), ("y", Literal::new(2))])
             ))
         );
     }
 
     #[test]
-    fn test_rule() {
+    fn test_rule() -> Result<()> {
         assert_eq!(
             rule("foo(x: X) :- bar(x: X)."),
             Ok((
                 "",
                 Rule::new(
                     "foo",
-                    vec![("x", Variable::new("X").into())],
-                    vec![Predicate::new("bar", vec![("x", Variable::new("X").into())]).into()]
-                )
-                .unwrap()
+                    [("x", AttributeValue::variable("X"))],
+                    [BodyTerm::predicate(
+                        "bar",
+                        [("x", AttributeValue::variable("X"))]
+                    )]
+                )?
             ))
         );
 
@@ -549,47 +555,45 @@ mod tests {
                 "",
                 Rule::new(
                     "foo",
-                    vec![("x", Variable::new("X").into())],
-                    vec![
-                        Predicate::new("bar", vec![("x", Variable::new("X").into())]).into(),
-                        Negation::new("baz", vec![("x", Variable::new("X").into())]).into()
+                    [("x", AttributeValue::variable("X"))],
+                    [
+                        BodyTerm::predicate("bar", [("x", AttributeValue::variable("X"))]),
+                        BodyTerm::negation("baz", [("x", AttributeValue::variable("X"))])
                     ]
-                )
-                .unwrap()
+                )?
             ))
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_clause() {
+    fn test_clause() -> Result<()> {
         assert_eq!(
             clause("foo(x: 5)."),
-            Ok((
-                "",
-                Fact::new("foo", vec![("x".into(), Literal::new(5))]).into()
-            ))
+            Ok(("", Clause::fact("foo", [("x", Literal::new(5))])))
         );
 
         assert_eq!(
             clause("foo(x: X)    :-    bar(x: X)    ,    !baz(x: X)   ."),
             Ok((
                 "",
-                Rule::new(
+                Clause::rule(
                     "foo",
-                    vec![("x", Variable::new("X").into())],
-                    vec![
-                        Predicate::new("bar", vec![("x", Variable::new("X").into())]).into(),
-                        Negation::new("baz", vec![("x", Variable::new("X").into())]).into()
+                    [("x", AttributeValue::variable("X"))],
+                    [
+                        BodyTerm::predicate("bar", [("x", AttributeValue::variable("X"))]),
+                        BodyTerm::negation("baz", [("x", AttributeValue::variable("X"))])
                     ]
-                )
-                .unwrap()
-                .into()
+                )?
             ))
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_program() {
+    fn test_program() -> Result<()> {
         assert_eq!(
             program(
                 r#"
@@ -607,114 +611,88 @@ mod tests {
             Ok((
                 "",
                 Program::new(vec![
-                    Statement::InputSchema(
-                        InputSchema::new("r", vec!["r0".into(), "r1".into()]).unwrap()
-                    ),
-                    Statement::Clause(
-                        Rule::new(
-                            "v",
-                            vec![("v", Variable::new("X").into())],
-                            vec![Predicate::new(
-                                "r",
+                    Statement::InputSchema(InputSchema::new("r", ["r0", "r1"])?),
+                    Statement::Clause(Clause::rule(
+                        "v",
+                        [("v", AttributeValue::variable("X"))],
+                        [BodyTerm::predicate(
+                            "r",
+                            [
+                                ("r0", AttributeValue::variable("X")),
+                                ("r1", AttributeValue::variable("Y")),
+                            ],
+                        )],
+                    )?),
+                    Statement::Clause(Clause::rule(
+                        "v",
+                        [("v", AttributeValue::variable("Y"))],
+                        [BodyTerm::predicate(
+                            "r",
+                            [
+                                ("r0", AttributeValue::variable("X")),
+                                ("r1", AttributeValue::variable("Y")),
+                            ],
+                        )],
+                    )?),
+                    Statement::Clause(Clause::rule(
+                        "t",
+                        [
+                            ("t0", AttributeValue::variable("X")),
+                            ("t1", AttributeValue::variable("Y")),
+                        ],
+                        [BodyTerm::predicate(
+                            "r",
+                            vec![
+                                ("r0", AttributeValue::variable("X")),
+                                ("r1", AttributeValue::variable("Y")),
+                            ],
+                        )],
+                    )?),
+                    Statement::Clause(Clause::rule(
+                        "t",
+                        [
+                            ("t0", AttributeValue::variable("X")),
+                            ("t1", AttributeValue::variable("Y")),
+                        ],
+                        [
+                            BodyTerm::predicate(
+                                "t",
                                 vec![
-                                    ("r0", Variable::new("X").into()),
-                                    ("r1", Variable::new("Y").into()),
+                                    ("t0", AttributeValue::variable("X")),
+                                    ("t1", AttributeValue::variable("Z")),
                                 ],
-                            )
-                            .into()],
-                        )
-                        .unwrap()
-                        .into()
-                    ),
-                    Statement::Clause(
-                        Rule::new(
-                            "v",
-                            vec![("v", Variable::new("Y").into())],
-                            vec![Predicate::new(
+                            ),
+                            BodyTerm::predicate(
                                 "r",
-                                vec![
-                                    ("r0", Variable::new("X").into()),
-                                    ("r1", Variable::new("Y").into()),
+                                [
+                                    ("r0", AttributeValue::variable("Z")),
+                                    ("r1", AttributeValue::variable("Y")),
                                 ],
-                            )
-                            .into()],
-                        )
-                        .unwrap()
-                        .into()
-                    ),
-                    Statement::Clause(
-                        Rule::new(
-                            "t",
-                            vec![
-                                ("t0", Variable::new("X").into()),
-                                ("t1", Variable::new("Y").into()),
-                            ],
-                            vec![Predicate::new(
-                                "r",
-                                vec![
-                                    ("r0", Variable::new("X").into()),
-                                    ("r1", Variable::new("Y").into()),
+                            ),
+                        ],
+                    )?),
+                    Statement::Clause(Clause::rule(
+                        "tc",
+                        [
+                            ("tc0", AttributeValue::variable("X")),
+                            ("tc1", AttributeValue::variable("Y")),
+                        ],
+                        [
+                            BodyTerm::predicate("v", [("v", AttributeValue::variable("X"))]),
+                            BodyTerm::predicate("v", [("v", AttributeValue::variable("Y"))]),
+                            BodyTerm::negation(
+                                "t",
+                                [
+                                    ("t0", AttributeValue::variable("X")),
+                                    ("t1", AttributeValue::variable("Y")),
                                 ],
-                            )
-                            .into()],
-                        )
-                        .unwrap()
-                        .into()
-                    ),
-                    Statement::Clause(
-                        Rule::new(
-                            "t",
-                            vec![
-                                ("t0", Variable::new("X").into()),
-                                ("t1", Variable::new("Y").into()),
-                            ],
-                            vec![
-                                Predicate::new(
-                                    "t",
-                                    vec![
-                                        ("t0", Variable::new("X").into()),
-                                        ("t1", Variable::new("Z").into()),
-                                    ],
-                                )
-                                .into(),
-                                Predicate::new(
-                                    "r",
-                                    vec![
-                                        ("r0", Variable::new("Z").into()),
-                                        ("r1", Variable::new("Y").into()),
-                                    ],
-                                )
-                                .into(),
-                            ],
-                        )
-                        .unwrap()
-                        .into()
-                    ),
-                    Statement::Clause(
-                        Rule::new(
-                            "tc",
-                            vec![
-                                ("tc0", Variable::new("X").into()),
-                                ("tc1", Variable::new("Y").into()),
-                            ],
-                            vec![
-                                Predicate::new("v", vec![("v", Variable::new("X").into())]).into(),
-                                Predicate::new("v", vec![("v", Variable::new("Y").into())]).into(),
-                                Negation::new(
-                                    "t",
-                                    vec![
-                                        ("t0", Variable::new("X").into()),
-                                        ("t1", Variable::new("Y").into()),
-                                    ],
-                                )
-                                .into(),
-                            ],
-                        )
-                        .unwrap()
-                        .into()
-                    ),
+                            ),
+                        ],
+                    )?),
                 ],)
             ))
         );
+
+        Ok(())
     }
 }

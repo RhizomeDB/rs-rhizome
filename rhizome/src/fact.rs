@@ -12,8 +12,15 @@ pub struct Fact {
 }
 
 impl Fact {
-    pub fn new(id: RelationId, attributes: Vec<(AttributeId, Datum)>) -> Self {
-        let attributes = BTreeMap::from_iter(attributes);
+    pub fn new<A: Into<AttributeId> + Ord, D: Into<Datum>>(
+        id: impl Into<RelationId>,
+        attributes: impl IntoIterator<Item = (A, D)>,
+    ) -> Self {
+        let id = id.into();
+        let attributes = attributes
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
 
         Self { id, attributes }
     }

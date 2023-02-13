@@ -27,6 +27,12 @@ impl Datum {
     }
 }
 
+impl From<&str> for Datum {
+    fn from(value: &str) -> Self {
+        Self::string(value)
+    }
+}
+
 impl Display for Datum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {

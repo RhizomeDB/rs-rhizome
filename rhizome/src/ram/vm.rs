@@ -1,37 +1,24 @@
 use core::fmt::Debug;
-use std::pin::Pin;
 
 use anyhow::Result;
-use futures::{
-    executor::{block_on, block_on_stream},
-    prelude::*,
-    stream::{select_all::SelectAll, AbortHandle, Abortable},
-};
+use futures::channel::mpsc;
 use im::HashMap as ImmHashMap;
-use slotmap::{new_key_type, SlotMap};
 
 use crate::{
     datum::Datum,
-    error::Error,
     fact::Fact,
-    id::AttributeId,
+    id::{AttributeId, RelationId},
     relation::{DefaultRelation, Relation},
     timestamp::{DefaultTimestamp, Timestamp},
 };
 
 use super::ast::{Exit, Loop, Merge, Purge, Swap, *};
 
-new_key_type! { pub struct SinkKey; }
-
-pub type FactStream = Pin<Box<dyn Stream<Item = Fact>>>;
-pub type FactSink = Pin<Box<dyn Sink<Fact, Error = Error>>>;
-
 pub struct VM<T: Timestamp = DefaultTimestamp, R: Relation = DefaultRelation> {
     timestamp: T,
     pc: (usize, Option<usize>),
-    sources: SelectAll<Abortable<FactStream>>,
-    // TODO: Find some way of using Abortable with Sink
-    sinks: SlotMap<SinkKey, (RelationRef, FactSink)>,
+    input_channels: Vec<mpsc::UnboundedReceiver<Fact>>,
+    output_channels: Vec<(RelationId, mpsc::UnboundedSender<Fact>)>,
     program: Program,
     // TODO: Better data structure
     relations: ImmHashMap<RelationRef, R>,
@@ -51,8 +38,8 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         Self {
             timestamp: T::default(),
             pc: (0, None),
-            sources: SelectAll::default(),
-            sinks: SlotMap::with_key(),
+            input_channels: Vec::default(),
+            output_channels: Vec::default(),
             program,
             relations: ImmHashMap::<RelationRef, R>::default(),
         }
@@ -64,49 +51,85 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
 
     pub fn relation(&self, id: &str) -> R {
         self.relations
-            .get(&RelationRef::new(id.into(), RelationVersion::Total))
+            .get(&RelationRef::new(id, RelationVersion::Total))
             .cloned()
             .unwrap_or_default()
     }
 
-    pub fn register_source(&mut self, source: Pin<Box<dyn Stream<Item = Fact>>>) -> AbortHandle {
-        let (abort_handle, abort_registration) = AbortHandle::new_pair();
+    pub fn input_channel(&mut self) -> mpsc::UnboundedSender<Fact> {
+        let (tx, rx) = mpsc::unbounded();
 
-        self.sources
-            .push(Abortable::new(source, abort_registration));
+        self.input_channels.push(rx);
 
-        abort_handle
+        tx
     }
 
-    pub fn register_sink(
+    pub fn output_channel(
         &mut self,
-        relation_ref: RelationRef,
-        sink: Pin<Box<dyn Sink<Fact, Error = Error>>>,
-    ) -> SinkKey {
-        self.sinks.insert((relation_ref, sink))
-    }
+        relation_id: impl Into<RelationId>,
+    ) -> mpsc::UnboundedReceiver<Fact> {
+        let (tx, rx) = mpsc::unbounded();
 
-    pub fn unregister_sink(&mut self, sink_key: SinkKey) {
-        self.sinks.remove(sink_key);
+        self.output_channels.push((relation_id.into(), tx));
+
+        rx
     }
 
     pub fn step_epoch(&mut self) -> Result<()> {
+        assert!(self.timestamp == self.timestamp.epoch_start());
+
+        let mut has_new_facts = false;
+
+        // For each channel, read incoming facts into the correct relation
+        self.input_channels.retain_mut(|rx| {
+            let mut is_open = true;
+            loop {
+                match rx.try_next() {
+                    Ok(Some(fact)) => {
+                        let relation_ref = RelationRef::new(*fact.id(), RelationVersion::Delta);
+
+                        has_new_facts = true;
+
+                        self.relations = self.relations.alter(
+                            |old| match old {
+                                Some(facts) => Some(facts.insert(fact)),
+                                None => Some(R::default().insert(fact)),
+                            },
+                            relation_ref,
+                        );
+                    }
+                    Ok(None) => {
+                        is_open = false;
+                        break;
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            is_open
+        });
+
         let start = self.timestamp;
 
-        loop {
-            self.step()?;
+        // Only run the epoch if there's new input facts
+        // TODO: We also run once at the start, to handle hardcoded facts. This isn't
+        // super elegant though.
+        if has_new_facts || start == self.timestamp().clock_start() {
+            loop {
+                self.step()?;
 
-            if self.timestamp.epoch() != start.epoch() {
-                break;
+                if self.timestamp.epoch() != start.epoch() {
+                    break;
+                }
             }
         }
 
         Ok(())
     }
 
-    pub fn step(&mut self) -> Result<()> {
+    fn step(&mut self) -> Result<()> {
         match self.load_statement().clone() {
-            Statement::Insert(insert) => self.handle_operation(insert.operation()),
+            Statement::Insert(insert) => self.handle_insert(&insert),
             Statement::Merge(merge) => self.handle_merge(&merge),
             Statement::Swap(swap) => self.handle_swap(&swap),
             Statement::Purge(purge) => self.handle_purge(&purge),
@@ -171,6 +194,14 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         }
     }
 
+    fn handle_insert(&mut self, insert: &Insert) {
+        // Only insert ground facts on the first clock cycle
+        if insert.is_ground() && *self.timestamp() != self.timestamp().clock_start() {
+        } else {
+            self.handle_operation(insert.operation());
+        }
+    }
+
     fn handle_operation(&mut self, operation: &Operation) {
         let bindings = ImmHashMap::<RelationBinding, Fact>::default();
 
@@ -199,32 +230,16 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         for fact in facts {
             let mut next_bindings = bindings.clone();
 
+            next_bindings.insert(relation_binding, fact.clone());
+
             let is_satisfied = search.when().iter().all(|f| match f {
                 Formula::Equality(equality) => {
-                    // TODO: Dry up dereferencing Term -> Datum
-                    let left_value = match &equality.left() {
-                        Term::Attribute(attribute) if *attribute.relation() == relation_binding => {
-                            fact.attribute(attribute.id()).unwrap()
-                        }
-                        Term::Attribute(attribute) => next_bindings
-                            .get(attribute.relation())
-                            .map(|f| f.attribute(attribute.id()).unwrap())
-                            .unwrap(),
-                        Term::Literal(literal) => literal.datum(),
-                    };
+                    let left = equality.left().resolve(&fact, &relation_binding, &bindings);
+                    let right = equality
+                        .right()
+                        .resolve(&fact, &relation_binding, &bindings);
 
-                    let right_value = match &equality.right() {
-                        Term::Attribute(attribute) if *attribute.relation() == relation_binding => {
-                            fact.attribute(attribute.id()).unwrap()
-                        }
-                        Term::Attribute(attribute) => next_bindings
-                            .get(attribute.relation())
-                            .map(|f| f.attribute(attribute.id()).unwrap())
-                            .unwrap(),
-                        Term::Literal(literal) => literal.datum(),
-                    };
-
-                    left_value == right_value
+                    left == right
                 }
                 Formula::NotIn(not_in) => {
                     // TODO: Dry up constructing a fact from BTreeMap<AttributeId, Term>
@@ -247,15 +262,13 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
                         .relations
                         .get(not_in.relation())
                         .map(|r| r.contains(&bound_fact))
-                        .unwrap_or(false)
+                        .unwrap_or_default()
                 }
             });
 
             if !is_satisfied {
                 continue;
             }
-
-            next_bindings.insert(relation_binding, fact.clone());
 
             self.do_handle_operation(search.operation(), next_bindings);
         }
@@ -302,8 +315,8 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
         let left_relation = self.relations.remove(swap.left()).unwrap_or_default();
         let right_relation = self.relations.remove(swap.right()).unwrap_or_default();
 
-        self.relations.insert(*swap.left(), right_relation);
-        self.relations.insert(*swap.right(), left_relation);
+        self.relations = self.relations.update(*swap.left(), right_relation);
+        self.relations = self.relations.update(*swap.right(), left_relation);
     }
 
     fn handle_purge(&mut self, purge: &Purge) {
@@ -322,39 +335,31 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
     }
 
     fn handle_sources(&mut self, _sources: &Sources) -> Result<()> {
-        // TODO: should not block here
-        let iter = block_on_stream(&mut self.sources);
-
-        for fact in iter {
-            let relation_ref = RelationRef::new(*fact.id(), RelationVersion::Total);
-
-            self.relations = self.relations.alter(
-                |old| match old {
-                    Some(facts) => Some(facts.insert(fact)),
-                    None => Some(R::default().insert(fact)),
-                },
-                relation_ref,
-            );
-        }
+        // TODO: Channels are now read at the start of the epoch; maybe remove this?
 
         Ok(())
     }
 
     fn handle_sinks(&mut self, sinks: &Sinks) -> Result<()> {
-        for (_key, (relation_ref, sink)) in &mut self.sinks {
-            // TODO: Slow. Index sinks by relation_ref
-            if !sinks.relations().contains(relation_ref) {
-                continue;
+        self.output_channels.retain(|(relation_id, tx)| {
+            let relation_ref = RelationRef::new(*relation_id, RelationVersion::Delta);
+
+            if !sinks.relations().contains(&relation_ref) {
+                return true;
             }
 
-            for fact in self.relations.get(relation_ref).unwrap().clone() {
-                // TODO: should not block here
-                block_on(sink.send(fact))?;
+            if tx.is_closed() {
+                return false;
             }
 
-            // TODO: should not block here
-            block_on(sink.flush())?;
-        }
+            if let Some(relation) = self.relations.get(&relation_ref) {
+                for fact in relation.clone() {
+                    tx.unbounded_send(fact).unwrap();
+                }
+            }
+
+            !tx.is_closed()
+        });
 
         Ok(())
     }
@@ -362,17 +367,14 @@ impl<T: Timestamp, R: Relation> VM<T, R> {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc};
-
-    use futures::{sink::unfold, stream};
-    use pretty_assertions::assert_eq;
-
     use crate::logic::{lower_to_ram, parser};
+    use pretty_assertions::assert_eq;
+    use std::collections::BTreeSet;
 
     use super::*;
 
     #[test]
-    fn test_step_epoch_transitive_closure() {
+    fn test_step_epoch_transitive_closure() -> Result<()> {
         let program = parser::parse(
             r#"
         edge(from: 0, to: 1).
@@ -383,63 +385,40 @@ mod tests {
         path(from: X, to: Y) :- edge(from: X, to: Y).
         path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
         "#,
-        )
-        .unwrap();
+        )?;
 
-        let ast = lower_to_ram::lower_to_ram(&program).unwrap();
+        let ast = lower_to_ram::lower_to_ram(&program)?;
         let mut vm: VM = VM::new(ast);
+        let mut rx = vm.output_channel("path");
 
-        vm.step_epoch().unwrap();
+        vm.step_epoch()?;
+
+        let mut path = BTreeSet::default();
+        while let Ok(Some(fact)) = rx.try_next() {
+            path.insert(fact);
+        }
 
         assert_eq!(
-            vm.relation("path"),
-            DefaultRelation::from_iter([
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 2.into())],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
-                ),
+            path,
+            BTreeSet::from_iter([
+                Fact::new("path", [("from", 0), ("to", 1)]),
+                Fact::new("path", [("from", 0), ("to", 2)]),
+                Fact::new("path", [("from", 0), ("to", 3)]),
+                Fact::new("path", [("from", 0), ("to", 4)]),
+                Fact::new("path", [("from", 1), ("to", 2)]),
+                Fact::new("path", [("from", 1), ("to", 3)]),
+                Fact::new("path", [("from", 1), ("to", 4)]),
+                Fact::new("path", [("from", 2), ("to", 3)]),
+                Fact::new("path", [("from", 2), ("to", 4)]),
+                Fact::new("path", [("from", 3), ("to", 4)]),
             ])
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_source_transitive_closure() {
+    fn test_source_transitive_closure() -> Result<()> {
         let program = parser::parse(
             r#"
         input edge(from, to).
@@ -447,82 +426,50 @@ mod tests {
         path(from: X, to: Y) :- edge(from: X, to: Y).
         path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
         "#,
-        )
-        .unwrap();
+        )?;
 
-        let ast = lower_to_ram::lower_to_ram(&program).unwrap();
+        let ast = lower_to_ram::lower_to_ram(&program)?;
         let mut vm: VM = VM::new(ast);
+        let tx = vm.input_channel();
+        let mut rx = vm.output_channel("path");
 
-        vm.register_source(Box::pin(stream::iter(vec![
-            Fact::new(
-                "edge".into(),
-                vec![("from".into(), 0.into()), ("to".into(), 1.into())],
-            ),
-            Fact::new(
-                "edge".into(),
-                vec![("from".into(), 1.into()), ("to".into(), 2.into())],
-            ),
-            Fact::new(
-                "edge".into(),
-                vec![("from".into(), 2.into()), ("to".into(), 3.into())],
-            ),
-            Fact::new(
-                "edge".into(),
-                vec![("from".into(), 3.into()), ("to".into(), 4.into())],
-            ),
-        ])));
+        for fact in vec![
+            Fact::new("edge", [("from", 0), ("to", 1)]),
+            Fact::new("edge", [("from", 1), ("to", 2)]),
+            Fact::new("edge", [("from", 2), ("to", 3)]),
+            Fact::new("edge", [("from", 3), ("to", 4)]),
+        ] {
+            let _ = tx.unbounded_send(fact);
+        }
 
-        vm.step_epoch().unwrap();
+        vm.step_epoch()?;
+
+        let mut path = BTreeSet::default();
+        while let Ok(Some(fact)) = rx.try_next() {
+            path.insert(fact);
+        }
 
         assert_eq!(
-            vm.relation("path"),
-            DefaultRelation::from_iter([
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 2.into())],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
-                ),
+            path,
+            BTreeSet::from_iter([
+                Fact::new("path", [("from", 0), ("to", 1)]),
+                Fact::new("path", [("from", 0), ("to", 2)]),
+                Fact::new("path", [("from", 0), ("to", 3)]),
+                Fact::new("path", [("from", 0), ("to", 4)]),
+                Fact::new("path", [("from", 1), ("to", 2)]),
+                Fact::new("path", [("from", 1), ("to", 3)]),
+                Fact::new("path", [("from", 1), ("to", 4)]),
+                Fact::new("path", [("from", 2), ("to", 3)]),
+                Fact::new("path", [("from", 2), ("to", 4)]),
+                Fact::new("path", [("from", 3), ("to", 4)]),
             ])
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_sink_transitive_closure() {
+    fn test_sink_transitive_closure() -> Result<()> {
         let program = parser::parse(
             r#"
         edge(from: 0, to: 1).
@@ -533,72 +480,35 @@ mod tests {
         path(from: X, to: Y) :- edge(from: X, to: Y).
         path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
         "#,
-        )
-        .unwrap();
-        let ast = lower_to_ram::lower_to_ram(&program).unwrap();
+        )?;
+
+        let ast = lower_to_ram::lower_to_ram(&program)?;
         let mut vm: VM = VM::new(ast);
+        let mut rx = vm.output_channel("path");
 
-        let buf1 = Rc::new(RefCell::new(Vec::<Fact>::new()));
-        let buf2 = Rc::clone(&buf1);
-        let sink = unfold((), move |_, fact: Fact| {
-            let b = Rc::clone(&buf1);
-            async move {
-                Rc::clone(&b).borrow_mut().push(fact);
-                Ok(())
-            }
-        });
+        vm.step_epoch()?;
 
-        vm.register_sink(
-            RelationRef::new("path".into(), RelationVersion::Total),
-            Box::pin(sink),
-        );
-
-        vm.step_epoch().unwrap();
+        let mut path = BTreeSet::default();
+        while let Ok(Some(fact)) = rx.try_next() {
+            path.insert(fact);
+        }
 
         assert_eq!(
-            *buf2.borrow(),
-            vec![
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 1.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 2.into())],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 0.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 2.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 1.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 2.into()), ("to".into(), 3.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 2.into()), ("to".into(), 4.into()),],
-                ),
-                Fact::new(
-                    "path".into(),
-                    vec![("from".into(), 3.into()), ("to".into(), 4.into()),],
-                ),
-            ]
+            path,
+            BTreeSet::from_iter([
+                Fact::new("path", [("from", 0), ("to", 1)]),
+                Fact::new("path", [("from", 0), ("to", 2)]),
+                Fact::new("path", [("from", 0), ("to", 3)]),
+                Fact::new("path", [("from", 0), ("to", 4)]),
+                Fact::new("path", [("from", 1), ("to", 2)]),
+                Fact::new("path", [("from", 1), ("to", 3)]),
+                Fact::new("path", [("from", 1), ("to", 4)]),
+                Fact::new("path", [("from", 2), ("to", 3)]),
+                Fact::new("path", [("from", 2), ("to", 4)]),
+                Fact::new("path", [("from", 3), ("to", 4)]),
+            ])
         );
+
+        Ok(())
     }
 }

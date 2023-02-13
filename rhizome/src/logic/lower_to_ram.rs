@@ -1,5 +1,7 @@
+use std::collections::{BTreeSet, HashSet};
+
 use anyhow::Result;
-use im::{vector, HashMap, HashSet, Vector};
+use im::{vector, HashMap, Vector};
 use petgraph::{
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
@@ -8,10 +10,10 @@ use petgraph::{
 
 use crate::{
     error::{error, Error},
-    id::RelationId,
+    id::{AttributeId, RelationId},
     ram::{
         self,
-        ast::{Exit, Insert, Loop, Merge, Project, Purge, Search, Swap},
+        ast::{Exit, Formula, Insert, Loop, Merge, Project, Purge, Search, Swap, Term},
     },
 };
 
@@ -20,21 +22,34 @@ use super::ast::*;
 pub fn lower_to_ram(program: &Program) -> Result<ram::ast::Program> {
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
 
-    // Run sources for each input
-    statements.push(ram::ast::Statement::Sources(ram::ast::Sources::new(
-        program
-            .inputs()
-            .iter()
-            .map(|schema| {
-                ram::ast::RelationRef::new(*schema.id(), ram::ast::RelationVersion::Total)
-            })
-            .collect(),
-    )));
+    if !program.inputs().is_empty() {
+        // Run sources for each input
+        statements.push(ram::ast::Statement::Sources(ram::ast::Sources::new(
+            program.inputs().iter().map(|schema| {
+                ram::ast::RelationRef::new(*schema.id(), ram::ast::RelationVersion::Delta)
+            }),
+        )));
+
+        // Merge facts from each source into Total
+        for input in program.inputs() {
+            statements.push(ram::ast::Statement::Merge(Merge::new(
+                ram::ast::RelationRef::new(*input.id(), ram::ast::RelationVersion::Delta),
+                ram::ast::RelationRef::new(*input.id(), ram::ast::RelationVersion::Total),
+            )));
+        }
+    }
 
     for stratum in &stratify(program)? {
         let mut lowered = lower_stratum_to_ram(stratum)?;
 
         statements.append(&mut lowered);
+    }
+
+    // Purge all newly received input facts
+    for input in program.inputs() {
+        statements.push(ram::ast::Statement::Purge(Purge::new(
+            ram::ast::RelationRef::new(*input.id(), ram::ast::RelationVersion::Delta),
+        )));
     }
 
     Ok(ram::ast::Program::new(statements))
@@ -46,7 +61,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
     if stratum.is_recursive() {
         // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(&fact, ram::ast::RelationVersion::Delta)?;
+            let lowered = lower_fact_to_ram(&fact)?;
 
             statements.push(lowered);
         }
@@ -62,16 +77,16 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
 
         // Evaluate static rules out of the loop
         for rule in &static_rules {
-            let mut lowered = lower_rule_to_ram(rule, stratum, ram::ast::RelationVersion::Total)?;
+            let mut lowered = lower_rule_to_ram(rule, stratum, ram::ast::RelationVersion::Delta)?;
 
             statements.append(&mut lowered);
         }
 
-        // Merge the output of the static rules into delta, to be used in the loop
+        // Merge the output of the static rules into total
         for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| *r.head())) {
             statements.push(ram::ast::Statement::Merge(Merge::new(
-                ram::ast::RelationRef::new(relation, ram::ast::RelationVersion::Total),
                 ram::ast::RelationRef::new(relation, ram::ast::RelationVersion::Delta),
+                ram::ast::RelationRef::new(relation, ram::ast::RelationVersion::Total),
             )));
         }
 
@@ -91,13 +106,19 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
             loop_body.append(&mut lowered);
         }
 
+        // Run sinks for the stratum
+        loop_body.push(ram::ast::Statement::Sinks(ram::ast::Sinks::new(
+            stratum.relations().iter().map(|relation| {
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::Delta)
+            }),
+        )));
+
         // Exit the loop if all of the dynamic relations have reached a fixed point
         loop_body.push(ram::ast::Statement::Exit(Exit::new(
             stratum
                 .relations()
                 .iter()
-                .map(|id| ram::ast::RelationRef::new(*id, ram::ast::RelationVersion::New))
-                .collect(),
+                .map(|id| ram::ast::RelationRef::new(*id, ram::ast::RelationVersion::New)),
         )));
 
         // Merge new into total, then swap new and delta
@@ -113,78 +134,95 @@ pub fn lower_stratum_to_ram(stratum: &Stratum) -> Result<Vec<ram::ast::Statement
             )));
         }
 
-        statements.push(ram::ast::Statement::Loop(Loop::new(loop_body)))
+        statements.push(ram::ast::Statement::Loop(Loop::new(loop_body)));
+
+        // Purge delta, computed during static rules
+        for relation in stratum.relations() {
+            statements.push(ram::ast::Statement::Purge(Purge::new(
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::Delta),
+            )));
+        }
     } else {
-        // Merge facts into total
+        // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(&fact, ram::ast::RelationVersion::Total)?;
+            let lowered = lower_fact_to_ram(&fact)?;
 
             statements.push(lowered);
         }
 
-        // Evaluate all rules, inserting into total
+        // Merge facts from Delta into Total
+        for id in stratum
+            .facts()
+            .iter()
+            .map(|f| f.head())
+            .cloned()
+            .collect::<BTreeSet<RelationId>>()
+        {
+            statements.push(ram::ast::Statement::Merge(Merge::new(
+                ram::ast::RelationRef::new(id, ram::ast::RelationVersion::Delta),
+                ram::ast::RelationRef::new(id, ram::ast::RelationVersion::Total),
+            )));
+        }
+
+        // Evaluate all rules, inserting into Delta
         for rule in stratum.rules() {
-            let mut lowered = lower_rule_to_ram(&rule, stratum, ram::ast::RelationVersion::Total)?;
+            let mut lowered = lower_rule_to_ram(&rule, stratum, ram::ast::RelationVersion::Delta)?;
 
             statements.append(&mut lowered);
         }
-    };
 
-    // Run sinks for the stratum
-    // TODO: This always runs the sinks for the total relation, but we'll want
-    // to better support running them for both total and delta
-    statements.push(ram::ast::Statement::Sinks(ram::ast::Sinks::new(
-        stratum
-            .relations()
-            .iter()
-            .map(|relation| ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::Total))
-            .collect(),
-    )));
+        // Merge rules from Delta into Total
+        for rule in stratum.rules() {
+            statements.push(ram::ast::Statement::Merge(Merge::new(
+                ram::ast::RelationRef::new(*rule.head(), ram::ast::RelationVersion::Delta),
+                ram::ast::RelationRef::new(*rule.head(), ram::ast::RelationVersion::Total),
+            )));
+        }
+
+        // Run sinks for the stratum
+        statements.push(ram::ast::Statement::Sinks(ram::ast::Sinks::new(
+            stratum.relations().iter().map(|relation| {
+                ram::ast::RelationRef::new(*relation, ram::ast::RelationVersion::Delta)
+            }),
+        )));
+    };
 
     Ok(statements)
 }
 
-pub fn lower_fact_to_ram(
-    fact: &Fact,
-    version: ram::ast::RelationVersion,
-) -> Result<ram::ast::Statement> {
+pub fn lower_fact_to_ram(fact: &Fact) -> Result<ram::ast::Statement> {
     let attributes = fact
         .args()
         .iter()
-        .map(|(k, v)| (*k, ram::ast::Literal::new(*v.datum()).into()))
-        .collect();
+        .map(|(k, v)| (*k, ram::ast::Literal::new(*v.datum())));
 
     Ok(ram::ast::Statement::Insert(Insert::new(
         ram::ast::Operation::Project(Project::new(
             attributes,
-            ram::ast::RelationRef::new(*fact.head(), version),
+            ram::ast::RelationRef::new(*fact.head(), ram::ast::RelationVersion::Delta),
         )),
+        true,
     )))
 }
 
 struct TermMetadata {
     alias: Option<ram::ast::AliasId>,
     bindings: HashMap<Variable, ram::ast::Term>,
-    is_dynamic: bool,
 }
 
 impl TermMetadata {
-    fn new(
-        alias: Option<ram::ast::AliasId>,
-        bindings: HashMap<Variable, ram::ast::Term>,
-        is_dynamic: bool,
-    ) -> Self {
-        Self {
-            alias,
-            bindings,
-            is_dynamic,
-        }
+    fn new(alias: Option<ram::ast::AliasId>, bindings: HashMap<Variable, ram::ast::Term>) -> Self {
+        Self { alias, bindings }
+    }
+
+    fn is_bound(&self, variable: &Variable) -> bool {
+        self.bindings.contains_key(variable)
     }
 }
 
 pub fn lower_rule_to_ram(
     rule: &Rule,
-    stratum: &Stratum,
+    _stratum: &Stratum,
     version: ram::ast::RelationVersion,
 ) -> Result<Vec<ram::ast::Statement>> {
     let mut next_alias = HashMap::<RelationId, ram::ast::AliasId>::default();
@@ -208,11 +246,10 @@ pub fn lower_rule_to_ram(
                         AttributeValue::Variable(variable) if !bindings.contains_key(&variable) => {
                             bindings.insert(
                                 variable,
-                                ram::ast::Attribute::new(
+                                Term::attribute(
                                     attribute_id,
                                     ram::ast::RelationBinding::new(*predicate.id(), alias),
-                                )
-                                .into(),
+                                ),
                             )
                         }
                         _ => continue,
@@ -221,77 +258,66 @@ pub fn lower_rule_to_ram(
 
                 term_metadata.push((
                     body_term.clone(),
-                    TermMetadata::new(
-                        alias,
-                        bindings.clone(),
-                        stratum.is_recursive() && stratum.relations().contains(predicate.id()),
-                    ),
+                    TermMetadata::new(alias, bindings.clone()),
                 ));
             }
             BodyTerm::Negation(_) => continue,
         }
     }
 
-    let projection_attributes = rule
+    let projection_attributes: HashMap<AttributeId, ram::ast::Term> = rule
         .args()
         .iter()
         .map(|(k, v)| match v {
-            AttributeValue::Literal(c) => (*k, ram::ast::Literal::new(*c.datum()).into()),
+            AttributeValue::Literal(c) => (*k, Term::literal(*c.datum())),
             AttributeValue::Variable(v) => (*k, *bindings.get(v).unwrap()),
         })
         .collect();
 
+    let projection_variables: Vec<Variable> = rule
+        .args()
+        .iter()
+        .filter_map(|(_, v)| match v {
+            AttributeValue::Literal(_) => None,
+            AttributeValue::Variable(variable) => Some(*variable),
+        })
+        .collect();
+
     let projection = ram::ast::Operation::Project(Project::new(
-        projection_attributes,
+        projection_attributes.clone(),
         ram::ast::RelationRef::new(*rule.head(), version),
     ));
 
     let mut statements: Vec<ram::ast::Statement> = Vec::default();
 
     // We use a bitmask to represent all of the possible rewrites of the rule under
-    // semi-naive evaluation, i.e. those where at least one dynamic predicate searches
+    // semi-naive evaluation, i.e. those where at least one predicate searches
     // against a delta relation, rather than total.
-    //
-    // TODO: Use Arc to share suffixes of a ram operation across overlapping insertions.
-    // TODO: Decompose the rule into binary joins to reuse intermediate results.
-    let count_of_dynamic = term_metadata
-        .iter()
-        .filter(|(_, metadata)| metadata.is_dynamic)
-        .count();
-
-    let rewrite_count = if count_of_dynamic == 0 {
-        1
-    } else {
-        (1 << count_of_dynamic) - 1
-    };
+    let rewrite_count = (1 << term_metadata.len()) - 1;
 
     for offset in 0..rewrite_count {
         // bitmask of dynamic predicate versions (1 => delta, 0 => total)
-        let mask = (1 << count_of_dynamic) - 1 - offset;
-        // Number of dynamic predicates handled so far
-        let mut i = 0;
+        let mask = (1 << term_metadata.len()) - 1 - offset;
 
         let mut negations = rule.negations().clone();
         let mut previous = projection.clone();
-        for (body_term, metadata) in term_metadata.iter().rev() {
+        for (i, (body_term, metadata)) in term_metadata.iter().rev().enumerate() {
             match body_term {
                 BodyTerm::Predicate(predicate) => {
-                    let mut formulae: Vec<ram::ast::Formula> = Vec::default();
+                    let mut formulae = Vec::default();
                     for (attribute_id, attribute_value) in predicate.args() {
                         match attribute_value {
                             AttributeValue::Literal(literal) => {
-                                let formula = ram::ast::Equality::new(
+                                let formula = Formula::equality(
                                     ram::ast::Attribute::new(
                                         *attribute_id,
                                         ram::ast::RelationBinding::new(
                                             *predicate.id(),
                                             metadata.alias,
                                         ),
-                                    )
-                                    .into(),
-                                    ram::ast::Literal::new(*literal.datum()).into(),
-                                )
-                                .into();
+                                    ),
+                                    ram::ast::Literal::new(*literal.datum()),
+                                );
 
                                 formulae.push(formula);
                             }
@@ -302,24 +328,34 @@ pub fn lower_rule_to_ram(
                                         if *inner.relation().id() == *predicate.id()
                                             && *inner.relation().alias() == metadata.alias => {}
                                     Some(bound_value) => {
-                                        let formula = ram::ast::Equality::new(
+                                        let formula = Formula::equality(
                                             ram::ast::Attribute::new(
                                                 *attribute_id,
                                                 ram::ast::RelationBinding::new(
                                                     *predicate.id(),
                                                     metadata.alias,
                                                 ),
-                                            )
-                                            .into(),
+                                            ),
                                             *bound_value,
-                                        )
-                                        .into();
+                                        );
 
                                         formulae.push(formula);
                                     }
                                 }
                             }
                         }
+                    }
+
+                    if predicate.id() == rule.head()
+                        && projection_variables.iter().all(|v| metadata.is_bound(v))
+                    {
+                        formulae.push(Formula::not_in(
+                            Vec::from_iter(projection_attributes.clone()),
+                            ram::ast::RelationRef::new(
+                                *rule.head(),
+                                ram::ast::RelationVersion::Total,
+                            ),
+                        ))
                     }
 
                     let (satisfied, unsatisfied): (Vec<_>, Vec<_>) =
@@ -332,32 +368,25 @@ pub fn lower_rule_to_ram(
                     negations = unsatisfied;
 
                     for negation in satisfied {
-                        let attributes = negation
-                            .args()
-                            .iter()
-                            .map(|(k, v)| match v {
-                                AttributeValue::Literal(literal) => {
-                                    (*k, ram::ast::Literal::new(*literal.datum()).into())
-                                }
-                                AttributeValue::Variable(variable) => {
-                                    (*k, *metadata.bindings.get(variable).unwrap())
-                                }
-                            })
-                            .collect();
+                        let attributes = negation.args().iter().map(|(k, v)| match v {
+                            AttributeValue::Literal(literal) => {
+                                (*k, Term::literal(*literal.datum()))
+                            }
+                            AttributeValue::Variable(variable) => {
+                                (*k, *metadata.bindings.get(variable).unwrap())
+                            }
+                        });
 
-                        formulae.push(
-                            ram::ast::NotIn::new(
-                                attributes,
-                                ram::ast::RelationRef::new(
-                                    *negation.id(),
-                                    ram::ast::RelationVersion::Total,
-                                ),
-                            )
-                            .into(),
-                        )
+                        formulae.push(Formula::not_in(
+                            attributes,
+                            ram::ast::RelationRef::new(
+                                *negation.id(),
+                                ram::ast::RelationVersion::Total,
+                            ),
+                        ))
                     }
 
-                    let version = if metadata.is_dynamic && (mask & (1 << i) != 0) {
+                    let version = if mask & (1 << i) != 0 {
                         ram::ast::RelationVersion::Delta
                     } else {
                         ram::ast::RelationVersion::Total
@@ -372,13 +401,9 @@ pub fn lower_rule_to_ram(
                 }
                 BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
             };
-
-            if metadata.is_dynamic {
-                i += 1;
-            }
         }
 
-        statements.push(ram::ast::Statement::Insert(Insert::new(previous)));
+        statements.push(ram::ast::Statement::Insert(Insert::new(previous, false)));
     }
 
     Ok(statements)
@@ -454,19 +479,12 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>> {
         .iter()
         .map(|nodes| {
             Stratum::new(
-                nodes
-                    .iter()
-                    .map(|n| edg.node_weight(*n).unwrap())
-                    .cloned()
-                    .collect(),
-                nodes
-                    .iter()
-                    .flat_map(|n| {
-                        let weight = edg.node_weight(*n).unwrap();
+                nodes.iter().map(|n| edg.node_weight(*n).unwrap()).cloned(),
+                nodes.iter().flat_map(|n| {
+                    let weight = edg.node_weight(*n).unwrap();
 
-                        clauses_by_relation.get(weight).cloned().unwrap_or_default()
-                    })
-                    .collect(),
+                    clauses_by_relation.get(weight).cloned().unwrap_or_default()
+                }),
                 nodes.len() > 1 || edg.contains_edge(nodes[0], nodes[0]),
             )
         })
@@ -483,7 +501,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stratify_tests() {
+    fn stratify_tests() -> Result<()> {
         let program = parser::parse(
             r#"
         v(v: X) :- r(r0: X, r1: Y).
@@ -494,138 +512,124 @@ mod tests {
 
         tc(tc0: X, tc1: Y):- v(v: X), v(v: Y), !t(t0: X, t1: Y).
         "#,
-        )
-        .unwrap();
+        )?;
 
         assert_eq!(
             vec![
-                Stratum::new(vec![RelationId::new("r")], vec![], false,),
+                Stratum::new(["r"], [], false,),
                 Stratum::new(
-                    vec![RelationId::new("v")],
-                    vec![
-                        Rule::new(
+                    ["v"],
+                    [
+                        Clause::rule(
                             "v",
-                            vec![("v", Variable::new("X").into())],
-                            vec![Predicate::new(
+                            [("v", AttributeValue::variable("X"))],
+                            [BodyTerm::predicate(
                                 "r",
-                                vec![
-                                    ("r0", Variable::new("X").into()),
-                                    ("r1", Variable::new("Y").into()),
+                                [
+                                    ("r0", AttributeValue::variable("X")),
+                                    ("r1", AttributeValue::variable("Y")),
                                 ],
-                            )
-                            .into()],
-                        )
-                        .unwrap()
-                        .into(),
-                        Rule::new(
+                            )],
+                        )?,
+                        Clause::rule(
                             "v",
-                            vec![("v", Variable::new("Y").into())],
-                            vec![Predicate::new(
+                            [("v", AttributeValue::variable("Y"))],
+                            [BodyTerm::predicate(
                                 "r",
-                                vec![
-                                    ("r0", Variable::new("X").into()),
-                                    ("r1", Variable::new("Y").into()),
+                                [
+                                    ("r0", AttributeValue::variable("X")),
+                                    ("r1", AttributeValue::variable("Y")),
                                 ],
-                            )
-                            .into()],
-                        )
-                        .unwrap()
-                        .into(),
+                            )],
+                        )?,
                     ],
                     false,
                 ),
                 Stratum::new(
-                    vec![RelationId::new("t")],
-                    vec![
-                        Rule::new(
+                    ["t"],
+                    [
+                        Clause::rule(
                             "t",
-                            vec![
-                                ("t0", Variable::new("X").into()),
-                                ("t1", Variable::new("Y").into()),
+                            [
+                                ("t0", AttributeValue::variable("X")),
+                                ("t1", AttributeValue::variable("Y")),
                             ],
-                            vec![Predicate::new(
+                            [BodyTerm::predicate(
                                 "r",
-                                vec![
-                                    ("r0", Variable::new("X").into()),
-                                    ("r1", Variable::new("Y").into()),
+                                [
+                                    ("r0", AttributeValue::variable("X")),
+                                    ("r1", AttributeValue::variable("Y")),
                                 ],
-                            )
-                            .into()],
-                        )
-                        .unwrap()
-                        .into(),
-                        Rule::new(
+                            )],
+                        )?,
+                        Clause::rule(
                             "t",
-                            vec![
-                                ("t0", Variable::new("X").into()),
-                                ("t1", Variable::new("Y").into()),
+                            [
+                                ("t0", AttributeValue::variable("X")),
+                                ("t1", AttributeValue::variable("Y")),
                             ],
-                            vec![
-                                Predicate::new(
+                            [
+                                BodyTerm::predicate(
                                     "t",
-                                    vec![
-                                        ("t0", Variable::new("X").into()),
-                                        ("t1", Variable::new("Z").into()),
+                                    [
+                                        ("t0", AttributeValue::variable("X")),
+                                        ("t1", AttributeValue::variable("Z")),
                                     ],
-                                )
-                                .into(),
-                                Predicate::new(
+                                ),
+                                BodyTerm::predicate(
                                     "r",
-                                    vec![
-                                        ("r0", Variable::new("Z").into()),
-                                        ("r1", Variable::new("Y").into()),
+                                    [
+                                        ("r0", AttributeValue::variable("Z")),
+                                        ("r1", AttributeValue::variable("Y")),
                                     ],
-                                )
-                                .into(),
+                                ),
                             ],
-                        )
-                        .unwrap()
-                        .into(),
+                        )?,
                     ],
                     true,
                 ),
                 Stratum::new(
-                    vec![RelationId::new("tc")],
-                    vec![Rule::new(
+                    ["tc"],
+                    [Clause::rule(
                         "tc",
-                        vec![
-                            ("tc0", Variable::new("X").into()),
-                            ("tc1", Variable::new("Y").into()),
+                        [
+                            ("tc0", AttributeValue::variable("X")),
+                            ("tc1", AttributeValue::variable("Y")),
                         ],
-                        vec![
-                            Predicate::new("v", vec![("v", Variable::new("X").into())],).into(),
-                            Predicate::new("v", vec![("v", Variable::new("Y").into())],).into(),
-                            Negation::new(
+                        [
+                            BodyTerm::predicate("v", [("v", AttributeValue::variable("X"))],),
+                            BodyTerm::predicate("v", [("v", AttributeValue::variable("Y"))],),
+                            BodyTerm::negation(
                                 "t",
-                                vec![
-                                    ("t0", Variable::new("X").into()),
-                                    ("t1", Variable::new("Y").into()),
+                                [
+                                    ("t0", AttributeValue::variable("X")),
+                                    ("t1", AttributeValue::variable("Y")),
                                 ],
-                            )
-                            .into(),
+                            ),
                         ],
-                    )
-                    .unwrap()
-                    .into(),],
+                    )?],
                     false,
                 )
             ],
-            stratify(&program).unwrap()
+            stratify(&program)?
         );
+
+        Ok(())
     }
 
     #[test]
-    fn unstratifiable_tests() {
+    fn unstratifiable_tests() -> Result<()> {
         let program = parser::parse(
             r#"
         p(p: X) :- t(t: X), !q(q: X).
         q(q: X) :- t(t: X), !p(p: X)."#,
-        )
-        .unwrap();
+        )?;
 
         assert_eq!(
             Some(&Error::ProgramUnstratifiable),
             stratify(&program).unwrap_err().downcast_ref()
         );
+
+        Ok(())
     }
 }

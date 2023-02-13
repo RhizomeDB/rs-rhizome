@@ -14,7 +14,9 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn new(statements: Vec<Statement>) -> Self {
+    pub fn new(statements: impl IntoIterator<Item = Statement>) -> Self {
+        let statements = statements.into_iter().collect();
+
         Self { statements }
     }
 
@@ -45,7 +47,14 @@ pub struct Stratum {
 }
 
 impl Stratum {
-    pub fn new(relations: Vec<RelationId>, clauses: Vec<Clause>, is_recursive: bool) -> Self {
+    pub fn new(
+        relations: impl IntoIterator<Item = impl Into<RelationId>>,
+        clauses: impl IntoIterator<Item = Clause>,
+        is_recursive: bool,
+    ) -> Self {
+        let relations = relations.into_iter().map(|v| v.into()).collect();
+        let clauses = clauses.into_iter().collect();
+
         Self {
             relations,
             clauses,
@@ -93,11 +102,16 @@ pub struct InputSchema {
 }
 
 impl InputSchema {
-    pub fn new(id: impl Into<RelationId>, attributes: Vec<AttributeId>) -> Result<Self> {
+    pub fn new(
+        id: impl Into<RelationId>,
+        attributes: impl IntoIterator<Item = impl Into<AttributeId>>,
+    ) -> Result<Self> {
         let mut uniq = HashSet::<AttributeId>::default();
-        for attribute in attributes {
-            match uniq.insert(attribute) {
-                Some(_) => return error(Error::DuplicateSchemaAttributeId(attribute)),
+        for id in attributes {
+            let id = id.into();
+
+            match uniq.insert(id) {
+                Some(_) => return error(Error::DuplicateSchemaAttributeId(id)),
                 None => continue,
             }
         }
@@ -124,6 +138,21 @@ pub enum Clause {
 }
 
 impl Clause {
+    pub fn fact(
+        id: impl Into<RelationId>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, Literal)>,
+    ) -> Self {
+        Self::Fact(Fact::new(id, args))
+    }
+
+    pub fn rule(
+        id: impl Into<RelationId>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, AttributeValue)>,
+        body: impl IntoIterator<Item = BodyTerm>,
+    ) -> Result<Self> {
+        Ok(Self::Rule(Rule::new(id, args, body)?))
+    }
+
     pub fn head(&self) -> &RelationId {
         match self {
             Clause::Fact(fact) => &fact.head,
@@ -146,10 +175,13 @@ pub struct Fact {
 }
 
 impl Fact {
-    pub fn new(id: impl Into<RelationId>, args: Vec<(AttributeId, Literal)>) -> Self {
+    pub fn new(
+        id: impl Into<RelationId>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, Literal)>,
+    ) -> Self {
         Self {
             head: id.into(),
-            args: args.into_iter().map(|(k, v)| (k, v)).collect(),
+            args: args.into_iter().map(|(k, v)| (k.into(), v)).collect(),
         }
     }
 
@@ -176,10 +208,12 @@ pub struct Rule {
 impl Rule {
     pub fn new(
         relation_id: impl Into<RelationId>,
-        args: Vec<(impl Into<AttributeId>, AttributeValue)>,
-        body: Vec<BodyTerm>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, AttributeValue)>,
+        body: impl IntoIterator<Item = BodyTerm>,
     ) -> Result<Self> {
         let head = relation_id.into();
+        let body: Vec<BodyTerm> = body.into_iter().collect();
+
         let args: HashMap<AttributeId, AttributeValue> =
             args.into_iter().map(|(k, v)| (k.into(), v)).collect();
 
@@ -303,6 +337,16 @@ pub enum AttributeValue {
     Variable(Variable),
 }
 
+impl AttributeValue {
+    pub fn literal(datum: impl Into<Datum>) -> Self {
+        Self::Literal(Literal::new(datum))
+    }
+
+    pub fn variable(id: impl Into<VariableId>) -> Self {
+        Self::Variable(Variable::new(id))
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Literal {
     datum: Datum,
@@ -338,6 +382,20 @@ pub enum BodyTerm {
 }
 
 impl BodyTerm {
+    pub fn predicate(
+        id: impl Into<RelationId>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, AttributeValue)>,
+    ) -> Self {
+        Self::Predicate(Predicate::new(id, args))
+    }
+
+    pub fn negation(
+        id: impl Into<RelationId>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, AttributeValue)>,
+    ) -> Self {
+        Self::Negation(Negation::new(id, args))
+    }
+
     pub fn variables(&self) -> HashSet<Variable> {
         match self {
             BodyTerm::Predicate(predicate) => predicate.variables(),
@@ -369,7 +427,7 @@ pub struct Predicate {
 impl Predicate {
     pub fn new(
         id: impl Into<RelationId>,
-        args: Vec<(impl Into<AttributeId>, AttributeValue)>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, AttributeValue)>,
     ) -> Self {
         Self {
             id: id.into(),
@@ -402,7 +460,7 @@ pub struct Negation {
 impl Negation {
     pub fn new(
         id: impl Into<RelationId>,
-        args: Vec<(impl Into<AttributeId>, AttributeValue)>,
+        args: impl IntoIterator<Item = (impl Into<AttributeId>, AttributeValue)>,
     ) -> Self {
         Self {
             id: id.into(),
@@ -441,8 +499,11 @@ mod tests {
             )),
             Rule::new(
                 "p",
-                vec![("p0", Variable::new("X").into())],
-                vec![Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),],
+                [("p0", AttributeValue::variable("X"))],
+                [BodyTerm::negation(
+                    "q",
+                    [("q0", AttributeValue::variable("X"))]
+                )],
             )
             .unwrap_err()
             .downcast_ref(),
@@ -451,10 +512,10 @@ mod tests {
         assert!(matches!(
             Rule::new(
                 "p",
-                vec![("p0", Variable::new("X").into())],
-                vec![
-                    Predicate::new("t", vec![("t", Variable::new("X").into())]).into(),
-                    Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),
+                [("p0", AttributeValue::variable("X"))],
+                [
+                    BodyTerm::predicate("t", [("t", AttributeValue::variable("X"))]),
+                    BodyTerm::negation("q", [("q0", AttributeValue::variable("X"))]),
                 ],
             ),
             Ok(_)
@@ -471,10 +532,10 @@ mod tests {
             )),
             Rule::new(
                 "p",
-                vec![("p0", Variable::new("P").into())],
-                vec![
-                    Predicate::new("t", vec![("t0", Variable::new("P").into())]).into(),
-                    Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),
+                [("p0", AttributeValue::variable("P"))],
+                [
+                    BodyTerm::predicate("t", [("t0", AttributeValue::variable("P"))]),
+                    BodyTerm::negation("q", [("q0", AttributeValue::variable("X"))]),
                 ],
             )
             .unwrap_err()
@@ -484,10 +545,10 @@ mod tests {
         assert!(matches!(
             Rule::new(
                 "p",
-                vec![("p0", Variable::new("X").into())],
-                vec![
-                    Predicate::new("t", vec![("t0", Variable::new("X").into())]).into(),
-                    Negation::new("q", vec![("q0", Variable::new("X").into())]).into(),
+                [("p0", AttributeValue::variable("X"))],
+                [
+                    BodyTerm::predicate("t", [("t0", AttributeValue::variable("X"))]),
+                    BodyTerm::negation("q", [("q0", AttributeValue::variable("X"))]),
                 ],
             ),
             Ok(_)
