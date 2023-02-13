@@ -1,8 +1,11 @@
+use std::hash::Hash;
+
 use derive_more::{Display, From, IsVariant, TryInto};
 use im::{HashMap, HashSet};
 
 use crate::{
     datum::Datum,
+    fact::Fact,
     id::{AttributeId, RelationId},
 };
 
@@ -31,7 +34,9 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn new(statements: Vec<Statement>) -> Self {
+    pub fn new(statements: impl IntoIterator<Item = Statement>) -> Self {
+        let statements = statements.into_iter().collect();
+
         Self { statements }
     }
 
@@ -47,7 +52,9 @@ pub struct RelationBinding {
 }
 
 impl RelationBinding {
-    pub fn new(id: RelationId, alias: Option<AliasId>) -> Self {
+    pub fn new(id: impl Into<RelationId>, alias: Option<AliasId>) -> Self {
+        let id = id.into();
+
         Self { id, alias }
     }
 
@@ -67,7 +74,9 @@ pub struct RelationRef {
 }
 
 impl RelationRef {
-    pub fn new(id: RelationId, version: RelationVersion) -> Self {
+    pub fn new(id: impl Into<RelationId>, version: RelationVersion) -> Self {
+        let id = id.into();
+
         Self { id, version }
     }
 
@@ -104,15 +113,26 @@ pub enum Statement {
 #[derive(Clone, Debug)]
 pub struct Insert {
     operation: Operation,
+    // Whether the insertion is for a ground atom with all constant attributes.
+    // I don't love this, but it enables us to ensure ground facts are only inserted
+    // into the delta relation once.
+    is_ground: bool,
 }
 
 impl Insert {
-    pub fn new(operation: Operation) -> Self {
-        Self { operation }
+    pub fn new(operation: Operation, is_ground: bool) -> Self {
+        Self {
+            operation,
+            is_ground,
+        }
     }
 
     pub fn operation(&self) -> &Operation {
         &self.operation
+    }
+
+    pub fn is_ground(&self) -> bool {
+        self.is_ground
     }
 }
 
@@ -177,7 +197,9 @@ pub struct Loop {
 }
 
 impl Loop {
-    pub fn new(body: Vec<Statement>) -> Self {
+    pub fn new(body: impl IntoIterator<Item = Statement>) -> Self {
+        let body = body.into_iter().collect();
+
         Self { body }
     }
 
@@ -192,7 +214,9 @@ pub struct Exit {
 }
 
 impl Exit {
-    pub fn new(relations: Vec<RelationRef>) -> Self {
+    pub fn new(relations: impl IntoIterator<Item = RelationRef>) -> Self {
+        let relations = relations.into_iter().collect();
+
         Self { relations }
     }
 
@@ -207,7 +231,9 @@ pub struct Sources {
 }
 
 impl Sources {
-    pub fn new(relations: HashSet<RelationRef>) -> Self {
+    pub fn new(relations: impl IntoIterator<Item = RelationRef>) -> Self {
+        let relations = relations.into_iter().collect();
+
         Self { relations }
     }
 
@@ -218,16 +244,17 @@ impl Sources {
 
 #[derive(Clone, Debug)]
 pub struct Sinks {
-    // TODO: use HashSet
-    relations: Vec<RelationRef>,
+    relations: HashSet<RelationRef>,
 }
 
 impl Sinks {
-    pub fn new(relations: Vec<RelationRef>) -> Self {
+    pub fn new(relations: impl IntoIterator<Item = RelationRef>) -> Self {
+        let relations = relations.into_iter().collect();
+
         Self { relations }
     }
 
-    pub fn relations(&self) -> &Vec<RelationRef> {
+    pub fn relations(&self) -> &HashSet<RelationRef> {
         &self.relations
     }
 }
@@ -250,9 +277,11 @@ impl Search {
     pub fn new(
         relation: RelationRef,
         alias: Option<AliasId>,
-        when: Vec<Formula>,
+        when: impl IntoIterator<Item = Formula>,
         operation: Operation,
     ) -> Self {
+        let when = when.into_iter().collect();
+
         Self {
             relation,
             alias,
@@ -285,7 +314,16 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(attributes: HashMap<AttributeId, Term>, into: RelationRef) -> Self {
+    pub fn new<A, T>(attributes: impl IntoIterator<Item = (A, T)>, into: RelationRef) -> Self
+    where
+        A: Into<AttributeId>,
+        T: Into<Term>,
+    {
+        let attributes = attributes
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
+
         Self { attributes, into }
     }
 
@@ -298,10 +336,24 @@ impl Project {
     }
 }
 
-#[derive(Clone, Debug, IsVariant, From)]
+#[derive(Clone, Debug, IsVariant, From, TryInto)]
 pub enum Formula {
     Equality(Equality),
     NotIn(NotIn),
+}
+
+impl Formula {
+    pub fn equality(left: impl Into<Term>, right: impl Into<Term>) -> Self {
+        Self::Equality(Equality::new(left, right))
+    }
+
+    pub fn not_in<A, T>(attributes: impl IntoIterator<Item = (A, T)>, relation: RelationRef) -> Self
+    where
+        A: Into<AttributeId>,
+        T: Into<Term>,
+    {
+        Self::NotIn(NotIn::new(attributes, relation))
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -311,7 +363,10 @@ pub struct Equality {
 }
 
 impl Equality {
-    pub fn new(left: Term, right: Term) -> Self {
+    pub fn new(left: impl Into<Term>, right: impl Into<Term>) -> Self {
+        let left = left.into();
+        let right = right.into();
+
         Self { left, right }
     }
 
@@ -331,8 +386,15 @@ pub struct NotIn {
 }
 
 impl NotIn {
-    pub fn new(attributes: Vec<(AttributeId, Term)>, relation: RelationRef) -> Self {
-        let attributes = HashMap::from_iter(attributes.into_iter());
+    pub fn new<A, T>(attributes: impl IntoIterator<Item = (A, T)>, relation: RelationRef) -> Self
+    where
+        A: Into<AttributeId>,
+        T: Into<Term>,
+    {
+        let attributes = attributes
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
 
         Self {
             attributes,
@@ -355,6 +417,34 @@ pub enum Term {
     Literal(Literal),
 }
 
+impl Term {
+    pub fn attribute(id: impl Into<AttributeId>, relation: RelationBinding) -> Self {
+        Self::Attribute(Attribute::new(id, relation))
+    }
+
+    pub fn literal(datum: impl Into<Datum>) -> Self {
+        Self::Literal(Literal::new(datum))
+    }
+
+    pub fn resolve(
+        &self,
+        current_fact: &Fact,
+        relation_binding: &RelationBinding,
+        bindings: &HashMap<RelationBinding, Fact>,
+    ) -> Option<Datum> {
+        match self {
+            Term::Attribute(inner) if *inner.relation() == *relation_binding => {
+                current_fact.attribute(inner.id()).cloned()
+            }
+            Term::Attribute(inner) => bindings
+                .get(inner.relation())
+                .and_then(|f| f.attribute(inner.id()))
+                .cloned(),
+            Term::Literal(inner) => Some(*inner.datum()),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Attribute {
     id: AttributeId,
@@ -362,7 +452,9 @@ pub struct Attribute {
 }
 
 impl Attribute {
-    pub fn new(id: AttributeId, relation: RelationBinding) -> Self {
+    pub fn new(id: impl Into<AttributeId>, relation: RelationBinding) -> Self {
+        let id = id.into();
+
         Self { id, relation }
     }
 

@@ -305,38 +305,34 @@ mod tests {
     use im::hashmap;
     use pretty_assertions::assert_eq;
 
-    use crate::{
-        datum::Datum,
-        ram::ast::{Project, Search},
-    };
+    use crate::ram::ast::{Project, Search};
 
     use super::*;
 
     #[test]
     fn test() {
-        let formula1 = Equality::new(
+        let formula1 = Formula::equality(
             Attribute::new(
-                "name".into(),
-                RelationBinding::new("person".into(), Some(1.into())),
-            )
-            .into(),
-            Literal::new(Datum::string("Quinn")).into(),
+                "name",
+                RelationBinding::new("person", Some(AliasId::new().next())),
+            ),
+            Literal::new("Quinn"),
         );
 
-        let formula2 = NotIn::new(
-            vec![("age".into(), Literal::new(29).into())],
-            RelationRef::new("person".into(), RelationVersion::Total),
+        let formula2 = Formula::not_in(
+            [("age", Literal::new(29))],
+            RelationRef::new("person", RelationVersion::Total),
         );
 
         let project = Operation::Project(Project::new(
-            hashmap! {"age".into() => Literal::new(29).into()},
-            RelationRef::new("person".into(), RelationVersion::Total),
+            hashmap! {"age" => Literal::new(29)},
+            RelationRef::new("person", RelationVersion::Total),
         ));
 
         let ast = Operation::Search(Search::new(
-            RelationRef::new("person".into(), RelationVersion::Total),
+            RelationRef::new("person", RelationVersion::Total),
             None,
-            vec![formula1.into(), formula2.into()],
+            [formula1, formula2],
             project,
         ));
 
