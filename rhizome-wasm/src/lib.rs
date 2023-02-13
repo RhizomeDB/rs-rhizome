@@ -6,13 +6,17 @@
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
+pub mod channel;
 pub mod datum;
 pub mod fact;
 pub mod program;
+pub mod reactor;
 
+pub use channel::*;
 pub use datum::*;
 pub use fact::*;
 pub use program::*;
+pub use reactor::*;
 
 //------------------------------------------------------------------------------
 // Utilities
