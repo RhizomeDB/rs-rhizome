@@ -3,8 +3,9 @@ members = [
 	"examples",
 	"rhizome",
 	"rhizome-benches",
-	"rhizome-wasm"
+	"rhizome-runtime",
 ]
+exclude = ["rhizome-wasm"]
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
