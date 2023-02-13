@@ -25,6 +25,14 @@ impl Datum {
     pub fn string(data: String) -> Self {
         Self::String(data)
     }
+
+    pub fn inner(&self) -> RhizomeDatum {
+        match self {
+            Datum::Bool(v) => RhizomeDatum::bool(*v),
+            Datum::Int(v) => RhizomeDatum::int(*v),
+            Datum::String(v) => RhizomeDatum::string(v),
+        }
+    }
 }
 
 impl Display for Datum {
