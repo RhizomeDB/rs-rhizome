@@ -6,10 +6,14 @@
 
 use crate::pretty::Pretty;
 use anyhow::Result;
+use storage::{codec::Codec, memory::MemoryBlockstore};
+
+use fact::traits::{EDBFact, IDBFact};
 use logic::{ast::Program, parser};
 use ram::vm;
 use reactor::Reactor;
 use relation::Relation;
+use timestamp::Timestamp;
 
 pub mod datum;
 pub mod error;
@@ -18,10 +22,12 @@ pub mod id;
 pub mod interner;
 pub mod lattice;
 pub mod logic;
+pub mod marker;
 pub mod pretty;
 pub mod ram;
 pub mod reactor;
 pub mod relation;
+pub mod storage;
 pub mod timestamp;
 
 pub fn parse(i: &str) -> Result<Program> {
@@ -37,11 +43,20 @@ pub fn pretty(program: &Program) -> Result<String> {
     Ok(String::from_utf8(buf)?)
 }
 
-pub fn run(program: &Program, relation: &str) -> Result<impl Relation> {
+pub fn run<T, C, EF, IF, ER, IR>(program: &Program, relation: &str) -> Result<IR>
+where
+    T: Timestamp,
+    C: Codec,
+    ER: Relation<EF>,
+    IR: Relation<IF>,
+    EF: EDBFact,
+    IF: IDBFact,
+{
     let ram = logic::lower_to_ram::lower_to_ram(program)?;
-    let mut vm: vm::VM = vm::VM::new(ram);
+    let bs = MemoryBlockstore::default();
+    let mut vm: vm::VM<T, EF, IF, ER, IR> = vm::VM::new(ram);
 
-    vm.step_epoch()?;
+    vm.step_epoch(&bs)?;
 
     Ok(vm.relation(relation))
 }

@@ -1,38 +1,50 @@
+use serde::Deserialize;
+use serde::Serialize;
+use std::borrow::Borrow;
 use std::fmt::Display;
+use std::marker::PhantomData;
 
-use crate::interner::{self, Symbol};
+use crate::interner::Symbol;
+
+#[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Id<T>(Symbol, PhantomData<T>);
+
+impl<T> Id<T> {
+    pub fn new<S: AsRef<str>>(id: S) -> Self {
+        let symbol = Symbol::get_or_intern(id.as_ref());
+
+        Self(symbol, PhantomData::default())
+    }
+
+    pub fn resolve(&self) -> String {
+        self.0.resolve()
+    }
+}
+
+impl<T> Display for Id<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.resolve())
+    }
+}
+
+impl<T, S: Borrow<str>> From<S> for Id<T> {
+    fn from(id: S) -> Self {
+        Self::new(id.borrow())
+    }
+}
 
 macro_rules! new_id {
     ($name:ident) => {
-        #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-        pub struct $name(Symbol);
+        paste::item! {
+            #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+            pub enum [< $name Marker >] {}
 
-        impl $name {
-            pub fn new<T: AsRef<str>>(id: T) -> Self {
-                let symbol = interner::get_or_intern(id.as_ref());
-
-                Self(symbol)
-            }
-
-            pub fn resolve(&self) -> String {
-                interner::resolve(self.0)
-            }
-        }
-
-        impl Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.resolve())
-            }
-        }
-
-        impl From<&str> for $name {
-            fn from(id: &str) -> Self {
-                Self::new(id)
-            }
+            pub type $name = Id<[< $name Marker >]>;
         }
     };
 }
 
 new_id!(AttributeId);
+new_id!(LinkId);
 new_id!(RelationId);
 new_id!(VariableId);

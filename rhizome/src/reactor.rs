@@ -13,33 +13,40 @@ use futures::{
 
 use crate::{
     error::Error,
-    fact::Fact,
+    fact::{
+        traits::{EDBFact, IDBFact},
+        DefaultEDBFact, DefaultIDBFact,
+    },
     id::RelationId,
     ram::vm::VM,
     relation::{DefaultRelation, Relation},
+    storage::{blockstore::Blockstore, memory::MemoryBlockstore, DefaultCodec, DEFAULT_MULTIHASH},
     timestamp::{DefaultTimestamp, Timestamp},
 };
 
-pub type FactStream = Box<dyn Stream<Item = Fact>>;
-pub type FactSink = Box<dyn Sink<Fact, Error = Error>>;
+pub type FactStream<F> = Box<dyn Stream<Item = F>>;
+pub type FactSink<F> = Box<dyn Sink<F, Error = Error>>;
 
 #[derive(Debug)]
-pub enum SinkMsg<T> {
-    Payload(T),
+pub enum SinkMsg<F> {
+    Payload(F),
     Flush(oneshot::Sender<()>),
 }
 
-pub enum Event {
+pub enum Event<EF, IF> {
     // TODO: stream ID?
     RegisteredStream,
-    RegisteredSink(RelationId, UnboundedSender<SinkMsg<Fact>>),
+    RegisteredSink(RelationId, UnboundedSender<SinkMsg<IF>>),
     // TODO: stream ID?
     StreamClosed,
     // TODO: Associate incoming facts with their stream?
-    FactInserted(Fact),
+    FactInserted(EF),
 }
 
-impl Debug for Event {
+impl<EF, IF> Debug for Event<EF, IF>
+where
+    EF: IDBFact + 'static,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Event::RegisteredStream => f.debug_struct("RegisteredStream").finish(),
@@ -55,33 +62,42 @@ impl Debug for Event {
     }
 }
 
-pub struct Reactor<R = DefaultRelation, T = DefaultTimestamp>
-where
-    R: Relation,
-    T: Timestamp,
-{
+pub struct Reactor<
+    T = DefaultTimestamp,
+    BS = MemoryBlockstore,
+    EF = DefaultEDBFact,
+    IF = DefaultIDBFact,
+    ER = DefaultRelation<EF>,
+    IR = DefaultRelation<IF>,
+> {
     runtime: Runtime,
-    vm: VM<T, R>,
+    vm: VM<T, EF, IF, ER, IR>,
+    blockstore: BS,
     // TODO: set of stream IDs?
     num_streams: usize,
-    sinks: Vec<(RelationId, mpsc::UnboundedSender<SinkMsg<Fact>>)>,
+    sinks: Vec<(RelationId, mpsc::UnboundedSender<SinkMsg<IF>>)>,
     // TODO: use a bounded channel?
-    events_rx: mpsc::UnboundedReceiver<Event>,
-    events_tx: mpsc::UnboundedSender<Event>,
+    events_rx: mpsc::UnboundedReceiver<Event<EF, IF>>,
+    events_tx: mpsc::UnboundedSender<Event<EF, IF>>,
     subscribers: Vec<oneshot::Sender<()>>,
 }
 
-impl<R, T> Reactor<R, T>
+impl<T, BS, EF, IF, ER, IR> Reactor<T, BS, EF, IF, ER, IR>
 where
     T: Timestamp,
-    R: Relation,
+    BS: Blockstore,
+    EF: EDBFact + 'static,
+    IF: IDBFact + 'static,
+    ER: Relation<EF>,
+    IR: Relation<IF>,
 {
-    pub fn new(vm: VM<T, R>) -> Self {
+    pub fn new(vm: VM<T, EF, IF, ER, IR>) -> Self {
         let (tx, rx) = mpsc::unbounded();
 
         Self {
             runtime: Runtime::default(),
             vm,
+            blockstore: BS::default(),
             num_streams: 0,
             sinks: Vec::default(),
             events_rx: rx,
@@ -94,7 +110,7 @@ where
         self.subscribers.push(tx);
     }
 
-    pub fn input_channel(&self) -> Result<mpsc::UnboundedSender<Fact>> {
+    pub fn input_channel(&self) -> Result<mpsc::UnboundedSender<EF>> {
         let (tx, rx) = mpsc::unbounded();
 
         self.register_stream(|| {
@@ -106,11 +122,11 @@ where
         Ok(tx)
     }
 
-    pub fn output_channel(&self, relation_id: RelationId) -> Result<mpsc::UnboundedReceiver<Fact>> {
+    pub fn output_channel(&self, relation_id: RelationId) -> Result<mpsc::UnboundedReceiver<IF>> {
         let (tx, rx) = mpsc::unbounded();
 
         self.register_sink(relation_id, || {
-            Box::new(unfold(tx, move |tx, fact: Fact| async move {
+            Box::new(unfold(tx, move |tx, fact: IF| async move {
                 tx.unbounded_send(fact).expect("channel disconnected");
 
                 Ok(tx)
@@ -122,7 +138,7 @@ where
 
     pub fn register_stream<F>(&self, create_stream: F) -> Result<()>
     where
-        F: (FnOnce() -> FactStream),
+        F: (FnOnce() -> FactStream<EF>),
         F: MaybeSend + 'static,
     {
         let tx = self.events_tx.clone();
@@ -147,7 +163,7 @@ where
 
     pub fn register_sink<F>(&self, relation_id: impl Into<RelationId>, create_sink: F) -> Result<()>
     where
-        F: (FnOnce() -> FactSink),
+        F: (FnOnce() -> FactSink<IF>),
         F: MaybeSend + 'static,
     {
         let (tx, mut rx) = mpsc::unbounded();
@@ -202,7 +218,6 @@ where
     }
 
     pub async fn tick(&mut self) -> Result<()> {
-        let mut input_channel = self.vm.input_channel();
         let mut next_event = Ok(self.events_rx.next().await);
         while let Ok(Some(event)) = next_event {
             match event {
@@ -211,39 +226,37 @@ where
                 }
                 Event::RegisteredSink(relation_id, tx) => self.sinks.push((relation_id, tx)),
                 Event::StreamClosed => self.num_streams -= 1,
-                Event::FactInserted(fact) => input_channel.unbounded_send(fact)?,
+                Event::FactInserted(fact) => {
+                    self.blockstore
+                        .put_serializable(&fact, DefaultCodec::default(), DEFAULT_MULTIHASH)
+                        .unwrap();
+
+                    println!("{}", fact);
+
+                    self.vm.push(fact)?
+                }
             }
 
             next_event = self.events_rx.try_next();
         }
-        input_channel.close().await?;
 
-        let mut sinks = Vec::default();
-        for (relation_id, sink) in &self.sinks {
-            let output_channel = self.vm.output_channel(*relation_id);
+        // TODO: use a buffered blockstore and flush after each iteration?
+        self.vm.step_epoch(&self.blockstore)?;
 
-            sinks.push((output_channel, sink));
-        }
-
-        self.vm.step_epoch()?;
-
-        while let Some((mut output_channel, sink)) = sinks.pop() {
-            while let Ok(Some(fact)) = output_channel.try_next() {
-                sink.unbounded_send(SinkMsg::Payload(fact))?;
+        while let Ok(Some(fact)) = self.vm.pop() {
+            // TODO: index sinks by relation_id
+            for (relation_id, sink) in &self.sinks {
+                if fact.id() == *relation_id {
+                    sink.unbounded_send(SinkMsg::Payload(fact.clone()))?;
+                }
             }
-
-            output_channel.close();
         }
 
         Ok(())
     }
 }
 
-impl<R, T> Debug for Reactor<R, T>
-where
-    R: Relation,
-    T: Timestamp,
-{
+impl<T, BS, EF, IF, ER, IR> Debug for Reactor<T, BS, EF, IF, ER, IR> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Reactor").finish()
     }

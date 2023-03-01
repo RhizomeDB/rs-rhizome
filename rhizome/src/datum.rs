@@ -1,14 +1,18 @@
+use cid::Cid;
+use derive_more::{From, TryInto};
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use derive_more::{From, TryInto};
+use crate::interner::Symbol;
 
-use crate::interner::{self, Symbol};
-
-#[derive(Debug, Clone, Copy, From, Eq, Hash, PartialEq, TryInto, Ord, PartialOrd)]
+#[derive(
+    Debug, Clone, Copy, From, Eq, Hash, PartialEq, TryInto, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub enum Datum {
     Bool(bool),
-    Int(i64),
+    Int(i128),
     String(Symbol),
+    Cid(Cid),
 }
 
 impl Datum {
@@ -16,14 +20,18 @@ impl Datum {
         Self::Bool(data)
     }
 
-    pub fn int(data: i64) -> Self {
+    pub fn int(data: i128) -> Self {
         Self::Int(data)
     }
 
     pub fn string<T: AsRef<str>>(data: T) -> Self {
-        let symbol = interner::get_or_intern(data.as_ref());
+        let symbol = Symbol::get_or_intern(data.as_ref());
 
         Self::String(symbol)
+    }
+
+    pub fn cid(data: Cid) -> Self {
+        Self::Cid(data)
     }
 }
 
@@ -38,7 +46,8 @@ impl Display for Datum {
         let s = match self {
             Datum::Bool(v) => v.to_string(),
             Datum::Int(v) => v.to_string(),
-            Datum::String(v) => format!("{:?}", interner::resolve(*v)),
+            Datum::String(v) => format!("{:?}", v.resolve()),
+            Datum::Cid(v) => format!("{:?}", v.to_string()),
         };
 
         write!(f, "{}", s.as_str())

@@ -8,6 +8,8 @@ use crate::id::{AttributeId, RelationId, VariableId};
 /// Rhizome errors.
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum Error {
+    #[error("Unknown Error")]
+    Unknown,
     #[error("Cannot find a node with the specified CID in block store")]
     CIDNotFoundInBlockstore,
     #[error("Program could not be parsed")]

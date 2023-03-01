@@ -10,14 +10,15 @@ use nom::{
 };
 
 use super::ast::{
-    AttributeValue, BodyTerm, Clause, Fact, InputSchema, Literal, Negation, Predicate, Program,
-    Rule, Statement, Variable,
+    AttributeValue, BodyTerm, Clause, Fact, GetLink, Literal, Negation, Predicate, Program, Rule,
+    Schema, Statement, Variable,
 };
 
 use crate::{
     datum::Datum,
     error::{error, Error},
-    id::{AttributeId, RelationId, VariableId},
+    id::{AttributeId, LinkId, RelationId, VariableId},
+    marker::{SourceMarker, EDB, IDB},
 };
 
 pub fn parse(i: &str) -> Result<Program> {
@@ -41,9 +42,9 @@ fn boolean(i: &str) -> IResult<&str, bool> {
     alt((parse_true, parse_false))(i)
 }
 
-fn int(i: &str) -> IResult<&str, i64> {
+fn int(i: &str) -> IResult<&str, i128> {
     map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| {
-        s.parse::<i64>()
+        s.parse::<i128>()
     })(i)
 }
 
@@ -143,6 +144,10 @@ fn attribute_id(i: &str) -> IResult<&str, AttributeId> {
     preceded(sp, map(lower_identifier, AttributeId::new))(i)
 }
 
+fn link_id(i: &str) -> IResult<&str, LinkId> {
+    preceded(sp, map(lower_identifier, LinkId::new))(i)
+}
+
 fn relation_id(i: &str) -> IResult<&str, RelationId> {
     preceded(sp, map(lower_identifier, RelationId::new))(i)
 }
@@ -187,6 +192,15 @@ fn attribute_ids(i: &str) -> IResult<&str, Vec<AttributeId>> {
     )(i)
 }
 
+// TODO: define a LinkValue isntead of using AttributeValue
+fn link_id_value(i: &str) -> IResult<&str, (LinkId, AttributeValue)> {
+    separated_pair(
+        preceded(sp, link_id),
+        preceded(sp, char(':')),
+        attribute_value,
+    )(i)
+}
+
 fn arguments(i: &str) -> IResult<&str, Vec<(AttributeId, AttributeValue)>> {
     preceded(
         char('('),
@@ -207,6 +221,16 @@ fn attributes(i: &str) -> IResult<&str, Vec<(AttributeId, Literal)>> {
     )(i)
 }
 
+fn links(i: &str) -> IResult<&str, Vec<(LinkId, AttributeValue)>> {
+    preceded(
+        pair(sp, char('(')),
+        terminated(
+            separated_list1(preceded(sp, char(',')), link_id_value),
+            preceded(sp, char(')')),
+        ),
+    )(i)
+}
+
 fn predicate(i: &str) -> IResult<&str, Predicate> {
     map(pair(relation_id, arguments), |(relation_id, arguments)| {
         Predicate::new(relation_id, arguments)
@@ -222,12 +246,26 @@ fn negation(i: &str) -> IResult<&str, Negation> {
     )(i)
 }
 
+fn get_link(i: &str) -> IResult<&str, GetLink> {
+    preceded(
+        tag("links"),
+        preceded(
+            sp,
+            // TODO: attribute_value is too permissive here, use link_value once that exists
+            map(pair(attribute_value, links), |(cid_term, arguments)| {
+                GetLink::new(cid_term, arguments)
+            }),
+        ),
+    )(i)
+}
+
 fn body_term(i: &str) -> IResult<&str, BodyTerm> {
     preceded(
         sp,
         alt((
             map(predicate, BodyTerm::from),
             map(negation, BodyTerm::from),
+            map(get_link, BodyTerm::from),
         )),
     )(i)
 }
@@ -256,17 +294,25 @@ fn rule(i: &str) -> IResult<&str, Rule> {
     )(i)
 }
 
-fn input_schema(i: &str) -> IResult<&str, InputSchema> {
+fn schema<T>(i: &str) -> IResult<&str, Schema<T>>
+where
+    T: SourceMarker,
+{
     preceded(
-        pair(sp, tag("input ")),
-        preceded(
-            sp,
-            cut(map_res(
-                terminated(pair(relation_id, attribute_ids), preceded(sp, char('.'))),
-                |(relation_id, attribute_ids)| InputSchema::new(relation_id, attribute_ids),
-            )),
-        ),
+        sp,
+        cut(map_res(
+            terminated(pair(relation_id, attribute_ids), preceded(sp, char('.'))),
+            |(relation_id, attribute_ids)| Schema::<T>::new(relation_id, attribute_ids),
+        )),
     )(i)
+}
+
+fn input_schema(i: &str) -> IResult<&str, Schema<EDB>> {
+    preceded(pair(sp, tag("input ")), cut(schema))(i)
+}
+
+fn output_schema(i: &str) -> IResult<&str, Schema<IDB>> {
+    preceded(pair(sp, tag("output ")), cut(schema))(i)
 }
 
 fn clause(i: &str) -> IResult<&str, Clause> {
@@ -278,6 +324,7 @@ fn statement(i: &str) -> IResult<&str, Statement> {
         sp,
         alt((
             map(input_schema, Statement::from),
+            map(output_schema, Statement::from),
             map(clause, Statement::from),
         )),
     )(i)
@@ -599,6 +646,10 @@ mod tests {
                 r#"
             input r(r0, r1).
 
+            output v(v).
+            output t(t0, t1).
+            output tc(tc0, tc1).
+
             v(v: X) :- r(r0: X, r1: Y).
             v(v: Y) :- r(r0: X, r1: Y).
 
@@ -611,7 +662,10 @@ mod tests {
             Ok((
                 "",
                 Program::new(vec![
-                    Statement::InputSchema(InputSchema::new("r", ["r0", "r1"])?),
+                    Statement::InputSchema(Schema::<EDB>::new("r", ["r0", "r1"])?),
+                    Statement::OutputSchema(Schema::<IDB>::new("v", ["v"])?),
+                    Statement::OutputSchema(Schema::<IDB>::new("t", ["t0", "t1"])?),
+                    Statement::OutputSchema(Schema::<IDB>::new("tc", ["tc0", "tc1"])?),
                     Statement::Clause(Clause::rule(
                         "v",
                         [("v", AttributeValue::variable("X"))],

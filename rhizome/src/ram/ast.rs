@@ -5,11 +5,10 @@ use im::{HashMap, HashSet};
 
 use crate::{
     datum::Datum,
-    fact::Fact,
-    id::{AttributeId, RelationId},
+    id::{AttributeId, LinkId, RelationId, VariableId},
 };
 
-#[derive(Clone, Copy, Debug, Display, From, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Display, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct AliasId(usize);
 
 impl AliasId {
@@ -30,14 +29,34 @@ impl Default for AliasId {
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    inputs: Vec<RelationId>,
+    outputs: Vec<RelationId>,
     statements: Vec<Statement>,
 }
 
 impl Program {
-    pub fn new(statements: impl IntoIterator<Item = Statement>) -> Self {
+    pub fn new(
+        inputs: impl IntoIterator<Item = RelationId>,
+        outputs: impl IntoIterator<Item = RelationId>,
+        statements: impl IntoIterator<Item = Statement>,
+    ) -> Self {
+        let inputs = inputs.into_iter().collect();
+        let outputs = outputs.into_iter().collect();
         let statements = statements.into_iter().collect();
 
-        Self { statements }
+        Self {
+            inputs,
+            outputs,
+            statements,
+        }
+    }
+
+    pub fn inputs(&self) -> &Vec<RelationId> {
+        &self.inputs
+    }
+
+    pub fn outputs(&self) -> &Vec<RelationId> {
+        &self.outputs
     }
 
     pub fn statements(&self) -> &Vec<Statement> {
@@ -48,18 +67,23 @@ impl Program {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct RelationBinding {
     id: RelationId,
+    source: RelationSource,
     alias: Option<AliasId>,
 }
 
 impl RelationBinding {
-    pub fn new(id: impl Into<RelationId>, alias: Option<AliasId>) -> Self {
+    pub fn new(id: impl Into<RelationId>, source: RelationSource, alias: Option<AliasId>) -> Self {
         let id = id.into();
 
-        Self { id, alias }
+        Self { id, source, alias }
     }
 
     pub fn id(&self) -> &RelationId {
         &self.id
+    }
+
+    pub fn source(&self) -> RelationSource {
+        self.source
     }
 
     pub fn alias(&self) -> &Option<AliasId> {
@@ -70,18 +94,37 @@ impl RelationBinding {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct RelationRef {
     id: RelationId,
+    source: RelationSource,
     version: RelationVersion,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub enum RelationSource {
+    EDB,
+    IDB,
+}
+
 impl RelationRef {
-    pub fn new(id: impl Into<RelationId>, version: RelationVersion) -> Self {
+    pub fn new(
+        id: impl Into<RelationId>,
+        source: RelationSource,
+        version: RelationVersion,
+    ) -> Self {
         let id = id.into();
 
-        Self { id, version }
+        Self {
+            id,
+            source,
+            version,
+        }
     }
 
-    pub fn id(&self) -> &RelationId {
-        &self.id
+    pub fn id(&self) -> RelationId {
+        self.id
+    }
+
+    pub fn source(&self) -> RelationSource {
+        self.source
     }
 
     pub fn version(&self) -> &RelationVersion {
@@ -263,6 +306,7 @@ impl Sinks {
 pub enum Operation {
     Search(Search),
     Project(Project),
+    GetLink(GetLink),
 }
 
 #[derive(Clone, Debug)]
@@ -333,6 +377,59 @@ impl Project {
 
     pub fn into(&self) -> &RelationRef {
         &self.into
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GetLink {
+    cid_term: Term,
+    // TODO: It may be worthwhile to allow the LinkId to be unbound to support iterating through a CID's links,
+    // but I'm not sure yet whether that has has implications on termination or convergence. It shouldn't,
+    // since only EDB facts have links, and so the universe of LinkIds is finite, but we can keep things
+    // simple to start.
+    link_id: LinkId,
+    link_value: Term,
+    when: Vec<Formula>,
+    operation: Box<Operation>,
+}
+
+impl GetLink {
+    pub fn new(
+        cid_term: Term,
+        link_id: LinkId,
+        link_value: Term,
+        when: impl IntoIterator<Item = Formula>,
+        operation: Operation,
+    ) -> Self {
+        let when = when.into_iter().collect();
+
+        Self {
+            cid_term,
+            link_id,
+            link_value,
+            when,
+            operation: Box::new(operation),
+        }
+    }
+
+    pub fn cid_term(&self) -> &Term {
+        &self.cid_term
+    }
+
+    pub fn link_id(&self) -> &LinkId {
+        &self.link_id
+    }
+
+    pub fn link_value(&self) -> &Term {
+        &self.link_value
+    }
+
+    pub fn when(&self) -> &Vec<Formula> {
+        &self.when
+    }
+
+    pub fn operation(&self) -> &Operation {
+        &self.operation
     }
 }
 
@@ -415,6 +512,7 @@ impl NotIn {
 pub enum Term {
     Attribute(Attribute),
     Literal(Literal),
+    Variable(Variable),
 }
 
 impl Term {
@@ -426,22 +524,8 @@ impl Term {
         Self::Literal(Literal::new(datum))
     }
 
-    pub fn resolve(
-        &self,
-        current_fact: &Fact,
-        relation_binding: &RelationBinding,
-        bindings: &HashMap<RelationBinding, Fact>,
-    ) -> Option<Datum> {
-        match self {
-            Term::Attribute(inner) if *inner.relation() == *relation_binding => {
-                current_fact.attribute(inner.id()).cloned()
-            }
-            Term::Attribute(inner) => bindings
-                .get(inner.relation())
-                .and_then(|f| f.attribute(inner.id()))
-                .cloned(),
-            Term::Literal(inner) => Some(*inner.datum()),
-        }
+    pub fn variable(id: impl Into<VariableId>) -> Self {
+        Self::Variable(Variable::new(id))
     }
 }
 
@@ -481,5 +565,22 @@ impl Literal {
 
     pub fn datum(&self) -> &Datum {
         &self.datum
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Variable {
+    id: VariableId,
+}
+
+impl Variable {
+    pub fn new(id: impl Into<VariableId>) -> Self {
+        let id = id.into();
+
+        Self { id }
+    }
+
+    pub fn id(&self) -> &VariableId {
+        &self.id
     }
 }

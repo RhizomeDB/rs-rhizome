@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use anyhow::Result;
 use derive_more::{From, IsVariant, TryInto};
 use im::{HashMap, HashSet};
@@ -5,7 +7,8 @@ use im::{HashMap, HashSet};
 use crate::{
     datum::Datum,
     error::{error, Error},
-    id::{AttributeId, RelationId, VariableId},
+    id::{AttributeId, LinkId, RelationId, VariableId},
+    marker::{SourceMarker, EDB, IDB},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -20,8 +23,12 @@ impl Program {
         Self { statements }
     }
 
-    pub fn inputs(&self) -> Vec<InputSchema> {
-        self.statements_of::<InputSchema>()
+    pub fn inputs(&self) -> Vec<Schema<EDB>> {
+        self.statements_of::<Schema<EDB>>()
+    }
+
+    pub fn outputs(&self) -> Vec<Schema<IDB>> {
+        self.statements_of::<Schema<IDB>>()
     }
 
     pub fn clauses(&self) -> Vec<Clause> {
@@ -91,17 +98,22 @@ impl Stratum {
 
 #[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum Statement {
-    InputSchema(InputSchema),
+    InputSchema(Schema<EDB>),
+    OutputSchema(Schema<IDB>),
     Clause(Clause),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct InputSchema {
+pub struct Schema<T> {
     id: RelationId,
     attributes: HashSet<AttributeId>,
+    _marker: PhantomData<T>,
 }
 
-impl InputSchema {
+impl<T> Schema<T>
+where
+    T: SourceMarker,
+{
     pub fn new(
         id: impl Into<RelationId>,
         attributes: impl IntoIterator<Item = impl Into<AttributeId>>,
@@ -119,6 +131,7 @@ impl InputSchema {
         Ok(Self {
             id: id.into(),
             attributes: uniq,
+            _marker: PhantomData::default(),
         })
     }
 
@@ -373,12 +386,17 @@ impl Variable {
     pub fn new(id: impl Into<VariableId>) -> Self {
         Self { id: id.into() }
     }
+
+    pub fn id(&self) -> VariableId {
+        self.id
+    }
 }
 
 #[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum BodyTerm {
     Predicate(Predicate),
     Negation(Negation),
+    GetLink(GetLink),
 }
 
 impl BodyTerm {
@@ -398,15 +416,17 @@ impl BodyTerm {
 
     pub fn variables(&self) -> HashSet<Variable> {
         match self {
-            BodyTerm::Predicate(predicate) => predicate.variables(),
-            BodyTerm::Negation(negation) => negation.variables(),
+            BodyTerm::Predicate(inner) => inner.variables(),
+            BodyTerm::Negation(inner) => inner.variables(),
+            BodyTerm::GetLink(inner) => inner.variables(),
         }
     }
 
     pub fn depends_on(&self) -> Vec<RelationId> {
         match self {
-            BodyTerm::Predicate(predicate) => vec![predicate.id],
-            BodyTerm::Negation(negation) => vec![negation.id],
+            BodyTerm::Predicate(inner) => vec![inner.id],
+            BodyTerm::Negation(inner) => vec![inner.id],
+            BodyTerm::GetLink(_) => vec![],
         }
     }
 
@@ -414,6 +434,7 @@ impl BodyTerm {
         match self {
             BodyTerm::Predicate(_) => Some(BodyTermPolarity::Positive),
             BodyTerm::Negation(_) => Some(BodyTermPolarity::Negative),
+            BodyTerm::GetLink(_) => Some(BodyTermPolarity::Positive),
         }
     }
 }
@@ -481,6 +502,62 @@ impl Negation {
             .iter()
             .filter_map(|(_, v)| Variable::try_from(*v).ok())
             .collect()
+    }
+}
+
+// TODO: Define LinkValue
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct GetLink {
+    cid: AttributeValue,
+    link_id: LinkId,
+    link_value: AttributeValue,
+}
+
+impl GetLink {
+    pub fn new(
+        cid: impl Into<AttributeValue>,
+        args: impl IntoIterator<Item = (impl Into<LinkId>, AttributeValue)>,
+    ) -> Self {
+        let links: Vec<_> = args.into_iter().map(|(k, v)| (k.into(), v)).collect();
+
+        // TODO: Support multiple links
+        assert!(links.len() == 1);
+
+        let link_id = links.get(0).unwrap().0;
+        let link_value = links.get(0).unwrap().1;
+
+        Self {
+            cid: cid.into(),
+            link_id,
+            link_value,
+        }
+    }
+
+    pub fn cid(&self) -> AttributeValue {
+        self.cid
+    }
+
+    pub fn link_id(&self) -> LinkId {
+        self.link_id
+    }
+
+    pub fn link_value(&self) -> AttributeValue {
+        self.link_value
+    }
+
+    // TODO: If link_id becomes an AttributeValue we will need to add it here
+    pub fn variables(&self) -> HashSet<Variable> {
+        let mut variables = HashSet::default();
+
+        if let Ok(v) = Variable::try_from(self.cid) {
+            variables.insert(v);
+        }
+
+        if let Ok(v) = Variable::try_from(self.link_value) {
+            variables.insert(v);
+        }
+
+        variables
     }
 }
 

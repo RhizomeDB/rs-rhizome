@@ -150,6 +150,7 @@ impl Pretty for Operation {
         match self {
             Operation::Search(inner) => inner.to_doc(),
             Operation::Project(inner) => inner.to_doc(),
+            Operation::GetLink(inner) => inner.to_doc(),
         }
     }
 }
@@ -189,6 +190,29 @@ impl Pretty for Search {
             relation_doc,
             when_doc,
             RcDoc::text(" do"),
+        ])
+        .append(
+            RcDoc::hardline()
+                .append(self.operation().to_doc())
+                .nest(2)
+                .group(),
+        )
+    }
+}
+
+impl Pretty for GetLink {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        RcDoc::concat([
+            RcDoc::text("get_link("),
+            RcDoc::intersperse(
+                [
+                    self.cid_term().to_doc(),
+                    RcDoc::as_string(self.link_id()),
+                    self.link_value().to_doc(),
+                ],
+                RcDoc::text(","),
+            ),
+            RcDoc::text(") do"),
         ])
         .append(
             RcDoc::hardline()
@@ -275,6 +299,7 @@ impl Pretty for Term {
         match self {
             Term::Attribute(inner) => inner.to_doc(),
             Term::Literal(inner) => inner.to_doc(),
+            Term::Variable(inner) => inner.to_doc(),
         }
     }
 }
@@ -300,6 +325,12 @@ impl Pretty for Literal {
     }
 }
 
+impl Pretty for Variable {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        RcDoc::as_string(self.id())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use im::hashmap;
@@ -314,23 +345,23 @@ mod tests {
         let formula1 = Formula::equality(
             Attribute::new(
                 "name",
-                RelationBinding::new("person", Some(AliasId::new().next())),
+                RelationBinding::new("person", RelationSource::EDB, Some(AliasId::new().next())),
             ),
             Literal::new("Quinn"),
         );
 
         let formula2 = Formula::not_in(
             [("age", Literal::new(29))],
-            RelationRef::new("person", RelationVersion::Total),
+            RelationRef::new("person", RelationSource::EDB, RelationVersion::Total),
         );
 
         let project = Operation::Project(Project::new(
             hashmap! {"age" => Literal::new(29)},
-            RelationRef::new("person", RelationVersion::Total),
+            RelationRef::new("person", RelationSource::EDB, RelationVersion::Total),
         ));
 
         let ast = Operation::Search(Search::new(
-            RelationRef::new("person", RelationVersion::Total),
+            RelationRef::new("person", RelationSource::EDB, RelationVersion::Total),
             None,
             [formula1, formula2],
             project,
