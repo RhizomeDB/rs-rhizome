@@ -8,6 +8,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0"
+cid = { version = "0.10.0", features = ["serde-codec"] }
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 num_cpus = "1.15"
 once_cell = "1.17"

@@ -4,14 +4,7 @@
 
 //! rhizome
 
-use crate::pretty::Pretty;
-use anyhow::Result;
-use logic::{ast::Program, parser};
-use ram::vm;
-use reactor::Reactor;
-use relation::Relation;
-
-pub mod datum;
+pub mod builder;
 pub mod error;
 pub mod fact;
 pub mod id;
@@ -20,62 +13,14 @@ pub mod lattice;
 pub mod logic;
 pub mod pretty;
 pub mod ram;
-pub mod reactor;
 pub mod relation;
+pub mod runtime;
+pub mod storage;
 pub mod timestamp;
-
-pub fn parse(i: &str) -> Result<Program> {
-    parser::parse(i)
-}
-
-pub fn pretty(program: &Program) -> Result<String> {
-    let ram = logic::lower_to_ram::lower_to_ram(program)?;
-
-    let mut buf = Vec::<u8>::new();
-    ram.to_doc().render(80, &mut buf)?;
-
-    Ok(String::from_utf8(buf)?)
-}
-
-pub fn run(program: &Program, relation: &str) -> Result<impl Relation> {
-    let ram = logic::lower_to_ram::lower_to_ram(program)?;
-    let mut vm: vm::VM = vm::VM::new(ram);
-
-    vm.step_epoch()?;
-
-    Ok(vm.relation(relation))
-}
-
-pub fn spawn(program: &Program) -> Result<Reactor> {
-    let ram = logic::lower_to_ram::lower_to_ram(program)?;
-    let vm: vm::VM = vm::VM::new(ram);
-    let reactor = Reactor::new(vm);
-
-    Ok(reactor)
-}
+pub mod types;
+pub mod value;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test_utils")))]
 pub mod test_utils;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse() {
-        assert!(parse(
-            r#"
-        edge(from: 0, to: 1).
-        edge(from: 1, to: 2).
-        edge(from: 2, to: 3).
-        edge(from: 3, to: 4).
-
-        path(from: X, to: Y) :- edge(from: X, to: Y).
-        path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
-        "#,
-        )
-        .is_ok());
-    }
-}
