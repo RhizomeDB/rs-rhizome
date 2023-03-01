@@ -1,3 +1,23 @@
-pub mod ast;
-pub mod pretty;
-pub mod vm;
+pub mod alias_id;
+pub mod equality;
+pub mod formula;
+pub mod not_in;
+pub mod operation;
+pub mod program;
+pub mod relation_binding;
+pub mod relation_ref;
+pub mod relation_version;
+pub mod statement;
+pub mod term;
+
+pub use alias_id::*;
+pub use equality::*;
+pub use formula::*;
+pub use not_in::*;
+pub use operation::*;
+pub use program::*;
+pub use relation_binding::*;
+pub use relation_ref::*;
+pub use relation_version::*;
+pub use statement::*;
+pub use term::*;

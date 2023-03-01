@@ -52,7 +52,7 @@ impl From<RhizomeDatum> for Datum {
         match f {
             RhizomeDatum::Bool(v) => Datum::bool(v),
             RhizomeDatum::Int(v) => Datum::int(v),
-            RhizomeDatum::String(v) => Datum::string(interner::resolve(v)),
+            RhizomeDatum::String(v) => Datum::string(v.resolve()),
         }
     }
 }
