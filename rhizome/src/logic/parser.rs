@@ -1,4 +1,5 @@
 use anyhow::Result;
+use cid::Cid;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while_m_n},
@@ -10,8 +11,8 @@ use nom::{
 };
 
 use super::ast::{
-    AttributeValue, BodyTerm, Clause, Fact, GetLink, Literal, Negation, Predicate, Program, Rule,
-    Schema, Statement, Variable,
+    AttributeValue, BodyTerm, CidValue, Clause, Fact, GetLink, Literal, Negation, Predicate,
+    Program, Rule, Schema, Statement, Variable,
 };
 
 use crate::{
@@ -126,6 +127,10 @@ fn literal(i: &str) -> IResult<&str, Literal> {
     map(datum, Literal::new)(i)
 }
 
+fn cid(i: &str) -> IResult<&str, Cid> {
+    map_res(datum, Cid::try_from)(i)
+}
+
 fn lower_identifier(i: &str) -> IResult<&str, &str> {
     recognize(pair(
         satisfy(char::is_lowercase),
@@ -192,13 +197,15 @@ fn attribute_ids(i: &str) -> IResult<&str, Vec<AttributeId>> {
     )(i)
 }
 
-// TODO: define a LinkValue isntead of using AttributeValue
-fn link_id_value(i: &str) -> IResult<&str, (LinkId, AttributeValue)> {
-    separated_pair(
-        preceded(sp, link_id),
-        preceded(sp, char(':')),
-        attribute_value,
+fn cid_value(i: &str) -> IResult<&str, CidValue> {
+    preceded(
+        sp,
+        alt((map(cid, CidValue::Cid), map(variable, CidValue::Variable))),
     )(i)
+}
+
+fn link_id_value(i: &str) -> IResult<&str, (LinkId, CidValue)> {
+    separated_pair(preceded(sp, link_id), preceded(sp, char(':')), cid_value)(i)
 }
 
 fn arguments(i: &str) -> IResult<&str, Vec<(AttributeId, AttributeValue)>> {
@@ -221,7 +228,7 @@ fn attributes(i: &str) -> IResult<&str, Vec<(AttributeId, Literal)>> {
     )(i)
 }
 
-fn links(i: &str) -> IResult<&str, Vec<(LinkId, AttributeValue)>> {
+fn links(i: &str) -> IResult<&str, Vec<(LinkId, CidValue)>> {
     preceded(
         pair(sp, char('(')),
         terminated(
@@ -251,9 +258,8 @@ fn get_link(i: &str) -> IResult<&str, GetLink> {
         tag("links"),
         preceded(
             sp,
-            // TODO: attribute_value is too permissive here, use link_value once that exists
-            map(pair(attribute_value, links), |(cid_term, arguments)| {
-                GetLink::new(cid_term, arguments)
+            map(pair(cid_value, links), |(cid_value, link)| {
+                GetLink::new(cid_value, link)
             }),
         ),
     )(i)

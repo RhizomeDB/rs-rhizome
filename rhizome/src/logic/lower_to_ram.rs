@@ -462,13 +462,13 @@ pub fn lower_rule_to_ram(
                     };
 
                     let cid_term = match inner.cid() {
-                        AttributeValue::Literal(inner) => Term::literal(*inner.datum()),
-                        AttributeValue::Variable(inner) => *bindings.get(&inner).unwrap(),
+                        CidValue::Cid(inner) => Term::literal(inner),
+                        CidValue::Variable(inner) => *bindings.get(&inner).unwrap(),
                     };
 
                     let link_value = match inner.link_value() {
-                        AttributeValue::Literal(inner) => Term::literal(*inner.datum()),
-                        AttributeValue::Variable(inner) => *bindings.get(&inner).unwrap(),
+                        CidValue::Cid(inner) => Term::literal(inner),
+                        CidValue::Variable(inner) => *bindings.get(&inner).unwrap(),
                     };
 
                     previous = Operation::GetLink(ram::ast::GetLink::new(

@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use anyhow::Result;
+use cid::Cid;
 use derive_more::{From, IsVariant, TryInto};
 use im::{HashMap, HashSet};
 
@@ -392,6 +393,22 @@ impl Variable {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, From, PartialEq, IsVariant, TryInto)]
+pub enum CidValue {
+    Cid(Cid),
+    Variable(Variable),
+}
+
+impl CidValue {
+    pub fn cid(cid: Cid) -> Self {
+        Self::Cid(cid)
+    }
+
+    pub fn variable(id: impl Into<VariableId>) -> Self {
+        Self::Variable(Variable::new(id))
+    }
+}
+
 #[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum BodyTerm {
     Predicate(Predicate),
@@ -508,15 +525,15 @@ impl Negation {
 // TODO: Define LinkValue
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct GetLink {
-    cid: AttributeValue,
+    cid: CidValue,
     link_id: LinkId,
-    link_value: AttributeValue,
+    link_value: CidValue,
 }
 
 impl GetLink {
     pub fn new(
-        cid: impl Into<AttributeValue>,
-        args: impl IntoIterator<Item = (impl Into<LinkId>, AttributeValue)>,
+        cid: impl Into<CidValue>,
+        args: impl IntoIterator<Item = (impl Into<LinkId>, CidValue)>,
     ) -> Self {
         let links: Vec<_> = args.into_iter().map(|(k, v)| (k.into(), v)).collect();
 
@@ -533,7 +550,7 @@ impl GetLink {
         }
     }
 
-    pub fn cid(&self) -> AttributeValue {
+    pub fn cid(&self) -> CidValue {
         self.cid
     }
 
@@ -541,11 +558,11 @@ impl GetLink {
         self.link_id
     }
 
-    pub fn link_value(&self) -> AttributeValue {
+    pub fn link_value(&self) -> CidValue {
         self.link_value
     }
 
-    // TODO: If link_id becomes an AttributeValue we will need to add it here
+    // TODO: If we allowed link_id to be unbound we will need to add it here
     pub fn variables(&self) -> HashSet<Variable> {
         let mut variables = HashSet::default();
 
