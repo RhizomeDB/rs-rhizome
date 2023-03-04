@@ -11,13 +11,9 @@ use crate::{
 /// Rhizome errors.
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum Error {
-    #[error("Unknown Error")]
-    Unknown,
-    #[error("Cannot find a node with the specified CID in block store")]
-    CIDNotFoundInBlockstore,
-    #[error("Program could not be parsed")]
+    // #[error("Program could not be parsed")]
     // TODO: Include diagnostics on this error
-    ProgramParseError,
+    // ProgramParseError,
     #[error("Program could not be stratified")]
     ProgramUnstratifiable,
     #[error("Clause not range restricted: variable {1}, in attribute {0} of head must be bound")]

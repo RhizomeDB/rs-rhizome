@@ -66,7 +66,7 @@ where
 pub fn spawn(program: &Program) -> Result<Reactor> {
     let ram = logic::lower_to_ram::lower_to_ram(program)?;
     let vm: vm::VM = vm::VM::new(ram);
-    let reactor = Reactor::new(vm);
+    let (_, reactor) = Reactor::new(vm);
 
     Ok(reactor)
 }

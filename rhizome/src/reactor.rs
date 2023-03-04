@@ -33,6 +33,9 @@ pub enum SinkMsg<F> {
     Flush(oneshot::Sender<()>),
 }
 
+#[derive(Debug)]
+pub enum Command {}
+
 pub enum Event<EF, IF> {
     // TODO: stream ID?
     RegisteredStream,
@@ -76,9 +79,11 @@ pub struct Reactor<
     // TODO: set of stream IDs?
     num_streams: usize,
     sinks: Vec<(RelationId, mpsc::UnboundedSender<SinkMsg<IF>>)>,
-    // TODO: use a bounded channel?
-    events_rx: mpsc::UnboundedReceiver<Event<EF, IF>>,
-    events_tx: mpsc::UnboundedSender<Event<EF, IF>>,
+    // TODO: refactor events / commands to swap their names and to move processing of commands into
+    // the event loop
+    command_tx: mpsc::Sender<Event<EF, IF>>,
+    command_rx: mpsc::Receiver<Event<EF, IF>>,
+    event_tx: mpsc::Sender<Command>,
     subscribers: Vec<oneshot::Sender<()>>,
 }
 
@@ -91,19 +96,24 @@ where
     ER: Relation<EF>,
     IR: Relation<IF>,
 {
-    pub fn new(vm: VM<T, EF, IF, ER, IR>) -> Self {
-        let (tx, rx) = mpsc::unbounded();
+    pub fn new(vm: VM<T, EF, IF, ER, IR>) -> (mpsc::Receiver<Command>, Self) {
+        let (command_tx, command_rx) = mpsc::channel(1000);
+        let (event_tx, event_rx) = mpsc::channel(1000);
 
-        Self {
-            runtime: Runtime::default(),
-            vm,
-            blockstore: BS::default(),
-            num_streams: 0,
-            sinks: Vec::default(),
-            events_rx: rx,
-            events_tx: tx,
-            subscribers: Vec::default(),
-        }
+        (
+            event_rx,
+            Self {
+                runtime: Runtime::default(),
+                vm,
+                blockstore: BS::default(),
+                num_streams: 0,
+                sinks: Vec::default(),
+                command_tx,
+                command_rx,
+                event_tx,
+                subscribers: Vec::default(),
+            },
+        )
     }
 
     pub fn subscribe(&mut self, tx: oneshot::Sender<()>) {
@@ -144,22 +154,20 @@ where
         F: (FnOnce() -> FactStream<EF>),
         F: MaybeSend + 'static,
     {
-        let tx = self.events_tx.clone();
+        let mut tx = self.command_tx.clone();
         let create_task = move || async move {
             let mut stream = Box::into_pin(create_stream());
 
             while let Some(fact) = stream.next().await {
-                tx.unbounded_send(Event::FactInserted(fact))
-                    .expect("channel disconnected")
+                tx.send(Event::FactInserted(fact)).await.unwrap();
             }
 
-            tx.unbounded_send(Event::StreamClosed)
-                .expect("channel disconnected")
+            tx.send(Event::StreamClosed).await.unwrap();
         };
 
         self.runtime.spawn_pinned(create_task);
 
-        self.events_tx.unbounded_send(Event::RegisteredStream)?;
+        self.command_tx.clone().try_send(Event::RegisteredStream)?;
 
         Ok(())
     }
@@ -191,8 +199,9 @@ where
 
         self.runtime.spawn_pinned(create_task);
 
-        self.events_tx
-            .unbounded_send(Event::RegisteredSink(id, tx))?;
+        self.command_tx
+            .clone()
+            .try_send(Event::RegisteredSink(id, tx))?;
 
         Ok(())
     }
@@ -224,7 +233,7 @@ where
     }
 
     pub async fn tick(&mut self) -> Result<()> {
-        let mut next_event = Ok(self.events_rx.next().await);
+        let mut next_event = Ok(self.command_rx.next().await);
         while let Ok(Some(event)) = next_event {
             match event {
                 Event::RegisteredStream => {
@@ -243,7 +252,7 @@ where
                 }
             }
 
-            next_event = self.events_rx.try_next();
+            next_event = self.command_rx.try_next();
         }
 
         // TODO: use a buffered blockstore and flush after each iteration?

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    
+
     use pretty_assertions::assert_eq;
     use std::{
         cell::RefCell,
@@ -84,7 +84,7 @@ mod tests {
             .unwrap();
 
             let ast = lower_to_ram::lower_to_ram(&program)?;
-            let mut reactor: Reactor = Reactor::new(VM::new(ast));
+            let (_, mut reactor): (_, Reactor) = Reactor::new(VM::new(ast));
 
             reactor.register_stream(|| {
                 Box::new(stream::iter([
