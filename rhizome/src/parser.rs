@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use cid::Cid;
 use nom::{
@@ -10,16 +12,26 @@ use nom::{
     IResult,
 };
 
-use super::ast::{
-    AttributeValue, BodyTerm, CidValue, Clause, Fact, GetLink, Literal, Negation, Predicate,
-    Program, Rule, Schema, Statement, Variable,
-};
-
 use crate::{
     datum::Datum,
     error::{error, Error},
-    id::{AttributeId, LinkId, RelationId, VariableId},
-    marker::{SourceMarker, EDB, IDB},
+    id::{ColumnId, LinkId, RelationId, VariableId},
+    marker::{Source, StringColumn},
+};
+
+use super::ast::{
+    attribute_value::AttributeValue,
+    body_term::{BodyTerm, GetLink, Negation, Predicate},
+    cid_value::CidValue,
+    clause::Clause,
+    column::Column,
+    fact::Fact,
+    literal::Literal,
+    program::Program,
+    rule::Rule,
+    schema::Schema,
+    statement::Statement,
+    variable::Variable,
 };
 
 pub fn parse(i: &str) -> Result<Program> {
@@ -145,15 +157,15 @@ fn upper_identifier(i: &str) -> IResult<&str, &str> {
     ))(i)
 }
 
-fn attribute_id(i: &str) -> IResult<&str, AttributeId> {
-    preceded(sp, map(lower_identifier, AttributeId::new))(i)
+fn column_id(i: &str) -> IResult<&str, ColumnId> {
+    preceded(sp, map(lower_identifier, ColumnId::new))(i)
 }
 
 fn link_id(i: &str) -> IResult<&str, LinkId> {
     preceded(sp, map(lower_identifier, LinkId::new))(i)
 }
 
-fn relation_id(i: &str) -> IResult<&str, RelationId> {
+fn relation_id<T>(i: &str) -> IResult<&str, RelationId<T>> {
     preceded(sp, map(lower_identifier, RelationId::new))(i)
 }
 
@@ -175,23 +187,39 @@ fn attribute_value(i: &str) -> IResult<&str, AttributeValue> {
     )(i)
 }
 
-fn attribute_id_value(i: &str) -> IResult<&str, (AttributeId, AttributeValue)> {
+fn column_id_value(i: &str) -> IResult<&str, (ColumnId, AttributeValue)> {
     separated_pair(
-        preceded(sp, attribute_id),
+        preceded(sp, column_id),
         preceded(sp, char(':')),
         attribute_value,
     )(i)
 }
 
-fn attribute_id_literal(i: &str) -> IResult<&str, (AttributeId, Literal)> {
-    separated_pair(preceded(sp, attribute_id), preceded(sp, char(':')), literal)(i)
+fn column_id_literal(i: &str) -> IResult<&str, (ColumnId, Literal)> {
+    separated_pair(preceded(sp, column_id), preceded(sp, char(':')), literal)(i)
 }
 
-fn attribute_ids(i: &str) -> IResult<&str, Vec<AttributeId>> {
+// TODO: this just marks everything as a string for now
+fn column_type(i: &str) -> IResult<&str, StringColumn> {
+    preceded(sp, alt((map(tag("String"), |_| StringColumn::default()),)))(i)
+}
+
+fn column_definition(i: &str) -> IResult<&str, (ColumnId, Column)> {
+    map(
+        separated_pair(
+            preceded(sp, column_id),
+            preceded(sp, char(':')),
+            column_type,
+        ),
+        |(id, t)| (id, Column::new(id, t)),
+    )(i)
+}
+
+fn column_definitions(i: &str) -> IResult<&str, Vec<(ColumnId, Column)>> {
     preceded(
         char('('),
         terminated(
-            separated_list1(preceded(sp, char(',')), attribute_id),
+            separated_list1(preceded(sp, char(',')), column_definition),
             preceded(sp, char(')')),
         ),
     )(i)
@@ -208,21 +236,21 @@ fn link_id_value(i: &str) -> IResult<&str, (LinkId, CidValue)> {
     separated_pair(preceded(sp, link_id), preceded(sp, char(':')), cid_value)(i)
 }
 
-fn arguments(i: &str) -> IResult<&str, Vec<(AttributeId, AttributeValue)>> {
+fn arguments(i: &str) -> IResult<&str, Vec<(ColumnId, AttributeValue)>> {
     preceded(
         char('('),
         terminated(
-            separated_list1(preceded(sp, char(',')), attribute_id_value),
+            separated_list1(preceded(sp, char(',')), column_id_value),
             preceded(sp, char(')')),
         ),
     )(i)
 }
 
-fn attributes(i: &str) -> IResult<&str, Vec<(AttributeId, Literal)>> {
+fn attributes(i: &str) -> IResult<&str, Vec<(ColumnId, Literal)>> {
     preceded(
         char('('),
         terminated(
-            separated_list1(preceded(sp, char(',')), attribute_id_literal),
+            separated_list1(preceded(sp, char(',')), column_id_literal),
             preceded(sp, char(')')),
         ),
     )(i)
@@ -300,25 +328,33 @@ fn rule(i: &str) -> IResult<&str, Rule> {
     )(i)
 }
 
-fn schema<T>(i: &str) -> IResult<&str, Schema<T>>
+fn relation_declaration<T>(i: &str) -> IResult<&str, (RelationId<T>, Schema)>
 where
-    T: SourceMarker,
+    T: Source,
 {
     preceded(
         sp,
-        cut(map_res(
-            terminated(pair(relation_id, attribute_ids), preceded(sp, char('.'))),
-            |(relation_id, attribute_ids)| Schema::<T>::new(relation_id, attribute_ids),
+        cut(map(
+            terminated(
+                pair(relation_id, column_definitions),
+                preceded(sp, char('.')),
+            ),
+            |(relation_id, column_definitions)| {
+                (
+                    relation_id,
+                    Schema::new(HashMap::from_iter(column_definitions)),
+                )
+            },
         )),
     )(i)
 }
 
-fn input_schema(i: &str) -> IResult<&str, Schema<EDB>> {
-    preceded(pair(sp, tag("input ")), cut(schema))(i)
+fn input_schema(i: &str) -> IResult<&str, Schema> {
+    preceded(pair(sp, tag("input ")), cut(relation_declaration))(i)
 }
 
-fn output_schema(i: &str) -> IResult<&str, Schema<IDB>> {
-    preceded(pair(sp, tag("output ")), cut(schema))(i)
+fn output_schema(i: &str) -> IResult<&str, Schema> {
+    preceded(pair(sp, tag("output ")), cut(relation_declaration))(i)
 }
 
 fn clause(i: &str) -> IResult<&str, Clause> {
@@ -342,7 +378,15 @@ fn program(i: &str) -> IResult<&str, Program> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use pretty_assertions::assert_eq;
+
+    use crate::{
+        id::RelationId,
+        logic::ast::schema::RelationDeclaration,
+        marker::{StringColumn, EDB, IDB},
+    };
 
     use super::*;
 
@@ -399,10 +443,22 @@ mod tests {
 
     #[test]
     fn test_relation_id() {
-        assert_eq!(relation_id("x"), Ok(("", "x".into())));
-        assert_eq!(relation_id("xY"), Ok(("", "xY".into())));
-        assert_eq!(relation_id("xy"), Ok(("", "xy".into())));
-        assert_eq!(relation_id("x_y"), Ok(("", "x_y".into())));
+        assert_eq!(
+            relation_id::<EDB>("x"),
+            Ok(("", RelationId::<EDB>::new("x")))
+        );
+        assert_eq!(
+            relation_id::<EDB>("xY"),
+            Ok(("", RelationId::<EDB>::new("xY")))
+        );
+        assert_eq!(
+            relation_id::<IDB>("xy"),
+            Ok(("", RelationId::<IDB>::new("xy")))
+        );
+        assert_eq!(
+            relation_id::<IDB>("x_y"),
+            Ok(("", RelationId::<IDB>::new("x_y")))
+        );
     }
 
     #[test]
@@ -433,13 +489,13 @@ mod tests {
     }
 
     #[test]
-    fn test_attribute_id_value() {
+    fn test_column_id_value() {
         assert_eq!(
-            attribute_id_value("a: X"),
+            column_id_value("a: X"),
             Ok(("", ("a".into(), AttributeValue::variable("X"))))
         );
         assert_eq!(
-            attribute_id_value("bA_c_D:      true"),
+            column_id_value("bA_c_D:      true"),
             Ok(("", ("bA_c_D".into(), AttributeValue::literal(true))))
         );
     }
@@ -573,14 +629,26 @@ mod tests {
     fn test_fact() {
         assert_eq!(
             fact("foo(x: 1)."),
-            Ok(("", Fact::new("foo", [("x", Literal::new(1))])))
+            Ok((
+                "",
+                Fact::new(
+                    RelationId::new("foo"),
+                    HashMap::from_iter([(ColumnId::new("x"), Datum::new(1))])
+                )
+            ))
         );
 
         assert_eq!(
             fact("foo(    x: 1    ,    y   :    2)    ."),
             Ok((
                 "",
-                Fact::new("foo", [("x", Literal::new(1)), ("y", Literal::new(2))])
+                Fact::new(
+                    RelationId::new("foo"),
+                    HashMap::from_iter([
+                        (ColumnId::new("x"), Datum::new(1)),
+                        (ColumnId::new("y"), Datum::new(2))
+                    ])
+                )
             ))
         );
     }
@@ -592,7 +660,7 @@ mod tests {
             Ok((
                 "",
                 Rule::new(
-                    "foo",
+                    RelationId::new("foo"),
                     [("x", AttributeValue::variable("X"))],
                     [BodyTerm::predicate(
                         "bar",
@@ -607,7 +675,7 @@ mod tests {
             Ok((
                 "",
                 Rule::new(
-                    "foo",
+                    RelationId::new("foo"),
                     [("x", AttributeValue::variable("X"))],
                     [
                         BodyTerm::predicate("bar", [("x", AttributeValue::variable("X"))]),
@@ -624,7 +692,13 @@ mod tests {
     fn test_clause() -> Result<()> {
         assert_eq!(
             clause("foo(x: 5)."),
-            Ok(("", Clause::fact("foo", [("x", Literal::new(5))])))
+            Ok((
+                "",
+                Clause::fact(
+                    RelationId::new("foo"),
+                    HashMap::from_iter([(ColumnId::new("x"), Datum::new(5))])
+                )
+            ))
         );
 
         assert_eq!(
@@ -632,7 +706,7 @@ mod tests {
             Ok((
                 "",
                 Clause::rule(
-                    "foo",
+                    RelationId::new("foo"),
                     [("x", AttributeValue::variable("X"))],
                     [
                         BodyTerm::predicate("bar", [("x", AttributeValue::variable("X"))]),
@@ -668,12 +742,54 @@ mod tests {
             Ok((
                 "",
                 Program::new(vec![
-                    Statement::InputSchema(Schema::<EDB>::new("r", ["r0", "r1"])?),
-                    Statement::OutputSchema(Schema::<IDB>::new("v", ["v"])?),
-                    Statement::OutputSchema(Schema::<IDB>::new("t", ["t0", "t1"])?),
-                    Statement::OutputSchema(Schema::<IDB>::new("tc", ["tc0", "tc1"])?),
+                    Statement::Declaration(RelationDeclaration::EDB(
+                        RelationId::new("r"),
+                        Schema::new(HashMap::from_iter([
+                            (
+                                ColumnId::new("r0"),
+                                Column::new(ColumnId::new("r0"), StringColumn::default())
+                            ),
+                            (
+                                ColumnId::new("r1"),
+                                Column::new(ColumnId::new("r1"), StringColumn::default())
+                            ),
+                        ]))
+                    )),
+                    Statement::Declaration(RelationDeclaration::IDB(
+                        RelationId::new("v"),
+                        Schema::new(HashMap::from_iter([(
+                            ColumnId::new("v"),
+                            Column::new(ColumnId::new("v"), StringColumn::default())
+                        ),]))
+                    )),
+                    Statement::Declaration(RelationDeclaration::IDB(
+                        RelationId::new("t"),
+                        Schema::new(HashMap::from_iter([
+                            (
+                                ColumnId::new("t0"),
+                                Column::new(ColumnId::new("t0"), StringColumn::default())
+                            ),
+                            (
+                                ColumnId::new("t1"),
+                                Column::new(ColumnId::new("t1"), StringColumn::default())
+                            ),
+                        ]))
+                    )),
+                    Statement::Declaration(RelationDeclaration::IDB(
+                        RelationId::new("tc"),
+                        Schema::new(HashMap::from_iter([
+                            (
+                                ColumnId::new("tc0"),
+                                Column::new(ColumnId::new("tc0"), StringColumn::default())
+                            ),
+                            (
+                                ColumnId::new("tc1"),
+                                Column::new(ColumnId::new("tc1"), StringColumn::default())
+                            ),
+                        ]))
+                    )),
                     Statement::Clause(Clause::rule(
-                        "v",
+                        RelationId::new("v"),
                         [("v", AttributeValue::variable("X"))],
                         [BodyTerm::predicate(
                             "r",
@@ -684,7 +800,7 @@ mod tests {
                         )],
                     )?),
                     Statement::Clause(Clause::rule(
-                        "v",
+                        RelationId::new("v"),
                         [("v", AttributeValue::variable("Y"))],
                         [BodyTerm::predicate(
                             "r",
@@ -695,7 +811,7 @@ mod tests {
                         )],
                     )?),
                     Statement::Clause(Clause::rule(
-                        "t",
+                        RelationId::new("t"),
                         [
                             ("t0", AttributeValue::variable("X")),
                             ("t1", AttributeValue::variable("Y")),
@@ -709,7 +825,7 @@ mod tests {
                         )],
                     )?),
                     Statement::Clause(Clause::rule(
-                        "t",
+                        RelationId::new("t"),
                         [
                             ("t0", AttributeValue::variable("X")),
                             ("t1", AttributeValue::variable("Y")),
@@ -732,7 +848,7 @@ mod tests {
                         ],
                     )?),
                     Statement::Clause(Clause::rule(
-                        "tc",
+                        RelationId::new("tc"),
                         [
                             ("tc0", AttributeValue::variable("X")),
                             ("tc1", AttributeValue::variable("Y")),

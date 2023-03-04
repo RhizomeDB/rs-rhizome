@@ -16,6 +16,13 @@ pub enum Datum {
 }
 
 impl Datum {
+    pub fn new<T>(data: T) -> Self
+    where
+        T: Into<Self>,
+    {
+        data.into()
+    }
+
     pub fn bool(data: bool) -> Self {
         Self::Bool(data)
     }

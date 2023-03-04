@@ -18,10 +18,10 @@ use crate::{
         DefaultEDBFact, DefaultIDBFact,
     },
     id::RelationId,
-    ram::vm::VM,
     relation::{DefaultRelation, Relation},
     storage::{blockstore::Blockstore, memory::MemoryBlockstore, DefaultCodec, DEFAULT_MULTIHASH},
     timestamp::{DefaultTimestamp, Timestamp},
+    vm::VM,
 };
 
 pub type FactStream<F> = Box<dyn Stream<Item = F>>;
@@ -122,10 +122,13 @@ where
         Ok(tx)
     }
 
-    pub fn output_channel(&self, relation_id: RelationId) -> Result<mpsc::UnboundedReceiver<IF>> {
+    pub fn output_channel<S>(&self, id: S) -> Result<mpsc::UnboundedReceiver<IF>>
+    where
+        S: AsRef<str>,
+    {
         let (tx, rx) = mpsc::unbounded();
 
-        self.register_sink(relation_id, || {
+        self.register_sink(id, || {
             Box::new(unfold(tx, move |tx, fact: IF| async move {
                 tx.unbounded_send(fact).expect("channel disconnected");
 
@@ -161,11 +164,14 @@ where
         Ok(())
     }
 
-    pub fn register_sink<F>(&self, relation_id: impl Into<RelationId>, create_sink: F) -> Result<()>
+    pub fn register_sink<S, F>(&self, id: S, create_sink: F) -> Result<()>
     where
+        S: AsRef<str>,
         F: (FnOnce() -> FactSink<IF>),
         F: MaybeSend + 'static,
     {
+        let id = RelationId::new(id);
+
         let (tx, mut rx) = mpsc::unbounded();
         let create_task = move || async move {
             let mut sink = Box::into_pin(create_sink());
@@ -186,7 +192,7 @@ where
         self.runtime.spawn_pinned(create_task);
 
         self.events_tx
-            .unbounded_send(Event::RegisteredSink(relation_id.into(), tx))?;
+            .unbounded_send(Event::RegisteredSink(id, tx))?;
 
         Ok(())
     }
@@ -231,7 +237,7 @@ where
                         .put_serializable(&fact, DefaultCodec::default(), DEFAULT_MULTIHASH)
                         .unwrap();
 
-                    println!("{}", fact);
+                    println!("{fact}");
 
                     self.vm.push(fact)?
                 }

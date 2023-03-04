@@ -1,5 +1,4 @@
-use self::btree_fact::BTreeFact;
-use self::evac_fact::EVACFact;
+use self::{btree_fact::BTreeFact, evac_fact::EVACFact};
 
 pub mod btree_fact;
 pub mod evac_fact;

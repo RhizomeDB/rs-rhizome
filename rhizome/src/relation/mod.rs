@@ -1,8 +1,21 @@
-use im::OrdSet;
-
 use crate::fact::traits::Fact;
+use im::OrdSet;
+use std::hash::Hash;
 
 pub type DefaultRelation<F> = ImmutableOrdSetRelation<F>;
+
+pub trait RelationSource:
+    Clone + Copy + Eq + PartialEq + Ord + PartialOrd + Hash + Default
+{
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
+pub struct EDB;
+impl RelationSource for EDB {}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
+pub struct IDB;
+impl RelationSource for IDB {}
 
 // TODO: Keep track of the timestamp a fact was derived at?
 pub trait Relation<F>:

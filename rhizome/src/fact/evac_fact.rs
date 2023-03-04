@@ -4,59 +4,45 @@ use cid::Cid;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    datum::Datum,
-    id::{AttributeId, LinkId, RelationId},
-    marker::EDB,
+    id::{ColumnId, LinkId, RelationId},
+    relation::EDB,
     storage::{content_addressable::ContentAddressable, DefaultCodec},
+    value::Value,
 };
 
 use super::traits::{EDBFact, Fact};
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct EVACFact {
-    pub entity_id: Datum,
-    pub attribute_id: AttributeId,
-    pub attribute_value: Datum,
+    pub entity: Value,
+    pub attribute: Value,
+    pub value: Value,
     pub causal_links: BTreeMap<LinkId, Cid>,
 }
 
 impl EDBFact for EVACFact {
-    fn new<A: Into<AttributeId> + Ord, L: Into<LinkId>, D: Into<Datum>>(
-        id: impl Into<RelationId>,
-        attributes: impl IntoIterator<Item = (A, D)>,
-        links: impl IntoIterator<Item = (L, Cid)>,
+    fn new(
+        entity: impl Into<Value>,
+        attribute: impl Into<Value>,
+        value: impl Into<Value>,
+        links: impl IntoIterator<Item = (LinkId, Cid)>,
     ) -> Self {
-        let id = id.into();
+        let entity = entity.into();
+        let attribute = attribute.into();
+        let value = value.into();
 
-        assert!(id == RelationId::new("evac"));
-
-        let attributes = attributes
-            .into_iter()
-            .map(|(k, v)| (k.into(), v.into()))
-            .collect::<BTreeMap<AttributeId, Datum>>();
-
-        let entity_id = *attributes.get(&AttributeId::new("entity")).unwrap();
-
-        let attribute_id = attributes
-            .get(&AttributeId::new("attribute"))
-            .and_then(|v| match v {
-                Datum::Bool(_) => panic!(),
-                Datum::Int(_) => panic!(),
-                Datum::String(s) => Some(AttributeId::new(s.resolve())),
-                Datum::Cid(_) => panic!(),
-            })
-            .unwrap();
-
-        let attribute_value = *attributes.get(&AttributeId::new("value")).unwrap();
-
-        let causal_links = links.into_iter().map(|(k, v)| (k.into(), v)).collect();
+        let causal_links = links.into_iter().collect();
 
         Self {
-            entity_id,
-            attribute_id,
-            attribute_value,
+            entity,
+            attribute,
+            value,
             causal_links,
         }
+    }
+
+    fn id(&self) -> RelationId {
+        RelationId::new("evac")
     }
 
     fn link(&self, id: LinkId) -> Option<&Cid> {
@@ -67,36 +53,29 @@ impl EDBFact for EVACFact {
 impl Fact for EVACFact {
     type Marker = EDB;
 
-    fn id(&self) -> RelationId {
-        RelationId::new("evac")
-    }
-
-    fn attribute(&self, id: &AttributeId) -> Option<Datum> {
-        if *id == AttributeId::new("cid") {
-            Some(Datum::cid(self.cid(DefaultCodec::default())))
-        } else if *id == AttributeId::new("entity") {
-            Some(self.entity_id)
-        } else if *id == AttributeId::new("attribute") {
-            Some(Datum::string(self.attribute_id.resolve()))
-        } else if *id == AttributeId::new("value") {
-            Some(self.attribute_value)
+    fn attribute(&self, id: &ColumnId) -> Option<Value> {
+        if *id == ColumnId::new("cid") {
+            Some(Value::Cid(self.cid(DefaultCodec::default())))
+        } else if *id == ColumnId::new("entity") {
+            Some(self.entity.clone())
+        } else if *id == ColumnId::new("attribute") {
+            Some(self.attribute.clone())
+        } else if *id == ColumnId::new("value") {
+            Some(self.value.clone())
         } else {
             None
         }
     }
 
-    fn attributes(&self) -> BTreeMap<AttributeId, Datum> {
+    fn attributes(&self) -> BTreeMap<ColumnId, Value> {
         BTreeMap::from_iter([
             (
-                AttributeId::new("cid"),
-                Datum::cid(self.cid(DefaultCodec::default())),
+                ColumnId::new("cid"),
+                Value::Cid(self.cid(DefaultCodec::default())),
             ),
-            (AttributeId::new("entity"), self.entity_id),
-            (
-                AttributeId::new("attribute"),
-                Datum::string(self.attribute_id.resolve()),
-            ),
-            (AttributeId::new("value"), self.attribute_value),
+            (ColumnId::new("entity"), self.entity.clone()),
+            (ColumnId::new("attribute"), self.attribute.clone()),
+            (ColumnId::new("value"), self.value.clone()),
         ])
     }
 }
@@ -117,6 +96,6 @@ impl Display for EVACFact {
             .collect::<Vec<String>>()
             .join(", ");
 
-        write!(f, "evac({}, links: [{}])", attributes, links)
+        write!(f, "evac({attributes}, links: [{links}])")
     }
 }

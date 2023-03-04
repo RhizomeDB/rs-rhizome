@@ -3,8 +3,10 @@ use serde::{
     de::{self, Visitor},
     Deserialize, Serialize,
 };
-use std::fmt::{self, Debug};
-use std::sync::Mutex;
+use std::{
+    fmt::{self, Debug},
+    sync::Mutex,
+};
 use string_interner::{DefaultSymbol, StringInterner};
 
 static INSTANCE: Lazy<Mutex<StringInterner>> = Lazy::new(|| Mutex::new(StringInterner::default()));
