@@ -42,7 +42,10 @@ pub struct VM<
     IF = DefaultIDBFact,
     ER = DefaultRelation<EF>,
     IR = DefaultRelation<IF>,
-> {
+> where
+    EF: EDBFact,
+    IF: IDBFact,
+{
     timestamp: T,
     pc: (usize, Option<usize>),
     input: VecDeque<EF>,
@@ -56,6 +59,10 @@ pub struct VM<
 impl<T, EF, IF, ER, IR> Debug for VM<T, EF, IF, ER, IR>
 where
     T: Timestamp,
+    ER: Relation<EF>,
+    IR: Relation<IF>,
+    EF: EDBFact,
+    IF: IDBFact,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VM")
@@ -664,208 +671,145 @@ where
 
 #[cfg(test)]
 mod tests {
-    // use crate::{
-    //     fact::traits::{EDBFact, IDBFact},
-    //     logic::lower_to_ram,
-    //     storage::memory::MemoryBlockstore,
-    // };
-    // use pretty_assertions::assert_eq;
-    // use std::collections::BTreeSet;
+    use crate::{
+        builder::ProgramBuilder, fact::traits::IDBFact, logic::lower_to_ram,
+        storage::memory::MemoryBlockstore,
+    };
+    use pretty_assertions::assert_eq;
+    use std::collections::BTreeSet;
 
-    // use super::*;
+    use super::*;
 
-    // #[test]
-    // fn test_step_epoch_transitive_closure() -> Result<()> {
-    //     let program = parser::parse(
-    //         r#"
-    //     input evac(entity, attribute, value).
+    #[test]
+    fn test_step_epoch_transitive_closure() -> Result<()> {
+        let program = ProgramBuilder::build(|p| {
+            p.output("edge", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
+            p.output("path", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
 
-    //     output edge(from, to).
-    //     output path(from, to).
+            p.fact("edge", |f| f.set("from", 0)?.set("to", 1))?;
+            p.fact("edge", |f| f.set("from", 1)?.set("to", 2))?;
+            p.fact("edge", |f| f.set("from", 2)?.set("to", 3))?;
+            p.fact("edge", |f| f.set("from", 3)?.set("to", 4))?;
 
-    //     evac(entity: 0, attribute: "to", value: 1).
-    //     evac(entity: 1, attribute: "to", value: 2).
-    //     evac(entity: 2, attribute: "to", value: 3).
-    //     evac(entity: 3, attribute: "to", value: 4).
+            p.rule(
+                "path",
+                |h| h.bind("from", "x")?.bind("to", "y"),
+                |b| b.search("edge", |s| s.bind("from", "x")?.bind("to", "y")),
+            )?;
 
-    //     edge(from: X, to: Y) :- evac(entity: X, attribute: "to", value: Y).
+            p.rule(
+                "path",
+                |h| h.bind("from", "x")?.bind("to", "z"),
+                |b| {
+                    b.search("edge", |s| s.bind("from", "x")?.bind("to", "y"))?
+                        .search("path", |s| s.bind("from", "y")?.bind("to", "z"))
+                },
+            )
+        })?;
 
-    //     path(from: X, to: Y) :- edge(from: X, to: Y).
-    //     path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
-    //     "#,
-    //     )?;
+        let program = lower_to_ram::lower_to_ram(&program)?;
+        let bs = MemoryBlockstore::default();
+        let mut vm: VM = VM::new(program);
 
-    //     let ast = lower_to_ram::lower_to_ram(&program)?;
-    //     let bs = MemoryBlockstore::default();
-    //     let mut vm: VM = VM::new(ast);
+        vm.step_epoch(&bs)?;
 
-    //     vm.step_epoch(&bs)?;
+        let mut path = BTreeSet::default();
+        while let Ok(Some(fact)) = vm.pop() {
+            if fact.id() == "path".into() {
+                path.insert(fact);
+            }
+        }
 
-    //     let mut path = BTreeSet::default();
-    //     while let Ok(Some(fact)) = vm.pop() {
-    //         if fact.id() == "path".into() {
-    //             path.insert(fact);
-    //         }
-    //     }
+        assert_eq!(
+            path,
+            BTreeSet::from_iter([
+                IDBFact::new("path", [("from", 0), ("to", 1)],),
+                IDBFact::new("path", [("from", 0), ("to", 2)],),
+                IDBFact::new("path", [("from", 0), ("to", 3)],),
+                IDBFact::new("path", [("from", 0), ("to", 4)],),
+                IDBFact::new("path", [("from", 1), ("to", 2)],),
+                IDBFact::new("path", [("from", 1), ("to", 3)],),
+                IDBFact::new("path", [("from", 1), ("to", 4)],),
+                IDBFact::new("path", [("from", 2), ("to", 3)],),
+                IDBFact::new("path", [("from", 2), ("to", 4)],),
+                IDBFact::new("path", [("from", 3), ("to", 4)],),
+            ])
+        );
 
-    //     assert_eq!(
-    //         path,
-    //         BTreeSet::from_iter([
-    //             IDBFact::new("path", [("from", 0), ("to", 1)],),
-    //             IDBFact::new("path", [("from", 0), ("to", 2)],),
-    //             IDBFact::new("path", [("from", 0), ("to", 3)],),
-    //             IDBFact::new("path", [("from", 0), ("to", 4)],),
-    //             IDBFact::new("path", [("from", 1), ("to", 2)],),
-    //             IDBFact::new("path", [("from", 1), ("to", 3)],),
-    //             IDBFact::new("path", [("from", 1), ("to", 4)],),
-    //             IDBFact::new("path", [("from", 2), ("to", 3)],),
-    //             IDBFact::new("path", [("from", 2), ("to", 4)],),
-    //             IDBFact::new("path", [("from", 3), ("to", 4)],),
-    //         ])
-    //     );
+        Ok(())
+    }
 
-    //     Ok(())
-    // }
+    #[test]
+    fn test_source_transitive_closure() -> Result<()> {
+        let program = ProgramBuilder::build(|p| {
+            p.input("evac", |h| {
+                h.column::<i32>("entity")?
+                    .column::<&str>("attribute")?
+                    .column::<i32>("value")
+            })?;
 
-    // #[test]
-    // fn test_source_transitive_closure() -> Result<()> {
-    //     let program = parser::parse(
-    //         r#"
-    //     input evac(entity, attribute, value).
+            p.output("edge", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
+            p.output("path", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
 
-    //     output edge(from, to).
-    //     output path(from, to).
+            p.fact("edge", |f| f.set("from", 0)?.set("to", 1))?;
+            p.fact("edge", |f| f.set("from", 1)?.set("to", 2))?;
+            p.fact("edge", |f| f.set("from", 2)?.set("to", 3))?;
+            p.fact("edge", |f| f.set("from", 3)?.set("to", 4))?;
 
-    //     edge(from: X, to: Y) :- evac(entity: X, attribute: "to", value: Y).
+            p.rule(
+                "path",
+                |h| h.bind("from", "x")?.bind("to", "y"),
+                |b| b.search("edge", |s| s.bind("from", "x")?.bind("to", "y")),
+            )?;
 
-    //     path(from: X, to: Y) :- edge(from: X, to: Y).
-    //     path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
-    //     "#,
-    //     )?;
+            p.rule(
+                "path",
+                |h| h.bind("from", "x")?.bind("to", "z"),
+                |b| {
+                    b.search("edge", |s| s.bind("from", "x")?.bind("to", "y"))?
+                        .search("path", |s| s.bind("from", "y")?.bind("to", "z"))
+                },
+            )
+        })?;
 
-    //     let ast = lower_to_ram::lower_to_ram(&program)?;
-    //     let bs = MemoryBlockstore::default();
-    //     let mut vm: VM = VM::new(ast);
+        let ast = lower_to_ram::lower_to_ram(&program)?;
+        let bs = MemoryBlockstore::default();
+        let mut vm: VM = VM::new(ast);
 
-    //     for fact in vec![
-    //         EDBFact::new(
-    //             "evac",
-    //             [
-    //                 ("entity", Datum::int(0)),
-    //                 ("attribute", Datum::string("to")),
-    //                 ("value", Datum::int(1)),
-    //             ],
-    //             Vec::<(LinkId, Cid)>::default(),
-    //         ),
-    //         EDBFact::new(
-    //             "evac",
-    //             [
-    //                 ("entity", Datum::int(1)),
-    //                 ("attribute", Datum::string("to")),
-    //                 ("value", Datum::int(2)),
-    //             ],
-    //             Vec::<(LinkId, Cid)>::default(),
-    //         ),
-    //         EDBFact::new(
-    //             "evac",
-    //             [
-    //                 ("entity", Datum::int(2)),
-    //                 ("attribute", Datum::string("to")),
-    //                 ("value", Datum::int(3)),
-    //             ],
-    //             Vec::<(LinkId, Cid)>::default(),
-    //         ),
-    //         EDBFact::new(
-    //             "evac",
-    //             [
-    //                 ("entity", Datum::int(3)),
-    //                 ("attribute", Datum::string("to")),
-    //                 ("value", Datum::int(4)),
-    //             ],
-    //             Vec::<(LinkId, Cid)>::default(),
-    //         ),
-    //     ] {
-    //         let _ = vm.push(fact);
-    //     }
+        for fact in vec![
+            EDBFact::new(0, "to", 1, vec![]),
+            EDBFact::new(1, "to", 2, vec![]),
+            EDBFact::new(2, "to", 3, vec![]),
+            EDBFact::new(3, "to", 4, vec![]),
+        ] {
+            let _ = vm.push(fact);
+        }
 
-    //     vm.step_epoch(&bs)?;
+        vm.step_epoch(&bs)?;
 
-    //     let mut path = BTreeSet::default();
-    //     while let Ok(Some(fact)) = vm.pop() {
-    //         if fact.id() == "path".into() {
-    //             path.insert(fact);
-    //         }
-    //     }
+        let mut path = BTreeSet::default();
+        while let Ok(Some(fact)) = vm.pop() {
+            if fact.id() == "path".into() {
+                path.insert(fact);
+            }
+        }
 
-    //     assert_eq!(
-    //         path,
-    //         BTreeSet::from_iter([
-    //             IDBFact::new("path", [("from", 0), ("to", 1)]),
-    //             IDBFact::new("path", [("from", 0), ("to", 2)]),
-    //             IDBFact::new("path", [("from", 0), ("to", 3)]),
-    //             IDBFact::new("path", [("from", 0), ("to", 4)]),
-    //             IDBFact::new("path", [("from", 1), ("to", 2)]),
-    //             IDBFact::new("path", [("from", 1), ("to", 3)]),
-    //             IDBFact::new("path", [("from", 1), ("to", 4)]),
-    //             IDBFact::new("path", [("from", 2), ("to", 3)]),
-    //             IDBFact::new("path", [("from", 2), ("to", 4)]),
-    //             IDBFact::new("path", [("from", 3), ("to", 4)]),
-    //         ])
-    //     );
+        assert_eq!(
+            path,
+            BTreeSet::from_iter([
+                IDBFact::new("path", [("from", 0), ("to", 1)]),
+                IDBFact::new("path", [("from", 0), ("to", 2)]),
+                IDBFact::new("path", [("from", 0), ("to", 3)]),
+                IDBFact::new("path", [("from", 0), ("to", 4)]),
+                IDBFact::new("path", [("from", 1), ("to", 2)]),
+                IDBFact::new("path", [("from", 1), ("to", 3)]),
+                IDBFact::new("path", [("from", 1), ("to", 4)]),
+                IDBFact::new("path", [("from", 2), ("to", 3)]),
+                IDBFact::new("path", [("from", 2), ("to", 4)]),
+                IDBFact::new("path", [("from", 3), ("to", 4)]),
+            ])
+        );
 
-    //     Ok(())
-    // }
-
-    // #[test]
-    // fn test_sink_transitive_closure() -> Result<()> {
-    //     let program = parser::parse(
-    //         r#"
-    //     input evac(entity, attribute, value).
-
-    //     output edge(from, to).
-    //     output path(from, to).
-
-    //     evac(entity: 0, attribute: "to", value: 1).
-    //     evac(entity: 1, attribute: "to", value: 2).
-    //     evac(entity: 2, attribute: "to", value: 3).
-    //     evac(entity: 3, attribute: "to", value: 4).
-
-    //     edge(from: X, to: Y) :- evac(entity: X, attribute: "to", value: Y).
-
-    //     path(from: X, to: Y) :- edge(from: X, to: Y).
-    //     path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
-    //     "#,
-    //     )?;
-
-    //     let ast = lower_to_ram::lower_to_ram(&program)?;
-    //     let bs = MemoryBlockstore::default();
-    //     let mut vm: VM = VM::new(ast);
-
-    //     vm.step_epoch(&bs)?;
-
-    //     let mut path = BTreeSet::default();
-    //     while let Ok(Some(fact)) = vm.pop() {
-    //         if fact.id() == "path".into() {
-    //             path.insert(fact);
-    //         }
-    //     }
-
-    //     assert_eq!(
-    //         path,
-    //         BTreeSet::from_iter([
-    //             IDBFact::new("path", [("from", 0), ("to", 1)]),
-    //             IDBFact::new("path", [("from", 0), ("to", 2)]),
-    //             IDBFact::new("path", [("from", 0), ("to", 3)]),
-    //             IDBFact::new("path", [("from", 0), ("to", 4)]),
-    //             IDBFact::new("path", [("from", 1), ("to", 2)]),
-    //             IDBFact::new("path", [("from", 1), ("to", 3)]),
-    //             IDBFact::new("path", [("from", 1), ("to", 4)]),
-    //             IDBFact::new("path", [("from", 2), ("to", 3)]),
-    //             IDBFact::new("path", [("from", 2), ("to", 4)]),
-    //             IDBFact::new("path", [("from", 3), ("to", 4)]),
-    //         ])
-    //     );
-
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }

@@ -446,12 +446,12 @@ pub fn lower_rule_to_ram(
 
                     let cid_term = match inner.cid() {
                         CidValue::Cid(inner) => Term::Literal(Value::Cid(inner)),
-                        CidValue::Variable(inner) => bindings.get(&inner).unwrap().clone(),
+                        CidValue::Var(inner) => bindings.get(&inner).unwrap().clone(),
                     };
 
                     let link_value = match inner.link_value() {
                         CidValue::Cid(inner) => Term::Literal(Value::Cid(inner)),
-                        CidValue::Variable(inner) => bindings.get(&inner).unwrap().clone(),
+                        CidValue::Var(inner) => bindings.get(&inner).unwrap().clone(),
                     };
 
                     previous = Operation::GetLink(GetLink::new(

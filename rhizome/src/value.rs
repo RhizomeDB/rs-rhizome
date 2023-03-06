@@ -120,7 +120,7 @@ impl Display for Value {
             Value::U64(v) => Display::fmt(v, f),
             Value::Char(v) => f.write_fmt(format_args!("{v:?}")),
             Value::String(v) => f.write_fmt(format_args!("{v:?}")),
-            Value::Cid(v) => f.write_fmt(format_args!("{v}")),
+            Value::Cid(v) => f.write_fmt(format_args!("\"{v}\"")),
         }
     }
 }

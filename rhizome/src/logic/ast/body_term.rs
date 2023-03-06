@@ -104,11 +104,8 @@ pub struct GetLink {
 }
 
 impl GetLink {
-    pub fn new(
-        cid: impl Into<CidValue>,
-        args: impl IntoIterator<Item = (impl Into<LinkId>, CidValue)>,
-    ) -> Self {
-        let links: Vec<_> = args.into_iter().map(|(k, v)| (k.into(), v)).collect();
+    pub fn new(cid: CidValue, args: Vec<(LinkId, CidValue)>) -> Self {
+        let links: Vec<_> = args.into_iter().collect();
 
         // TODO: Support multiple links
         assert!(links.len() == 1);
@@ -139,12 +136,12 @@ impl GetLink {
     pub fn variables(&self) -> HashSet<VarId> {
         let mut variables = HashSet::default();
 
-        if let Ok(v) = VarId::try_from(self.cid) {
-            variables.insert(v);
+        if let CidValue::Var(var) = self.cid {
+            variables.insert(var);
         }
 
-        if let Ok(v) = VarId::try_from(self.link_value) {
-            variables.insert(v);
+        if let CidValue::Var(var) = self.link_value {
+            variables.insert(var);
         }
 
         variables

@@ -25,7 +25,7 @@ impl Pretty for Term {
                 RcDoc::as_string(column_id),
             ]),
             Term::Literal(value) => RcDoc::as_string(value),
-            Term::Variable(variable_id) => RcDoc::as_string(variable_id),
+            Term::Variable(var_id) => RcDoc::as_string(var_id),
         }
     }
 }

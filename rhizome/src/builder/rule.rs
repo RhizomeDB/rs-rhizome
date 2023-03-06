@@ -6,9 +6,9 @@ use std::{
 
 use crate::{
     error::{error, Error},
-    id::{ColumnId, VarId},
-    logic::ast::{BodyTerm, ColumnValue, Declaration},
-    types::ColumnType,
+    id::{ColumnId, LinkId, VarId},
+    logic::ast::{BodyTerm, CidValue, ColumnValue, Declaration, GetLink},
+    types::{ColumnType, Type},
     value::Value,
 };
 
@@ -53,9 +53,9 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
         }
 
         for (column_id, value) in &self.columns {
-            if let ColumnValue::Binding(variable_id) = value {
-                if !self.bound_vars.contains_key(variable_id) {
-                    return error(Error::ClauseNotRangeRestricted(*column_id, *variable_id));
+            if let ColumnValue::Binding(var_id) = value {
+                if !self.bound_vars.contains_key(var_id) {
+                    return error(Error::ClauseNotRangeRestricted(*column_id, *var_id));
                 }
             }
         }
@@ -86,13 +86,13 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
         Ok(self)
     }
 
-    pub fn bind<S, T>(mut self, column_id: S, variable_id: T) -> Result<Self>
+    pub fn bind<S, T>(mut self, column_id: S, var_id: T) -> Result<Self>
     where
         S: AsRef<str>,
         T: AsRef<str>,
     {
         let column_id = ColumnId::new(column_id);
-        let variable_id = VarId::new(variable_id);
+        let var_id = VarId::new(var_id);
 
         let Some(column) = self.relation.schema().get_column(&column_id) else {
             return error(Error::UnrecognizedColumnBinding(
@@ -105,20 +105,17 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
             return error(Error::ConflictingColumnBinding(column_id));
         }
 
-        if let Some(bound_type) = self.bound_vars.get(&variable_id) {
+        if let Some(bound_type) = self.bound_vars.get(&var_id) {
             if bound_type != column.column_type() {
                 return error(Error::VariableTypeConflict(
-                    variable_id,
+                    var_id,
                     *column.column_type(),
                     *bound_type,
                 ));
             }
-        } else {
-            self.bound_vars.insert(variable_id, *column.column_type());
         }
 
-        self.columns
-            .insert(column_id, ColumnValue::Binding(variable_id));
+        self.columns.insert(column_id, ColumnValue::Binding(var_id));
 
         Ok(self)
     }
@@ -157,9 +154,9 @@ impl<'a, 'b> RuleBodyBuilder<'a, 'b> {
     }
 
     pub fn finalize(self) -> Result<Vec<BodyTerm>> {
-        for variable_id in &self.negative_variables {
-            if !self.bound_vars.contains_key(variable_id) {
-                return error(Error::ClauseNotDomainIndependent(*variable_id));
+        for var_id in &self.negative_variables {
+            if !self.bound_vars.contains_key(var_id) {
+                return error(Error::ClauseNotDomainIndependent(*var_id));
             }
         }
 
@@ -199,6 +196,51 @@ impl<'a, 'b> RuleBodyBuilder<'a, 'b> {
         }
 
         let term = BodyTerm::Negation(negation);
+
+        self.body_terms.push(term);
+
+        Ok(self)
+    }
+
+    pub fn get_link<C, L, V>(mut self, cid: C, link_id: L, value: V) -> Result<Self>
+    where
+        C: Into<CidValue>,
+        L: AsRef<str>,
+        V: Into<CidValue>,
+    {
+        let cid = cid.into();
+        let link_id = LinkId::new(link_id);
+        let value = value.into();
+
+        if let CidValue::Var(var_id) = cid {
+            if let Some(bound_type) = self.bound_vars.get(&var_id) {
+                if *bound_type != ColumnType::Type(Type::Cid) {
+                    return error(Error::VariableTypeConflict(
+                        var_id,
+                        ColumnType::Type(Type::Cid),
+                        *bound_type,
+                    ));
+                }
+            } else {
+                self.bound_vars.insert(var_id, ColumnType::Type(Type::Cid));
+            }
+        }
+
+        if let CidValue::Var(var_id) = value {
+            if let Some(bound_type) = self.bound_vars.get(&var_id) {
+                if *bound_type != ColumnType::Type(Type::Cid) {
+                    return error(Error::VariableTypeConflict(
+                        var_id,
+                        ColumnType::Type(Type::Cid),
+                        *bound_type,
+                    ));
+                }
+            } else {
+                self.bound_vars.insert(var_id, ColumnType::Type(Type::Cid));
+            }
+        }
+
+        let term = BodyTerm::GetLink(GetLink::new(cid, vec![(link_id, value)]));
 
         self.body_terms.push(term);
 

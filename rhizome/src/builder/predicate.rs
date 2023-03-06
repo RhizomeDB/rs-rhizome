@@ -37,24 +37,18 @@ impl<'a> PredicateBuilder<'a> {
     }
 
     pub fn finalize(self) -> Result<Predicate> {
-        for column_id in self.relation.schema().columns().keys() {
-            if !self.columns.contains_key(column_id) {
-                return error(Error::ColumnMissing(*column_id, self.relation.id()));
-            }
-        }
-
         let predicate = Predicate::new(self.relation, self.columns);
 
         Ok(predicate)
     }
 
-    pub fn bind<S, T>(mut self, column_id: S, variable_id: T) -> Result<Self>
+    pub fn bind<S, T>(mut self, column_id: S, var_id: T) -> Result<Self>
     where
         S: AsRef<str>,
         T: AsRef<str>,
     {
         let column_id = ColumnId::new(column_id);
-        let variable_id = VarId::new(variable_id);
+        let var_id = VarId::new(var_id);
 
         let Some(column) = self.relation.schema().get_column(&column_id) else {
             return error(Error::UnrecognizedColumnBinding(column_id, self.relation.id()))
@@ -64,20 +58,19 @@ impl<'a> PredicateBuilder<'a> {
             return error(Error::ConflictingColumnBinding(column_id));
         }
 
-        if let Some(bound_type) = self.bound_vars.get(&variable_id) {
+        if let Some(bound_type) = self.bound_vars.get(&var_id) {
             if bound_type != column.column_type() {
                 return error(Error::VariableTypeConflict(
-                    variable_id,
+                    var_id,
                     *column.column_type(),
                     *bound_type,
                 ));
             }
         } else {
-            self.bound_vars.insert(variable_id, *column.column_type());
+            self.bound_vars.insert(var_id, *column.column_type());
         }
 
-        self.columns
-            .insert(column_id, ColumnValue::Binding(variable_id));
+        self.columns.insert(column_id, ColumnValue::Binding(var_id));
 
         Ok(self)
     }

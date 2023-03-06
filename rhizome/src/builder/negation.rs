@@ -30,22 +30,16 @@ impl NegationBuilder {
     }
 
     fn finalize(self) -> Result<Negation> {
-        for column_id in self.relation.schema().columns().keys() {
-            if !self.columns.contains_key(column_id) {
-                return error(Error::ColumnMissing(*column_id, self.relation.id()));
-            }
-        }
-
         Ok(Negation::new(self.relation, self.columns))
     }
 
-    pub fn bind<S, T>(mut self, column_id: S, variable_id: T) -> Result<Self>
+    pub fn bind<S, T>(mut self, column_id: S, var_id: T) -> Result<Self>
     where
         S: AsRef<str>,
         T: AsRef<str>,
     {
         let column_id = ColumnId::new(column_id);
-        let variable_id = VarId::new(variable_id);
+        let var_id = VarId::new(var_id);
 
         if !self.relation.schema().has_column(&column_id) {
             return error(Error::UnrecognizedColumnBinding(
@@ -58,8 +52,7 @@ impl NegationBuilder {
             return error(Error::ConflictingColumnBinding(column_id));
         }
 
-        self.columns
-            .insert(column_id, ColumnValue::Binding(variable_id));
+        self.columns.insert(column_id, ColumnValue::Binding(var_id));
 
         Ok(self)
     }

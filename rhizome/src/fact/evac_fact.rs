@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     id::{ColumnId, LinkId, RelationId},
     relation::EDB,
-    storage::{content_addressable::ContentAddressable, DefaultCodec},
+    storage::content_addressable::ContentAddressable,
     value::Value,
 };
 
@@ -25,13 +25,13 @@ impl EDBFact for EVACFact {
         entity: impl Into<Value>,
         attribute: impl Into<Value>,
         value: impl Into<Value>,
-        links: impl IntoIterator<Item = (LinkId, Cid)>,
+        links: Vec<(&str, Cid)>,
     ) -> Self {
         let entity = entity.into();
         let attribute = attribute.into();
         let value = value.into();
 
-        let causal_links = links.into_iter().collect();
+        let causal_links = links.into_iter().map(|(k, v)| (k.into(), v)).collect();
 
         Self {
             entity,
@@ -55,7 +55,7 @@ impl Fact for EVACFact {
 
     fn attribute(&self, id: &ColumnId) -> Option<Value> {
         if *id == ColumnId::new("cid") {
-            Some(Value::Cid(self.cid(DefaultCodec::default())))
+            Some(Value::Cid(self.cid()))
         } else if *id == ColumnId::new("entity") {
             Some(self.entity.clone())
         } else if *id == ColumnId::new("attribute") {
@@ -69,10 +69,7 @@ impl Fact for EVACFact {
 
     fn attributes(&self) -> BTreeMap<ColumnId, Value> {
         BTreeMap::from_iter([
-            (
-                ColumnId::new("cid"),
-                Value::Cid(self.cid(DefaultCodec::default())),
-            ),
+            (ColumnId::new("cid"), Value::Cid(self.cid())),
             (ColumnId::new("entity"), self.entity.clone()),
             (ColumnId::new("attribute"), self.attribute.clone()),
             (ColumnId::new("value"), self.value.clone()),

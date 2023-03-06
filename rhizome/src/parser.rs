@@ -169,12 +169,12 @@ fn relation_id<T>(i: &str) -> IResult<&str, RelationId<T>> {
     preceded(sp, map(lower_identifier, RelationId::new))(i)
 }
 
-fn variable_id(i: &str) -> IResult<&str, VariableId> {
+fn var_id(i: &str) -> IResult<&str, VariableId> {
     preceded(sp, map(upper_identifier, VariableId::new))(i)
 }
 
 fn variable(i: &str) -> IResult<&str, Variable> {
-    map(variable_id, Variable::new)(i)
+    map(var_id, Variable::new)(i)
 }
 
 fn attribute_value(i: &str) -> IResult<&str, AttributeValue> {
@@ -462,11 +462,11 @@ mod tests {
     }
 
     #[test]
-    fn test_variable_id() {
-        assert_eq!(variable_id("X"), Ok(("", "X".into())));
-        assert_eq!(variable_id("XY"), Ok(("", "XY".into())));
-        assert_eq!(variable_id("Xy"), Ok(("", "Xy".into())));
-        assert_eq!(variable_id("X_Y"), Ok(("", "X_Y".into())));
+    fn var_id() {
+        assert_eq!(var_id("X"), Ok(("", "X".into())));
+        assert_eq!(var_id("XY"), Ok(("", "XY".into())));
+        assert_eq!(var_id("Xy"), Ok(("", "Xy".into())));
+        assert_eq!(var_id("X_Y"), Ok(("", "X_Y".into())));
     }
 
     #[test]

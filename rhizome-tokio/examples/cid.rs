@@ -1,144 +1,198 @@
 use anyhow::Result;
-
-
-
-
+use cid::Cid;
+use futures::{sink::unfold, StreamExt};
+use rhizome::{
+    builder::ProgramBuilder,
+    fact::{evac_fact::EVACFact, traits::EDBFact},
+    logic::lower_to_ram,
+    runtime::client::Client,
+    storage::content_addressable::ContentAddressable,
+};
+use tokio::spawn;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // let (tx, rx) = oneshot::channel();
+    let program = ProgramBuilder::build(|p| {
+        p.input("evac", |h| {
+            h.column::<Cid>("cid")?
+                .column::<i32>("entity")?
+                .column::<&str>("attribute")?
+                .column::<i32>("value")
+        })?;
 
-    // spawn(async move {
-    //     let program = parser::parse(
-    //         r#"
-    //         input evac(cid, entity, attribute, value).
+        p.output("create", |h| {
+            h.column::<Cid>("cid")?
+                .column::<i32>("entity")?
+                .column::<i32>("initial")
+        })?;
 
-    //         output create(cid, entity, initial).
-    //         output update(cid, entity, parent, value).
-    //         output head(cid, entity, value).
+        p.output("update", |h| {
+            h.column::<Cid>("cid")?
+                .column::<i32>("entity")?
+                .column::<Cid>("parent")?
+                .column::<i32>("value")
+        })?;
 
-    //         create(cid: Cid, entity: E, initial: I) :-
-    //             evac(cid: Cid, entity: E, attribute: "initial", value: I).
+        p.output("head", |h| {
+            h.column::<Cid>("cid")?
+                .column::<i32>("entity")?
+                .column::<i32>("value")
+        })?;
 
-    //         update(cid: Cid, entity: E, parent: P, value: V) :-
-    //             evac(cid: Cid, entity: E, attribute: "write", value: V),
-    //             links Cid (parent: P),
-    //             create(cid: P, entity: E).
+        p.rule(
+            "create",
+            |h| {
+                h.bind("cid", "Cid")?
+                    .bind("entity", "E")?
+                    .bind("initial", "I")
+            },
+            |b| {
+                b.search("evac", |s| {
+                    s.bind("cid", "Cid")?
+                        .bind("entity", "E")?
+                        .bind("value", "I")?
+                        .when("attribute", "initial")
+                })
+            },
+        )?;
 
-    //         update(cid: Cid, entity: E, parent: P, value: V) :-
-    //             evac(cid: Cid, entity: E, attribute: "write", value: V),
-    //             links Cid (parent: P),
-    //             update(cid: P, entity: E).
+        p.rule(
+            "update",
+            |h| {
+                h.bind("cid", "Cid")?
+                    .bind("entity", "E")?
+                    .bind("value", "V")?
+                    .bind("parent", "P")
+            },
+            |b| {
+                b.search("evac", |s| {
+                    s.bind("cid", "Cid")?
+                        .bind("entity", "E")?
+                        .bind("value", "V")?
+                        .when("attribute", "write")
+                })?
+                .get_link("Cid", "parent", "P")?
+                .search("create", |s| s.bind("cid", "P")?.bind("entity", "E"))
+            },
+        )?;
 
-    //         head(cid: Cid, entity: E, value: V) :-
-    //             create(cid: Cid, entity: E, initial: V),
-    //             !update(entity: E).
+        p.rule(
+            "update",
+            |h| {
+                h.bind("cid", "Cid")?
+                    .bind("entity", "E")?
+                    .bind("value", "V")?
+                    .bind("parent", "P")
+            },
+            |b| {
+                b.search("evac", |s| {
+                    s.bind("cid", "Cid")?
+                        .bind("entity", "E")?
+                        .bind("value", "V")?
+                        .when("attribute", "write")
+                })?
+                .get_link("Cid", "parent", "P")?
+                .search("update", |s| s.bind("cid", "P")?.bind("entity", "E"))
+            },
+        )?;
 
-    //         head(cid: Cid, entity: E, value: V) :-
-    //             update(cid: Cid, entity: E, value: V),
-    //             !update(entity: E, parent: Cid).
-    //         "#,
-    //     )
-    //     .unwrap();
+        p.rule(
+            "head",
+            |h| {
+                h.bind("cid", "Cid")?
+                    .bind("entity", "E")?
+                    .bind("value", "V")
+            },
+            |b| {
+                b.search("create", |s| {
+                    s.bind("cid", "Cid")?
+                        .bind("entity", "E")?
+                        .bind("initial", "V")
+                })?
+                .except("update", |s| s.bind("entity", "E")?.bind("parent", "Cid"))
+            },
+        )?;
 
-    //     // let ram = logic::lower_to_ram::lower_to_ram(&program).unwrap();
+        p.rule(
+            "head",
+            |h| {
+                h.bind("cid", "Cid")?
+                    .bind("entity", "E")?
+                    .bind("value", "V")
+            },
+            |b| {
+                b.search("update", |s| {
+                    s.bind("cid", "Cid")?
+                        .bind("entity", "E")?
+                        .bind("value", "V")
+                })?
+                .except("update", |s| s.bind("entity", "E")?.bind("parent", "Cid"))
+            },
+        )
+    })?;
 
-    //     // let mut buf = Vec::<u8>::new();
-    //     // ram.to_doc().render(80, &mut buf).unwrap();
+    let program = lower_to_ram::lower_to_ram(&program)?;
+    let (mut client, mut rx, reactor) = Client::new(program);
 
-    //     // println!("{}", String::from_utf8(buf).unwrap());
+    spawn(async move { reactor.async_run().await });
+    spawn(async move {
+        loop {
+            let _ = rx.next().await;
+        }
+    });
 
-    //     let e0 = EVACFact::new(
-    //         "evac",
-    //         [
-    //             ("entity", Datum::int(0)),
-    //             ("attribute", Datum::string("initial")),
-    //             ("value", Datum::int(0)),
-    //         ],
-    //         Vec::<(LinkId, Cid)>::default(),
-    //     );
+    let e0 = EVACFact::new(0, "initial", 0, vec![]);
+    let e1 = EVACFact::new(0, "write", 1, vec![("parent", e0.cid())]);
+    let e2 = EVACFact::new(0, "write", 5, vec![("parent", e1.cid())]);
+    let e3 = EVACFact::new(0, "write", 3, vec![("parent", e1.cid())]);
+    let e4 = EVACFact::new(1, "initial", 4, vec![]);
 
-    //     let e1 = EVACFact::new(
-    //         "evac",
-    //         [
-    //             ("entity", Datum::int(0)),
-    //             ("attribute", Datum::string("write")),
-    //             ("value", Datum::int(1)),
-    //         ],
-    //         [("parent", e0.cid(DefaultCodec::default()))],
-    //     );
+    client
+        .register_sink(
+            "create",
+            Box::new(|| {
+                Box::new(unfold((), move |_, fact| async move {
+                    println!("Derived: {fact}");
 
-    //     let e2 = EVACFact::new(
-    //         "evac",
-    //         [
-    //             ("entity", Datum::int(0)),
-    //             ("attribute", Datum::string("write")),
-    //             ("value", Datum::int(5)),
-    //         ],
-    //         [("parent", e1.cid(DefaultCodec::default()))],
-    //     );
+                    Ok(())
+                }))
+            }),
+        )
+        .await?;
 
-    //     let e3 = EVACFact::new(
-    //         "evac",
-    //         [
-    //             ("entity", Datum::int(0)),
-    //             ("attribute", Datum::string("write")),
-    //             ("value", Datum::int(3)),
-    //         ],
-    //         [("parent", e1.cid(DefaultCodec::default()))],
-    //     );
+    client
+        .register_sink(
+            "update",
+            Box::new(|| {
+                Box::new(unfold((), move |_, fact| async move {
+                    println!("Derived: {fact}");
 
-    //     let e4 = EVACFact::new(
-    //         "evac",
-    //         [
-    //             ("entity", Datum::int(1)),
-    //             ("attribute", Datum::string("initial")),
-    //             ("value", Datum::int(4)),
-    //         ],
-    //         Vec::<(LinkId, Cid)>::default(),
-    //     );
+                    Ok(())
+                }))
+            }),
+        )
+        .await?;
 
-    //     let mut reactor = rhizome::spawn(&program).unwrap();
-    //     reactor
-    //         .register_stream(move || Box::new(stream::iter([e0, e1, e2, e3, e4])))
-    //         .unwrap();
+    client
+        .register_sink(
+            "head",
+            Box::new(|| {
+                Box::new(unfold((), move |_, fact| async move {
+                    println!("Derived: {fact}");
 
-    //     reactor
-    //         .register_sink("create", move || {
-    //             Box::new(unfold((), move |_, fact| async move {
-    //                 println!("Derived: {fact}");
+                    Ok(())
+                }))
+            }),
+        )
+        .await?;
 
-    //                 Ok(())
-    //             }))
-    //         })
-    //         .unwrap();
+    client.insert_fact(e0).await?;
+    client.insert_fact(e1).await?;
+    client.insert_fact(e2).await?;
+    client.insert_fact(e3).await?;
+    client.insert_fact(e4).await?;
 
-    //     reactor
-    //         .register_sink("update", move || {
-    //             Box::new(unfold((), move |_, fact| async move {
-    //                 println!("Derived: {fact}");
-
-    //                 Ok(())
-    //             }))
-    //         })
-    //         .unwrap();
-
-    //     reactor
-    //         .register_sink("head", move || {
-    //             Box::new(unfold((), move |_, fact| async move {
-    //                 println!("Derived: {fact}");
-
-    //                 Ok(())
-    //             }))
-    //         })
-    //         .unwrap();
-
-    //     reactor.subscribe(tx);
-
-    //     reactor.async_run().await.unwrap();
-    // });
-
-    // rx.await?;
+    client.flush().await?;
 
     Ok(())
 }
