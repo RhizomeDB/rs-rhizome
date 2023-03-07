@@ -19,16 +19,8 @@ mod vm;
 pub type FactStream<F> = Box<dyn Stream<Item = F>>;
 pub type FactSink<F> = Box<dyn Sink<F, Error = Error>>;
 
-pub trait CreateStream<T>: (FnOnce() -> FactStream<T>) + MaybeSend
-where
-    T: EDBFact,
-{
-}
-pub trait CreateSink<T>: (FnOnce() -> FactSink<T>) + MaybeSend
-where
-    T: IDBFact,
-{
-}
+pub trait CreateStream<T>: (FnOnce() -> FactStream<T>) + MaybeSend {}
+pub trait CreateSink<T>: (FnOnce() -> FactSink<T>) + MaybeSend {}
 
 impl<F, T> CreateStream<T> for F
 where

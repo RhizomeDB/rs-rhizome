@@ -39,96 +39,71 @@ async fn main() -> Result<()> {
                 .column::<i32>("value")
         })?;
 
-        p.rule(
-            "create",
-            |h| {
-                h.bind("cid", "Cid")?
-                    .bind("entity", "E")?
-                    .bind("initial", "I")
-            },
-            |b| {
+        p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, e, i)| {
+            Ok((
+                h.bind("cid", cid)?.bind("entity", e)?.bind("initial", i)?,
                 b.search("evac", |s| {
-                    s.bind("cid", "Cid")?
-                        .bind("entity", "E")?
-                        .bind("value", "I")?
+                    s.bind("cid", cid)?
+                        .bind("entity", e)?
+                        .bind("value", i)?
                         .when("attribute", "initial")
-                })
-            },
-        )?;
+                })?,
+            ))
+        })?;
 
-        p.rule(
-            "update",
-            |h| {
-                h.bind("cid", "Cid")?
-                    .bind("entity", "E")?
-                    .bind("value", "V")?
-                    .bind("parent", "P")
-            },
-            |b| {
+        p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
+            Ok((
+                h.bind("cid", cid)?
+                    .bind("entity", e)?
+                    .bind("value", v)?
+                    .bind("parent", parent)?,
                 b.search("evac", |s| {
-                    s.bind("cid", "Cid")?
-                        .bind("entity", "E")?
-                        .bind("value", "V")?
+                    s.bind("cid", cid)?
+                        .bind("entity", e)?
+                        .bind("value", v)?
                         .when("attribute", "write")
                 })?
-                .get_link("Cid", "parent", "P")?
-                .search("create", |s| s.bind("cid", "P")?.bind("entity", "E"))
-            },
-        )?;
+                .get_link(cid, "parent", parent)?
+                .search("create", |s| s.bind("cid", parent)?.bind("entity", e))?,
+            ))
+        })?;
 
-        p.rule(
-            "update",
-            |h| {
-                h.bind("cid", "Cid")?
-                    .bind("entity", "E")?
-                    .bind("value", "V")?
-                    .bind("parent", "P")
-            },
-            |b| {
+        p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
+            Ok((
+                h.bind("cid", cid)?
+                    .bind("entity", e)?
+                    .bind("value", v)?
+                    .bind("parent", parent)?,
                 b.search("evac", |s| {
-                    s.bind("cid", "Cid")?
-                        .bind("entity", "E")?
-                        .bind("value", "V")?
+                    s.bind("cid", cid)?
+                        .bind("entity", e)?
+                        .bind("value", v)?
                         .when("attribute", "write")
                 })?
-                .get_link("Cid", "parent", "P")?
-                .search("update", |s| s.bind("cid", "P")?.bind("entity", "E"))
-            },
-        )?;
+                .get_link(cid, "parent", parent)?
+                .search("update", |s| s.bind("cid", parent)?.bind("entity", e))?,
+            ))
+        })?;
 
-        p.rule(
-            "head",
-            |h| {
-                h.bind("cid", "Cid")?
-                    .bind("entity", "E")?
-                    .bind("value", "V")
-            },
-            |b| {
+        p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
+            Ok((
+                h.bind("cid", cid)?.bind("entity", e)?.bind("value", v)?,
                 b.search("create", |s| {
-                    s.bind("cid", "Cid")?
-                        .bind("entity", "E")?
-                        .bind("initial", "V")
+                    s.bind("cid", cid)?.bind("entity", e)?.bind("initial", v)
                 })?
-                .except("update", |s| s.bind("entity", "E")?.bind("parent", "Cid"))
-            },
-        )?;
+                .except("update", |s| s.bind("entity", e)?.bind("parent", cid))?,
+            ))
+        })?;
 
-        p.rule(
-            "head",
-            |h| {
-                h.bind("cid", "Cid")?
-                    .bind("entity", "E")?
-                    .bind("value", "V")
-            },
-            |b| {
+        p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
+            Ok((
+                h.bind("cid", cid)?.bind("entity", e)?.bind("value", v)?,
                 b.search("update", |s| {
-                    s.bind("cid", "Cid")?
-                        .bind("entity", "E")?
-                        .bind("value", "V")
+                    s.bind("cid", cid)?.bind("entity", e)?.bind("value", v)
                 })?
-                .except("update", |s| s.bind("entity", "E")?.bind("parent", "Cid"))
-            },
-        )
+                .except("update", |s| s.bind("entity", e)?.bind("parent", cid))?,
+            ))
+        })
     })?;
 
     let program = lower_to_ram::lower_to_ram(&program)?;

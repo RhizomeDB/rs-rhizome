@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     sync::Arc,
 };
@@ -18,11 +19,14 @@ use super::{negation::NegationBuilder, predicate::PredicateBuilder};
 pub struct RuleHeadBuilder<'a, 'b> {
     relation: &'a Declaration,
     columns: HashMap<ColumnId, ColumnValue>,
-    bound_vars: &'b mut HashMap<VarId, ColumnType>,
+    bound_vars: &'b RefCell<HashMap<VarId, ColumnType>>,
 }
 
 impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
-    fn new(relation: &'a Declaration, bound_vars: &'b mut HashMap<VarId, ColumnType>) -> Self {
+    pub fn new(
+        relation: &'a Declaration,
+        bound_vars: &'b RefCell<HashMap<VarId, ColumnType>>,
+    ) -> Self {
         Self {
             relation,
             columns: HashMap::default(),
@@ -31,14 +35,11 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
     }
 
     // TODO: make AST node for RuleHead?
-    pub fn build<F>(
+    pub fn build(
         relation: &'a Declaration,
-        bound_vars: &'b mut HashMap<VarId, ColumnType>,
-        f: F,
-    ) -> Result<HashMap<ColumnId, ColumnValue>>
-    where
-        F: FnOnce(Self) -> Result<Self>,
-    {
+        bound_vars: &'b RefCell<HashMap<VarId, ColumnType>>,
+        f: &dyn Fn(Self) -> Result<Self>,
+    ) -> Result<HashMap<ColumnId, ColumnValue>> {
         let builder = f(Self::new(relation, bound_vars))?;
         let result = builder.finalize()?;
 
@@ -54,7 +55,7 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
 
         for (column_id, value) in &self.columns {
             if let ColumnValue::Binding(var_id) = value {
-                if !self.bound_vars.contains_key(var_id) {
+                if !self.bound_vars.borrow().contains_key(var_id) {
                     return error(Error::ClauseNotRangeRestricted(*column_id, *var_id));
                 }
             }
@@ -86,13 +87,11 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
         Ok(self)
     }
 
-    pub fn bind<S, T>(mut self, column_id: S, var_id: T) -> Result<Self>
+    pub fn bind<S>(mut self, column_id: S, var_id: VarId) -> Result<Self>
     where
         S: AsRef<str>,
-        T: AsRef<str>,
     {
         let column_id = ColumnId::new(column_id);
-        let var_id = VarId::new(var_id);
 
         let Some(column) = self.relation.schema().get_column(&column_id) else {
             return error(Error::UnrecognizedColumnBinding(
@@ -105,7 +104,7 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
             return error(Error::ConflictingColumnBinding(column_id));
         }
 
-        if let Some(bound_type) = self.bound_vars.get(&var_id) {
+        if let Some(bound_type) = self.bound_vars.borrow().get(&var_id) {
             if bound_type != column.column_type() {
                 return error(Error::VariableTypeConflict(
                     var_id,
@@ -125,14 +124,14 @@ impl<'a, 'b> RuleHeadBuilder<'a, 'b> {
 pub struct RuleBodyBuilder<'a, 'b> {
     body_terms: Vec<BodyTerm>,
     relations: &'a HashMap<String, Arc<Declaration>>,
-    bound_vars: &'b mut HashMap<VarId, ColumnType>,
+    bound_vars: &'b RefCell<HashMap<VarId, ColumnType>>,
     negative_variables: HashSet<VarId>,
 }
 
 impl<'a, 'b> RuleBodyBuilder<'a, 'b> {
-    fn new(
+    pub fn new(
         relations: &'a HashMap<String, Arc<Declaration>>,
-        bound_vars: &'b mut HashMap<VarId, ColumnType>,
+        bound_vars: &'b RefCell<HashMap<VarId, ColumnType>>,
     ) -> Self {
         Self {
             body_terms: Vec::default(),
@@ -142,20 +141,17 @@ impl<'a, 'b> RuleBodyBuilder<'a, 'b> {
         }
     }
 
-    pub fn build<F>(
+    pub fn build(
         relations: &'a HashMap<String, Arc<Declaration>>,
-        bound_vars: &'b mut HashMap<VarId, ColumnType>,
-        f: F,
-    ) -> Result<Vec<BodyTerm>>
-    where
-        F: FnOnce(Self) -> Result<Self>,
-    {
+        bound_vars: &'b RefCell<HashMap<VarId, ColumnType>>,
+        f: &dyn Fn(Self) -> Result<Self>,
+    ) -> Result<Vec<BodyTerm>> {
         f(Self::new(relations, bound_vars))?.finalize()
     }
 
     pub fn finalize(self) -> Result<Vec<BodyTerm>> {
         for var_id in &self.negative_variables {
-            if !self.bound_vars.contains_key(var_id) {
+            if !self.bound_vars.borrow().contains_key(var_id) {
                 return error(Error::ClauseNotDomainIndependent(*var_id));
             }
         }
@@ -213,30 +209,34 @@ impl<'a, 'b> RuleBodyBuilder<'a, 'b> {
         let value = value.into();
 
         if let CidValue::Var(var_id) = cid {
-            if let Some(bound_type) = self.bound_vars.get(&var_id) {
-                if *bound_type != ColumnType::Type(Type::Cid) {
+            if let Some(bound_type) = self
+                .bound_vars
+                .borrow_mut()
+                .insert(var_id, ColumnType::Type(Type::Cid))
+            {
+                if bound_type != ColumnType::Type(Type::Cid) {
                     return error(Error::VariableTypeConflict(
                         var_id,
                         ColumnType::Type(Type::Cid),
-                        *bound_type,
+                        bound_type,
                     ));
                 }
-            } else {
-                self.bound_vars.insert(var_id, ColumnType::Type(Type::Cid));
             }
         }
 
         if let CidValue::Var(var_id) = value {
-            if let Some(bound_type) = self.bound_vars.get(&var_id) {
-                if *bound_type != ColumnType::Type(Type::Cid) {
+            if let Some(bound_type) = self
+                .bound_vars
+                .borrow_mut()
+                .insert(var_id, ColumnType::Type(Type::Cid))
+            {
+                if bound_type != ColumnType::Type(Type::Cid) {
                     return error(Error::VariableTypeConflict(
                         var_id,
                         ColumnType::Type(Type::Cid),
-                        *bound_type,
+                        bound_type,
                     ));
                 }
-            } else {
-                self.bound_vars.insert(var_id, ColumnType::Type(Type::Cid));
             }
         }
 

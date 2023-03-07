@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::HashMap, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use crate::{
     error::{error, Error},
@@ -13,11 +13,14 @@ use crate::{
 pub struct PredicateBuilder<'a> {
     relation: Arc<Declaration>,
     columns: HashMap<ColumnId, ColumnValue>,
-    bound_vars: &'a mut HashMap<VarId, ColumnType>,
+    bound_vars: &'a RefCell<HashMap<VarId, ColumnType>>,
 }
 
 impl<'a> PredicateBuilder<'a> {
-    fn new(relation: Arc<Declaration>, bound_vars: &'a mut HashMap<VarId, ColumnType>) -> Self {
+    fn new(
+        relation: Arc<Declaration>,
+        bound_vars: &'a RefCell<HashMap<VarId, ColumnType>>,
+    ) -> Self {
         Self {
             relation,
             columns: HashMap::default(),
@@ -27,7 +30,7 @@ impl<'a> PredicateBuilder<'a> {
 
     pub fn build<F>(
         relation: Arc<Declaration>,
-        bound_vars: &'a mut HashMap<VarId, ColumnType>,
+        bound_vars: &'a RefCell<HashMap<VarId, ColumnType>>,
         f: F,
     ) -> Result<Predicate>
     where
@@ -42,13 +45,11 @@ impl<'a> PredicateBuilder<'a> {
         Ok(predicate)
     }
 
-    pub fn bind<S, T>(mut self, column_id: S, var_id: T) -> Result<Self>
+    pub fn bind<S>(mut self, column_id: S, var_id: VarId) -> Result<Self>
     where
         S: AsRef<str>,
-        T: AsRef<str>,
     {
         let column_id = ColumnId::new(column_id);
-        let var_id = VarId::new(var_id);
 
         let Some(column) = self.relation.schema().get_column(&column_id) else {
             return error(Error::UnrecognizedColumnBinding(column_id, self.relation.id()))
@@ -58,16 +59,18 @@ impl<'a> PredicateBuilder<'a> {
             return error(Error::ConflictingColumnBinding(column_id));
         }
 
-        if let Some(bound_type) = self.bound_vars.get(&var_id) {
-            if bound_type != column.column_type() {
+        if let Some(bound_type) = self
+            .bound_vars
+            .borrow_mut()
+            .insert(var_id, *column.column_type())
+        {
+            if bound_type != *column.column_type() {
                 return error(Error::VariableTypeConflict(
                     var_id,
                     *column.column_type(),
-                    *bound_type,
+                    bound_type,
                 ));
             }
-        } else {
-            self.bound_vars.insert(var_id, *column.column_type());
         }
 
         self.columns.insert(column_id, ColumnValue::Binding(var_id));

@@ -34,32 +34,31 @@ mod tests {
             p.output("edge", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
             p.output("path", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
 
-            p.rule(
-                "edge",
-                |h| h.bind("from", "x")?.bind("to", "y"),
-                |b| {
+            p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
+                Ok((
+                    h.bind("from", x)?.bind("to", y)?,
                     b.search("evac", |s| {
-                        s.bind("entity", "x")?
-                            .bind("value", "y")?
+                        s.bind("entity", x)?
+                            .bind("value", y)?
                             .when("attribute", "to")
-                    })
-                },
-            )?;
+                    })?,
+                ))
+            })?;
 
-            p.rule(
-                "path",
-                |h| h.bind("from", "x")?.bind("to", "y"),
-                |b| b.search("edge", |s| s.bind("from", "x")?.bind("to", "y")),
-            )?;
+            p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
+                Ok((
+                    h.bind("from", x)?.bind("to", y)?,
+                    b.search("edge", |s| s.bind("from", x)?.bind("to", y))?,
+                ))
+            })?;
 
-            p.rule(
-                "path",
-                |h| h.bind("from", "x")?.bind("to", "z"),
-                |b| {
-                    b.search("edge", |s| s.bind("from", "x")?.bind("to", "y"))?
-                        .search("path", |s| s.bind("from", "y")?.bind("to", "z"))
-                },
-            )
+            p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
+                Ok((
+                    h.bind("from", x)?.bind("to", z)?,
+                    b.search("path", |s| s.bind("from", x)?.bind("to", y))?
+                        .search("edge", |s| s.bind("from", y)?.bind("to", z))?,
+                ))
+            })
         })?;
 
         let program = lower_to_ram::lower_to_ram(&program)?;

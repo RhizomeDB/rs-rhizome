@@ -691,20 +691,20 @@ mod tests {
             p.fact("edge", |f| f.set("from", 2)?.set("to", 3))?;
             p.fact("edge", |f| f.set("from", 3)?.set("to", 4))?;
 
-            p.rule(
-                "path",
-                |h| h.bind("from", "x")?.bind("to", "y"),
-                |b| b.search("edge", |s| s.bind("from", "x")?.bind("to", "y")),
-            )?;
+            p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
+                Ok((
+                    h.bind("from", x)?.bind("to", y)?,
+                    b.search("edge", |s| s.bind("from", x)?.bind("to", y))?,
+                ))
+            })?;
 
-            p.rule(
-                "path",
-                |h| h.bind("from", "x")?.bind("to", "z"),
-                |b| {
-                    b.search("edge", |s| s.bind("from", "x")?.bind("to", "y"))?
-                        .search("path", |s| s.bind("from", "y")?.bind("to", "z"))
-                },
-            )
+            p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
+                Ok((
+                    h.bind("from", x)?.bind("to", z)?,
+                    b.search("edge", |s| s.bind("from", x)?.bind("to", y))?
+                        .search("path", |s| s.bind("from", y)?.bind("to", z))?,
+                ))
+            })
         })?;
 
         let program = lower_to_ram::lower_to_ram(&program)?;
@@ -756,20 +756,20 @@ mod tests {
             p.fact("edge", |f| f.set("from", 2)?.set("to", 3))?;
             p.fact("edge", |f| f.set("from", 3)?.set("to", 4))?;
 
-            p.rule(
-                "path",
-                |h| h.bind("from", "x")?.bind("to", "y"),
-                |b| b.search("edge", |s| s.bind("from", "x")?.bind("to", "y")),
-            )?;
+            p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
+                Ok((
+                    h.bind("from", x)?.bind("to", y)?,
+                    b.search("edge", |s| s.bind("from", x)?.bind("to", y))?,
+                ))
+            })?;
 
-            p.rule(
-                "path",
-                |h| h.bind("from", "x")?.bind("to", "z"),
-                |b| {
-                    b.search("edge", |s| s.bind("from", "x")?.bind("to", "y"))?
-                        .search("path", |s| s.bind("from", "y")?.bind("to", "z"))
-                },
-            )
+            p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
+                Ok((
+                    h.bind("from", x)?.bind("to", z)?,
+                    b.search("edge", |s| s.bind("from", x)?.bind("to", y))?
+                        .search("path", |s| s.bind("from", y)?.bind("to", z))?,
+                ))
+            })
         })?;
 
         let ast = lower_to_ram::lower_to_ram(&program)?;

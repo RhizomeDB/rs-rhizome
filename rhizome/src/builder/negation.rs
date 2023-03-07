@@ -33,13 +33,11 @@ impl NegationBuilder {
         Ok(Negation::new(self.relation, self.columns))
     }
 
-    pub fn bind<S, T>(mut self, column_id: S, var_id: T) -> Result<Self>
+    pub fn bind<S>(mut self, column_id: S, var_id: VarId) -> Result<Self>
     where
         S: AsRef<str>,
-        T: AsRef<str>,
     {
         let column_id = ColumnId::new(column_id);
-        let var_id = VarId::new(var_id);
 
         if !self.relation.schema().has_column(&column_id) {
             return error(Error::UnrecognizedColumnBinding(
