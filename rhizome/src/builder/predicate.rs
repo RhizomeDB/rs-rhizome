@@ -11,23 +11,25 @@ use crate::{
 
 #[derive(Debug)]
 pub struct PredicateBuilder {
-    relation: Arc<Declaration>,
     bindings: Vec<(ColumnId, ColumnValue)>,
 }
 
 impl PredicateBuilder {
-    pub fn new(relation: Arc<Declaration>) -> Self {
+    pub fn new() -> Self {
         Self {
-            relation,
             bindings: Vec::default(),
         }
     }
-    pub fn finalize(self, bound_vars: &mut HashMap<VarId, ColumnType>) -> Result<Predicate> {
+    pub fn finalize(
+        self,
+        relation: Arc<Declaration>,
+        bound_vars: &mut HashMap<VarId, ColumnType>,
+    ) -> Result<Predicate> {
         let mut columns = HashMap::default();
 
         for (column_id, column_value) in self.bindings {
-            let Some(column) = self.relation.schema().get_column(&column_id) else {
-                return error(Error::UnrecognizedColumnBinding(column_id, self.relation.id()));
+            let Some(column) = relation.schema().get_column(&column_id) else {
+                return error(Error::UnrecognizedColumnBinding(column_id, relation.id()));
             };
 
             if columns.contains_key(&column_id) {
@@ -52,7 +54,7 @@ impl PredicateBuilder {
             columns.insert(column_id, column_value);
         }
 
-        let predicate = Predicate::new(self.relation, columns);
+        let predicate = Predicate::new(relation, columns);
 
         Ok(predicate)
     }

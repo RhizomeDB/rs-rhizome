@@ -102,8 +102,8 @@ impl<'a> RuleHeadBuilder<'a> {
 }
 
 pub struct RuleBodyBuilder<'a> {
-    predicates: Vec<(String, Box<dyn Fn(PredicateBuilder) -> PredicateBuilder>)>,
-    negations: Vec<(String, Box<dyn Fn(NegationBuilder) -> NegationBuilder>)>,
+    predicates: Vec<(String, PredicateBuilder)>,
+    negations: Vec<(String, NegationBuilder)>,
     get_links: Vec<(CidValue, LinkId, CidValue)>,
     relations: &'a HashMap<String, Arc<Declaration>>,
 }
@@ -127,14 +127,12 @@ impl<'a> RuleBodyBuilder<'a> {
     pub fn finalize(self, bound_vars: &mut HashMap<VarId, ColumnType>) -> Result<Vec<BodyTerm>> {
         let mut body_terms = Vec::default();
 
-        for (id, predicate_f) in self.predicates {
+        for (id, builder) in self.predicates {
             let Some(declaration) = self.relations.get(&id) else {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
-            let builder = PredicateBuilder::new(Arc::clone(declaration));
-            let builder = predicate_f(builder);
-            let predicate = builder.finalize(bound_vars)?;
+            let predicate = builder.finalize(Arc::clone(declaration), bound_vars)?;
             let term = BodyTerm::Predicate(predicate);
 
             body_terms.push(term);
@@ -170,14 +168,12 @@ impl<'a> RuleBodyBuilder<'a> {
             body_terms.push(term);
         }
 
-        for (id, negation_f) in self.negations {
+        for (id, builder) in self.negations {
             let Some(declaration) = self.relations.get(&id) else {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
-            let builder = NegationBuilder::new(Arc::clone(declaration));
-            let builder = negation_f(builder);
-            let negation = builder.finalize(bound_vars)?;
+            let negation = builder.finalize(Arc::clone(declaration), bound_vars)?;
 
             for var_id in negation.variables() {
                 if !bound_vars.contains_key(&var_id) {
@@ -195,18 +191,24 @@ impl<'a> RuleBodyBuilder<'a> {
 
     pub fn search<F>(mut self, id: &str, f: F) -> Self
     where
-        F: Fn(PredicateBuilder) -> PredicateBuilder + 'static,
+        F: Fn(PredicateBuilder) -> PredicateBuilder,
     {
-        self.predicates.push((id.to_string(), Box::new(f)));
+        let builder = PredicateBuilder::new();
+        let builder = f(builder);
+
+        self.predicates.push((id.to_string(), builder));
 
         self
     }
 
     pub fn except<F>(mut self, id: &str, f: F) -> Self
     where
-        F: Fn(NegationBuilder) -> NegationBuilder + 'static,
+        F: Fn(NegationBuilder) -> NegationBuilder,
     {
-        self.negations.push((id.to_string(), Box::new(f)));
+        let builder = NegationBuilder::new();
+        let builder = f(builder);
+
+        self.negations.push((id.to_string(), builder));
 
         self
     }
