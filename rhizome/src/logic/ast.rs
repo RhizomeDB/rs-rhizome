@@ -11,6 +11,7 @@ pub(super) mod dependency;
 pub(super) mod fact;
 pub(super) mod rule;
 pub(super) mod stratum;
+pub(super) mod var;
 
 pub use body_term::*;
 pub use cid_value::*;
@@ -23,6 +24,7 @@ pub use fact::*;
 pub use program::*;
 pub use rule::*;
 pub use stratum::*;
+pub use var::*;
 
 #[cfg(test)]
 mod tests {

@@ -11,27 +11,43 @@ use crate::{
 #[derive(Debug)]
 pub struct FactBuilder<'a> {
     relation: &'a Declaration,
-    columns: HashMap<ColumnId, Value>,
+    bindings: Vec<(ColumnId, Value)>,
 }
 
 impl<'a> FactBuilder<'a> {
     fn new(relation: &'a Declaration) -> Self {
         Self {
             relation,
-            columns: HashMap::default(),
+            bindings: Vec::default(),
         }
     }
 
     pub fn build<F>(relation: &'a Declaration, f: F) -> Result<Fact>
     where
-        F: FnOnce(Self) -> Result<Self>,
+        F: FnOnce(Self) -> Self,
     {
-        f(Self::new(relation))?.finalize()
+        f(Self::new(relation)).finalize()
     }
 
     pub fn finalize(self) -> Result<Fact> {
+        let mut columns = HashMap::default();
+
+        for (column_id, column_value) in self.bindings {
+            let Some(column) = self.relation.schema().get_column(&column_id) else {
+                return error(Error::UnrecognizedColumnBinding(column_id, self.relation.id()));
+            };
+
+            if columns.contains_key(&column_id) {
+                return error(Error::ConflictingColumnBinding(column_id));
+            }
+
+            column.column_type().check(&column_value)?;
+
+            columns.insert(column_id, column_value);
+        }
+
         for column_id in self.relation.schema().columns().keys() {
-            if !self.columns.contains_key(column_id) {
+            if !columns.contains_key(column_id) {
                 return error(Error::ColumnMissing(*column_id, self.relation.id()));
             }
         }
@@ -39,14 +55,14 @@ impl<'a> FactBuilder<'a> {
         match self.relation {
             Declaration::EDB(inner) => error(Error::ClauseHeadEDB(inner.id())),
             Declaration::IDB(inner) => {
-                let fact = Fact::new(inner.id(), self.columns);
+                let fact = Fact::new(inner.id(), columns);
 
                 Ok(fact)
             }
         }
     }
 
-    pub fn set<S, T>(mut self, id: S, value: T) -> Result<Self>
+    pub fn set<S, T>(mut self, id: S, value: T) -> Self
     where
         S: AsRef<str>,
         T: Into<Value>,
@@ -54,18 +70,8 @@ impl<'a> FactBuilder<'a> {
         let id = ColumnId::new(id);
         let value = value.into();
 
-        let Some(column) = self.relation.schema().get_column(&id) else {
-            return error(Error::UnrecognizedColumnBinding(id, self.relation.id()));
-        };
+        self.bindings.push((id, value));
 
-        if self.columns.contains_key(&id) {
-            return error(Error::ConflictingColumnBinding(id));
-        }
-
-        column.column_type().check(&value)?;
-
-        self.columns.insert(id, value);
-
-        Ok(self)
+        self
     }
 }

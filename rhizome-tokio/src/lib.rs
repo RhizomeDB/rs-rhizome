@@ -26,38 +26,36 @@ mod tests {
 
         let program = ProgramBuilder::build(|p| {
             p.input("evac", |h| {
-                h.column::<i32>("entity")?
-                    .column::<&str>("attribute")?
+                h.column::<i32>("entity")
+                    .column::<&str>("attribute")
                     .column::<i32>("value")
             })?;
 
-            p.output("edge", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
-            p.output("path", |h| h.column::<i32>("from")?.column::<i32>("to"))?;
+            p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
+            p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
             p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
-                Ok((
-                    h.bind("from", x)?.bind("to", y)?,
+                (
+                    h.bind("from", x).bind("to", y),
                     b.search("evac", |s| {
-                        s.bind("entity", x)?
-                            .bind("value", y)?
-                            .when("attribute", "to")
-                    })?,
-                ))
+                        s.bind("entity", x).bind("value", y).when("attribute", "to")
+                    }),
+                )
             })?;
 
             p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
-                Ok((
-                    h.bind("from", x)?.bind("to", y)?,
-                    b.search("edge", |s| s.bind("from", x)?.bind("to", y))?,
-                ))
+                (
+                    h.bind("from", x).bind("to", y),
+                    b.search("edge", |s| s.bind("from", x).bind("to", y)),
+                )
             })?;
 
             p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
-                Ok((
-                    h.bind("from", x)?.bind("to", z)?,
-                    b.search("path", |s| s.bind("from", x)?.bind("to", y))?
-                        .search("edge", |s| s.bind("from", y)?.bind("to", z))?,
-                ))
+                (
+                    h.bind("from", x).bind("to", z),
+                    b.search("edge", |s| s.bind("from", x).bind("to", y))
+                        .search("path", |s| s.bind("from", y).bind("to", z)),
+                )
             })
         })?;
 

@@ -12,7 +12,7 @@ use crate::{
 #[derive(Debug)]
 pub struct DeclarationBuilder<T> {
     id: RelationId,
-    columns: HashMap<ColumnId, Column>,
+    columns: Vec<(ColumnId, Column)>,
     _marker: PhantomData<T>,
 }
 
@@ -23,13 +23,23 @@ where
     fn new(id: RelationId) -> Self {
         Self {
             id,
-            columns: HashMap::default(),
+            columns: Vec::default(),
             _marker: PhantomData::default(),
         }
     }
 
     fn finalize(self) -> Result<InnerDeclaration<T>> {
-        let schema = Schema::new(self.columns);
+        let mut columns = HashMap::default();
+
+        for (column_id, column) in self.columns {
+            if let Some(_) = columns.insert(column_id, column) {
+                return error(Error::DuplicateSchemaAttributeId(column_id));
+            }
+
+            columns.insert(column_id, column);
+        }
+
+        let schema = Schema::new(columns);
         let declaration = InnerDeclaration::new(self.id, schema);
 
         Ok(declaration)
@@ -37,12 +47,12 @@ where
 
     pub fn build<F>(id: RelationId, f: F) -> Result<InnerDeclaration<T>>
     where
-        F: FnOnce(Self) -> Result<Self>,
+        F: FnOnce(Self) -> Self,
     {
-        f(Self::new(id))?.finalize()
+        f(Self::new(id)).finalize()
     }
 
-    pub fn column<C>(mut self, id: &str) -> Result<Self>
+    pub fn column<C>(mut self, id: &str) -> Self
     where
         Type: FromType<C>,
     {
@@ -50,10 +60,8 @@ where
         let t = ColumnType::new::<C>();
         let column = Column::new(id, t);
 
-        if self.columns.insert(id, column).is_none() {
-            Ok(self)
-        } else {
-            error(Error::DuplicateSchemaAttributeId(id))
-        }
+        self.columns.push((id, column));
+
+        self
     }
 }

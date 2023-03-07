@@ -3,6 +3,8 @@ use derive_more::{IsVariant, TryInto};
 
 use crate::id::VarId;
 
+use super::Var;
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IsVariant, TryInto)]
 pub enum CidValue {
     Cid(Cid),
@@ -15,16 +17,8 @@ impl From<Cid> for CidValue {
     }
 }
 
-impl From<VarId> for CidValue {
-    fn from(value: VarId) -> Self {
-        Self::Var(value)
-    }
-}
-
-impl From<&str> for CidValue {
-    fn from(value: &str) -> Self {
-        let value = VarId::new(value);
-
-        Self::Var(value)
+impl From<&Var> for CidValue {
+    fn from(value: &Var) -> Self {
+        Self::Var(value.id())
     }
 }
