@@ -44,6 +44,8 @@ pub enum Error {
     TypeMismatch(Type, Type),
     #[error("Attempted to bind {0}, of type {2}, to column of type {1}")]
     VariableTypeConflict(VarId, ColumnType, Type),
+    #[error("Facts must be ground: attempted to bind {0} to variable {1}")]
+    NonGroundFact(ColumnId, VarId),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

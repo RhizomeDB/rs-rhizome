@@ -45,9 +45,9 @@ impl<'a> RuleHeadBuilder<'a> {
             }
 
             match &column_value {
-                ColumnValue::Literal(value) => column.column_type().check(&value)?,
+                ColumnValue::Literal(value) => column.column_type().check(value)?,
                 ColumnValue::Binding(var) => {
-                    if let None = column.column_type().downcast(&var.typ()) {
+                    if column.column_type().downcast(&var.typ()).is_none() {
                         return error(Error::VariableTypeConflict(
                             var.id(),
                             *column.column_type(),
@@ -232,7 +232,7 @@ impl<'a> RuleBodyBuilder<'a> {
     where
         T: AtomArgs<A>,
     {
-        let mut builder = NegationBuilder::new();
+        let mut builder = NegationBuilder::default();
 
         for (column_id, column_value) in T::into_columns(t) {
             builder.bindings.push((column_id, column_value));
@@ -247,7 +247,7 @@ impl<'a> RuleBodyBuilder<'a> {
     where
         F: Fn(NegationBuilder) -> NegationBuilder,
     {
-        let builder = NegationBuilder::new();
+        let builder = NegationBuilder::default();
         let builder = f(builder);
 
         self.negations.push((id.to_string(), builder));

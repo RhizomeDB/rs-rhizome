@@ -671,58 +671,40 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        builder::ProgramBuilder, fact::traits::IDBFact, logic::lower_to_ram,
-        storage::memory::MemoryBlockstore, types::Any,
-    };
+    use crate::{assert_derives, fact::traits::IDBFact, types::Any};
     use pretty_assertions::assert_eq;
-    use std::collections::BTreeSet;
 
     use super::*;
 
     #[test]
-    fn test_step_epoch_transitive_closure() -> Result<()> {
-        let program = ProgramBuilder::build(|p| {
-            p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
-            p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
+    fn test_step_epoch_transitive_closure() {
+        assert_derives!(
+            "path",
+            |p| {
+                p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
+                p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
-            p.fact("edge", |f| f.set("from", 0).set("to", 1))?;
-            p.fact("edge", |f| f.set("from", 1).set("to", 2))?;
-            p.fact("edge", |f| f.set("from", 2).set("to", 3))?;
-            p.fact("edge", |f| f.set("from", 3).set("to", 4))?;
+                p.fact("edge", |f| f.bind((("from", 0), ("to", 1))))?;
+                p.fact("edge", |f| f.bind((("from", 1), ("to", 2))))?;
+                p.fact("edge", |f| f.bind((("from", 2), ("to", 3))))?;
+                p.fact("edge", |f| f.bind((("from", 3), ("to", 4))))?;
 
-            p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
-                (
-                    h.bind((("from", x), ("to", y))),
-                    b.search("edge", (("from", x), ("to", y))),
-                )
-            })?;
+                p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
+                    (
+                        h.bind((("from", x), ("to", y))),
+                        b.search("edge", (("from", x), ("to", y))),
+                    )
+                })?;
 
-            p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
-                (
-                    h.bind((("from", x), ("to", z))),
-                    b.search("edge", (("from", x), ("to", y)))
-                        .search("path", (("from", y), ("to", z))),
-                )
-            })
-        })?;
-
-        let program = lower_to_ram::lower_to_ram(&program)?;
-        let bs = MemoryBlockstore::default();
-        let mut vm: VM = VM::new(program);
-
-        vm.step_epoch(&bs)?;
-
-        let mut path = BTreeSet::default();
-        while let Ok(Some(fact)) = vm.pop() {
-            if fact.id() == "path".into() {
-                path.insert(fact);
-            }
-        }
-
-        assert_eq!(
-            path,
-            BTreeSet::from_iter([
+                p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
+                    (
+                        h.bind((("from", x), ("to", z))),
+                        b.search("edge", (("from", x), ("to", y)))
+                            .search("path", (("from", y), ("to", z))),
+                    )
+                })
+            },
+            [
                 IDBFact::new("path", [("from", 0), ("to", 1)],),
                 IDBFact::new("path", [("from", 0), ("to", 2)],),
                 IDBFact::new("path", [("from", 0), ("to", 3)],),
@@ -733,70 +715,51 @@ mod tests {
                 IDBFact::new("path", [("from", 2), ("to", 3)],),
                 IDBFact::new("path", [("from", 2), ("to", 4)],),
                 IDBFact::new("path", [("from", 3), ("to", 4)],),
-            ])
+            ]
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_source_transitive_closure() -> Result<()> {
-        let program = ProgramBuilder::build(|p| {
-            p.input("evac", |h| {
-                h.column::<Any>("entity")
-                    .column::<Any>("attribute")
-                    .column::<Any>("value")
-            })?;
+    fn test_source_transitive_closure() {
+        assert_derives!(
+            "path",
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
 
-            p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
-            p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
+                p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
+                p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
-            p.fact("edge", |f| f.set("from", 0).set("to", 1))?;
-            p.fact("edge", |f| f.set("from", 1).set("to", 2))?;
-            p.fact("edge", |f| f.set("from", 2).set("to", 3))?;
-            p.fact("edge", |f| f.set("from", 3).set("to", 4))?;
+                p.fact("edge", |f| f.bind((("from", 0), ("to", 1))))?;
+                p.fact("edge", |f| f.bind((("from", 1), ("to", 2))))?;
+                p.fact("edge", |f| f.bind((("from", 2), ("to", 3))))?;
+                p.fact("edge", |f| f.bind((("from", 3), ("to", 4))))?;
 
-            p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
-                (
-                    h.bind((("from", x), ("to", y))),
-                    b.search("edge", (("from", x), ("to", y))),
-                )
-            })?;
+                p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
+                    (
+                        h.bind((("from", x), ("to", y))),
+                        b.search("edge", (("from", x), ("to", y))),
+                    )
+                })?;
 
-            p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
-                (
-                    h.bind((("from", x), ("to", z))),
-                    b.search("edge", (("from", x), ("to", y)))
-                        .search("path", (("from", y), ("to", z))),
-                )
-            })
-        })?;
-
-        let ast = lower_to_ram::lower_to_ram(&program)?;
-        let bs = MemoryBlockstore::default();
-        let mut vm: VM = VM::new(ast);
-
-        for fact in vec![
-            EDBFact::new(0, "to", 1, vec![]),
-            EDBFact::new(1, "to", 2, vec![]),
-            EDBFact::new(2, "to", 3, vec![]),
-            EDBFact::new(3, "to", 4, vec![]),
-        ] {
-            let _ = vm.push(fact);
-        }
-
-        vm.step_epoch(&bs)?;
-
-        let mut path = BTreeSet::default();
-        while let Ok(Some(fact)) = vm.pop() {
-            if fact.id() == "path".into() {
-                path.insert(fact);
-            }
-        }
-
-        assert_eq!(
-            path,
-            BTreeSet::from_iter([
+                p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
+                    (
+                        h.bind((("from", x), ("to", z))),
+                        b.search("edge", (("from", x), ("to", y)))
+                            .search("path", (("from", y), ("to", z))),
+                    )
+                })
+            },
+            [
+                EDBFact::new(0, "to", 1, vec![]),
+                EDBFact::new(1, "to", 2, vec![]),
+                EDBFact::new(2, "to", 3, vec![]),
+                EDBFact::new(3, "to", 4, vec![]),
+            ],
+            [
                 IDBFact::new("path", [("from", 0), ("to", 1)]),
                 IDBFact::new("path", [("from", 0), ("to", 2)]),
                 IDBFact::new("path", [("from", 0), ("to", 3)]),
@@ -807,9 +770,7 @@ mod tests {
                 IDBFact::new("path", [("from", 2), ("to", 3)]),
                 IDBFact::new("path", [("from", 2), ("to", 4)]),
                 IDBFact::new("path", [("from", 3), ("to", 4)]),
-            ])
+            ]
         );
-
-        Ok(())
     }
 }

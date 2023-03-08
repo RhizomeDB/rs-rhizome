@@ -11,13 +11,11 @@ mod rule_vars;
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-
-    use super::*;
+    use crate::assert_compiles;
 
     #[test]
-    fn test_builder() -> Result<()> {
-        let _p = ProgramBuilder::build(|p| {
+    fn test_builder() {
+        assert_compiles!(|p| {
             p.input("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
             p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
@@ -36,8 +34,6 @@ mod tests {
                         .search("path", (("from", y), ("to", z))),
                 )
             })
-        })?;
-
-        Ok(())
+        });
     }
 }

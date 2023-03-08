@@ -32,7 +32,7 @@ where
         let mut columns = HashMap::default();
 
         for (column_id, column) in self.columns {
-            if let Some(_) = columns.insert(column_id, column) {
+            if columns.insert(column_id, column).is_some() {
                 return error(Error::DuplicateSchemaAttributeId(column_id));
             }
 

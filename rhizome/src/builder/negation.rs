@@ -9,18 +9,12 @@ use crate::{
     value::Value,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NegationBuilder {
     pub(super) bindings: Vec<(ColumnId, ColumnValue)>,
 }
 
 impl NegationBuilder {
-    pub fn new() -> Self {
-        Self {
-            bindings: Vec::default(),
-        }
-    }
-
     pub fn finalize(
         self,
         relation: Arc<Declaration>,
@@ -38,7 +32,7 @@ impl NegationBuilder {
             }
 
             match &column_value {
-                ColumnValue::Literal(value) => column.column_type().check(&value)?,
+                ColumnValue::Literal(value) => column.column_type().check(value)?,
                 ColumnValue::Binding(var) => {
                     if let Some(downcasted) = column.column_type().downcast(&var.typ()) {
                         bound_vars.insert(var.id(), downcasted);
