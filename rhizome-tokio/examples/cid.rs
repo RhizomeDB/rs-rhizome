@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
 
         p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, e, i)| {
             (
-                h.bind("cid", cid).bind("entity", e).bind("initial", i),
+                h.bind((("cid", cid), ("entity", e), ("initial", i))),
                 b.search(
                     "evac",
                     (
@@ -57,10 +57,12 @@ async fn main() -> Result<()> {
 
         p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
             (
-                h.bind("cid", cid)
-                    .bind("entity", e)
-                    .bind("value", v)
-                    .bind("parent", parent),
+                h.bind((
+                    ("cid", cid),
+                    ("entity", e),
+                    ("value", v),
+                    ("parent", parent),
+                )),
                 b.search(
                     "evac",
                     (("entity", e), ("attribute", "write"), ("value", v)),
@@ -72,10 +74,12 @@ async fn main() -> Result<()> {
 
         p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
             (
-                h.bind("cid", cid)
-                    .bind("entity", e)
-                    .bind("value", v)
-                    .bind("parent", parent),
+                h.bind((
+                    ("cid", cid),
+                    ("entity", e),
+                    ("value", v),
+                    ("parent", parent),
+                )),
                 b.search(
                     "evac",
                     (("entity", e), ("attribute", "write"), ("value", v)),
@@ -87,7 +91,7 @@ async fn main() -> Result<()> {
 
         p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
             (
-                h.bind("cid", cid).bind("entity", e).bind("value", v),
+                h.bind((("cid", cid), ("entity", e), ("value", v))),
                 b.search("create", (("cid", cid), ("entity", e), ("initial", v)))
                     .except("update", (("entity", e), ("parent", cid))),
             )
@@ -95,7 +99,7 @@ async fn main() -> Result<()> {
 
         p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
             (
-                h.bind("cid", cid).bind("entity", e).bind("value", v),
+                h.bind((("cid", cid), ("entity", e), ("value", v))),
                 b.search("update", (("cid", cid), ("entity", e), ("value", v)))
                     .except("update", (("entity", e), ("parent", cid))),
             )

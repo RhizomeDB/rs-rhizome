@@ -4,17 +4,21 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use crate::{
     error::{error, Error},
     id::{ColumnId, LinkId, VarId},
-    logic::ast::{BodyTerm, CidValue, ColumnValue, Declaration, GetLink, Var},
+    logic::ast::{BodyTerm, CidValue, ColumnValue, Declaration, GetLink},
     types::{ColumnType, Type},
     value::Value,
 };
 
-use super::{atom_args::AtomArgs, negation::NegationBuilder, predicate::PredicateBuilder};
+use super::{
+    atom_args::{AtomArg, AtomArgs},
+    negation::NegationBuilder,
+    predicate::PredicateBuilder,
+};
 
 #[derive(Debug)]
 pub struct RuleHeadBuilder<'a> {
     relation: &'a Declaration,
-    bindings: Vec<(ColumnId, ColumnValue)>,
+    pub(super) bindings: Vec<(ColumnId, ColumnValue)>,
 }
 
 impl<'a> RuleHeadBuilder<'a> {
@@ -86,13 +90,24 @@ impl<'a> RuleHeadBuilder<'a> {
         self
     }
 
-    pub fn bind<S>(mut self, column_id: S, var: &Var) -> Self
+    pub fn bind<T, A>(mut self, bindings: T) -> Self
     where
-        S: AsRef<str>,
+        T: AtomArgs<A>,
     {
-        let column_id = ColumnId::new(column_id);
+        for (id, value) in T::into_columns(bindings) {
+            self.bindings.push((id, value));
+        }
 
-        self.bindings.push((column_id, ColumnValue::Binding(*var)));
+        self
+    }
+
+    pub fn bind_one<T, A>(mut self, binding: T) -> Self
+    where
+        T: AtomArg<A>,
+    {
+        let (id, value) = binding.into_column();
+
+        self.bindings.push((id, value));
 
         self
     }
