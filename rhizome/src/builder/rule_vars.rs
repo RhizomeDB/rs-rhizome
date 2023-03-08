@@ -15,7 +15,7 @@ impl RuleVars for () {
     type Vars = ();
 
     fn into_vars() -> Self::Vars {
-        ()
+        
     }
 }
 

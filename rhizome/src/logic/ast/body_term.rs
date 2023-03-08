@@ -120,7 +120,7 @@ impl GetLink {
         let link_value = links.get(0).unwrap().1;
 
         Self {
-            cid: cid.into(),
+            cid,
             link_id,
             link_value,
         }
