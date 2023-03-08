@@ -113,7 +113,7 @@ impl ProgramBuilder {
         let (h, b) = f(head_builder, body_builder, &T::into_vars());
 
         let body = b.finalize(&mut bound_vars)?;
-        let head = h.finalize(&mut bound_vars)?;
+        let head = h.finalize(&bound_vars)?;
 
         match &**declaration {
             Declaration::EDB(inner) => error(Error::ClauseHeadEDB(inner.id())),

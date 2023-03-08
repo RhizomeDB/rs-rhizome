@@ -4,14 +4,16 @@ use std::collections::HashMap;
 use crate::{
     error::{error, Error},
     id::ColumnId,
-    logic::ast::{Declaration, Fact},
+    logic::ast::{ColumnValue, Declaration, Fact},
     value::Value,
 };
+
+use super::atom_args::{AtomArg, AtomArgs};
 
 #[derive(Debug)]
 pub struct FactBuilder<'a> {
     relation: &'a Declaration,
-    bindings: Vec<(ColumnId, Value)>,
+    bindings: Vec<(ColumnId, ColumnValue)>,
 }
 
 impl<'a> FactBuilder<'a> {
@@ -33,17 +35,24 @@ impl<'a> FactBuilder<'a> {
         let mut columns = HashMap::default();
 
         for (column_id, column_value) in self.bindings {
-            let Some(column) = self.relation.schema().get_column(&column_id) else {
-                return error(Error::UnrecognizedColumnBinding(column_id, self.relation.id()));
-            };
+            match column_value {
+                ColumnValue::Literal(val) => {
+                    let Some(column) = self.relation.schema().get_column(&column_id) else {
+                    return error(Error::UnrecognizedColumnBinding(column_id, self.relation.id()));
+                };
 
-            if columns.contains_key(&column_id) {
-                return error(Error::ConflictingColumnBinding(column_id));
+                    if columns.contains_key(&column_id) {
+                        return error(Error::ConflictingColumnBinding(column_id));
+                    }
+
+                    column.column_type().check(&val)?;
+
+                    columns.insert(column_id, val);
+                }
+                ColumnValue::Binding(var) => {
+                    return error(Error::NonGroundFact(column_id, var.id()));
+                }
             }
-
-            column.column_type().check(&column_value)?;
-
-            columns.insert(column_id, column_value);
         }
 
         for column_id in self.relation.schema().columns().keys() {
@@ -62,13 +71,22 @@ impl<'a> FactBuilder<'a> {
         }
     }
 
-    pub fn set<S, T>(mut self, id: S, value: T) -> Self
+    pub fn bind<T, A>(mut self, bindings: T) -> Self
     where
-        S: AsRef<str>,
-        T: Into<Value>,
+        T: AtomArgs<A>,
     {
-        let id = ColumnId::new(id);
-        let value = value.into();
+        for (id, value) in T::into_columns(bindings) {
+            self.bindings.push((id, value));
+        }
+
+        self
+    }
+
+    pub fn bind_one<T>(mut self, binding: T) -> Self
+    where
+        T: AtomArg<Value>,
+    {
+        let (id, value) = binding.into_column();
 
         self.bindings.push((id, value));
 

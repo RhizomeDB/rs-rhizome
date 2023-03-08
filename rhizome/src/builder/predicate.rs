@@ -9,7 +9,7 @@ use crate::{
     value::Value,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PredicateBuilder {
     pub(super) bindings: Vec<(ColumnId, ColumnValue)>,
 }
@@ -37,7 +37,7 @@ impl PredicateBuilder {
             }
 
             match &column_value {
-                ColumnValue::Literal(value) => column.column_type().check(&value)?,
+                ColumnValue::Literal(value) => column.column_type().check(value)?,
                 ColumnValue::Binding(var) => {
                     if let Some(downcasted) = column.column_type().downcast(&var.typ()) {
                         bound_vars.insert(var.id(), downcasted);
