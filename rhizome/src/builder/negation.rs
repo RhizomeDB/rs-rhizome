@@ -11,7 +11,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct NegationBuilder {
-    bindings: Vec<(ColumnId, ColumnValue)>,
+    pub(super) bindings: Vec<(ColumnId, ColumnValue)>,
 }
 
 impl NegationBuilder {

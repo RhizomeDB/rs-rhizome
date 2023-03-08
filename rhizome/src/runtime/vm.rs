@@ -694,15 +694,15 @@ mod tests {
             p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
                 (
                     h.bind("from", x).bind("to", y),
-                    b.search("edge", |s| s.bind("from", x).bind("to", y)),
+                    b.search("edge", (("from", x), ("to", y))),
                 )
             })?;
 
             p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
                 (
                     h.bind("from", x).bind("to", z),
-                    b.search("edge", |s| s.bind("from", x).bind("to", y))
-                        .search("path", |s| s.bind("from", y).bind("to", z)),
+                    b.search("edge", (("from", x), ("to", y)))
+                        .search("path", (("from", y), ("to", z))),
                 )
             })
         })?;
@@ -759,15 +759,15 @@ mod tests {
             p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
                 (
                     h.bind("from", x).bind("to", y),
-                    b.search("edge", |s| s.bind("from", x).bind("to", y)),
+                    b.search("edge", (("from", x), ("to", y))),
                 )
             })?;
 
             p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
                 (
                     h.bind("from", x).bind("to", z),
-                    b.search("edge", |s| s.bind("from", x).bind("to", y))
-                        .search("path", |s| s.bind("from", y).bind("to", z)),
+                    b.search("edge", (("from", x), ("to", y)))
+                        .search("path", (("from", y), ("to", z))),
                 )
             })
         })?;

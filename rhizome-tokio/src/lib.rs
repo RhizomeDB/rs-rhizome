@@ -38,24 +38,22 @@ mod tests {
             p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
                 (
                     h.bind("from", x).bind("to", y),
-                    b.search("evac", |s| {
-                        s.bind("entity", x).bind("value", y).when("attribute", "to")
-                    }),
+                    b.search("evac", (("entity", x), ("attribute", "to"), ("value", y))),
                 )
             })?;
 
             p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
                 (
                     h.bind("from", x).bind("to", y),
-                    b.search("edge", |s| s.bind("from", x).bind("to", y)),
+                    b.search("edge", (("from", x), ("to", y))),
                 )
             })?;
 
             p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
                 (
                     h.bind("from", x).bind("to", z),
-                    b.search("edge", |s| s.bind("from", x).bind("to", y))
-                        .search("path", |s| s.bind("from", y).bind("to", z)),
+                    b.search("edge", (("from", x), ("to", y)))
+                        .search("path", (("from", y), ("to", z))),
                 )
             })
         })?;

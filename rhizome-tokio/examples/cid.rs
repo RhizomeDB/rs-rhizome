@@ -43,12 +43,15 @@ async fn main() -> Result<()> {
         p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, e, i)| {
             (
                 h.bind("cid", cid).bind("entity", e).bind("initial", i),
-                b.search("evac", |s| {
-                    s.bind("cid", cid)
-                        .bind("entity", e)
-                        .bind("value", i)
-                        .when("attribute", "initial")
-                }),
+                b.search(
+                    "evac",
+                    (
+                        ("cid", cid),
+                        ("entity", e),
+                        ("attribute", "initial"),
+                        ("value", i),
+                    ),
+                ),
             )
         })?;
 
@@ -58,14 +61,12 @@ async fn main() -> Result<()> {
                     .bind("entity", e)
                     .bind("value", v)
                     .bind("parent", parent),
-                b.search("evac", |s| {
-                    s.bind("cid", cid)
-                        .bind("entity", e)
-                        .bind("value", v)
-                        .when("attribute", "write")
-                })
+                b.search(
+                    "evac",
+                    (("entity", e), ("attribute", "write"), ("value", v)),
+                )
                 .get_link(cid, "parent", parent)
-                .search("create", |s| s.bind("cid", parent).bind("entity", e)),
+                .search("create", (("cid", parent), ("entity", e))),
             )
         })?;
 
@@ -75,34 +76,28 @@ async fn main() -> Result<()> {
                     .bind("entity", e)
                     .bind("value", v)
                     .bind("parent", parent),
-                b.search("evac", |s| {
-                    s.bind("cid", cid)
-                        .bind("entity", e)
-                        .bind("value", v)
-                        .when("attribute", "write")
-                })
+                b.search(
+                    "evac",
+                    (("entity", e), ("attribute", "write"), ("value", v)),
+                )
                 .get_link(cid, "parent", parent)
-                .search("update", |s| s.bind("cid", parent).bind("entity", e)),
+                .search("update", (("cid", parent), ("entity", e))),
             )
         })?;
 
         p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
             (
                 h.bind("cid", cid).bind("entity", e).bind("value", v),
-                b.search("create", |s| {
-                    s.bind("cid", cid).bind("entity", e).bind("initial", v)
-                })
-                .except("update", |s| s.bind("entity", e).bind("parent", cid)),
+                b.search("create", (("cid", cid), ("entity", e), ("initial", v)))
+                    .except("update", (("entity", e), ("parent", cid))),
             )
         })?;
 
         p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
             (
                 h.bind("cid", cid).bind("entity", e).bind("value", v),
-                b.search("update", |s| {
-                    s.bind("cid", cid).bind("entity", e).bind("value", v)
-                })
-                .except("update", |s| s.bind("entity", e).bind("parent", cid)),
+                b.search("update", (("cid", cid), ("entity", e), ("value", v)))
+                    .except("update", (("entity", e), ("parent", cid))),
             )
         })
     })?;

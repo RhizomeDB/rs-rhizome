@@ -9,7 +9,7 @@ use crate::{
     value::Value,
 };
 
-use super::{negation::NegationBuilder, predicate::PredicateBuilder};
+use super::{atom_args::AtomArgs, negation::NegationBuilder, predicate::PredicateBuilder};
 
 #[derive(Debug)]
 pub struct RuleHeadBuilder<'a> {
@@ -186,7 +186,22 @@ impl<'a> RuleBodyBuilder<'a> {
         Ok(body_terms)
     }
 
-    pub fn search<F>(mut self, id: &str, f: F) -> Self
+    pub fn search<T, A>(mut self, id: &str, t: T) -> Self
+    where
+        T: AtomArgs<A>,
+    {
+        let mut builder = PredicateBuilder::new();
+
+        for (column_id, column_value) in T::into_columns(t) {
+            builder.bindings.push((column_id, column_value));
+        }
+
+        self.predicates.push((id.to_string(), builder));
+
+        self
+    }
+
+    pub fn build_search<F>(mut self, id: &str, f: F) -> Self
     where
         F: Fn(PredicateBuilder) -> PredicateBuilder,
     {
@@ -198,7 +213,22 @@ impl<'a> RuleBodyBuilder<'a> {
         self
     }
 
-    pub fn except<F>(mut self, id: &str, f: F) -> Self
+    pub fn except<T, A>(mut self, id: &str, t: T) -> Self
+    where
+        T: AtomArgs<A>,
+    {
+        let mut builder = NegationBuilder::new();
+
+        for (column_id, column_value) in T::into_columns(t) {
+            builder.bindings.push((column_id, column_value));
+        }
+
+        self.negations.push((id.to_string(), builder));
+
+        self
+    }
+
+    pub fn build_except<F>(mut self, id: &str, f: F) -> Self
     where
         F: Fn(NegationBuilder) -> NegationBuilder,
     {
