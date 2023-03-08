@@ -6,7 +6,7 @@ use crate::{
     id::{ColumnId, RelationId},
     logic::ast::{Column, InnerDeclaration, Schema},
     relation::RelationSource,
-    types::{ColumnType, FromType, Type},
+    types::{ColumnType, FromType},
 };
 
 #[derive(Debug)]
@@ -54,7 +54,7 @@ where
 
     pub fn column<C>(mut self, id: &str) -> Self
     where
-        Type: FromType<C>,
+        ColumnType: FromType<C>,
     {
         let id = ColumnId::new(id);
         let t = ColumnType::new::<C>();

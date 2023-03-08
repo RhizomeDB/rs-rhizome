@@ -7,6 +7,7 @@ use rhizome::{
     logic::lower_to_ram,
     runtime::client::Client,
     storage::content_addressable::ContentAddressable,
+    types::Any,
 };
 use tokio::spawn;
 
@@ -15,9 +16,9 @@ async fn main() -> Result<()> {
     let program = ProgramBuilder::build(|p| {
         p.input("evac", |h| {
             h.column::<Cid>("cid")
-                .column::<i32>("entity")
-                .column::<&str>("attribute")
-                .column::<i32>("value")
+                .column::<Any>("entity")
+                .column::<Any>("attribute")
+                .column::<Any>("value")
         })?;
 
         p.output("create", |h| {

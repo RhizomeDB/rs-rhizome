@@ -20,11 +20,17 @@ pub enum ColumnType {
 impl ColumnType {
     pub fn new<T>() -> Self
     where
-        Type: FromType<T>,
+        ColumnType: FromType<T>,
     {
-        let t = FromType::<T>::from_type();
+        FromType::<T>::from_type()
+    }
 
-        Self::Type(t)
+    pub fn downcast(&self, downcast_to: &Type) -> Option<Type> {
+        match self {
+            ColumnType::Any => Some(*downcast_to),
+            ColumnType::Type(typ) if typ == downcast_to => Some(*downcast_to),
+            _ => None,
+        }
     }
 
     pub fn check(&self, value: &Value) -> Result<()> {
@@ -43,8 +49,28 @@ impl ColumnType {
     }
 }
 
+#[derive(Debug)]
+pub struct Any {}
+
 pub trait FromType<T> {
     fn from_type() -> Self;
+}
+
+impl<T> FromType<T> for ColumnType
+where
+    Type: FromType<T>,
+{
+    fn from_type() -> Self {
+        let t = FromType::<T>::from_type();
+
+        Self::Type(t)
+    }
+}
+
+impl FromType<Any> for ColumnType {
+    fn from_type() -> Self {
+        Self::Any
+    }
 }
 
 impl FromType<bool> for Type {

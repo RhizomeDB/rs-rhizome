@@ -64,7 +64,10 @@ impl Predicate {
     pub fn variables(&self) -> HashSet<VarId> {
         self.args
             .iter()
-            .filter_map(|(_, v)| VarId::try_from(v.clone()).ok())
+            .filter_map(|(_, v)| match v {
+                ColumnValue::Literal(_) => None,
+                ColumnValue::Binding(var) => Some(var.id()),
+            })
             .collect()
     }
 }
@@ -91,7 +94,10 @@ impl Negation {
     pub fn variables(&self) -> HashSet<VarId> {
         self.args
             .iter()
-            .filter_map(|(_, v)| VarId::try_from(v.clone()).ok())
+            .filter_map(|(_, v)| match v {
+                ColumnValue::Literal(_) => None,
+                ColumnValue::Binding(var) => Some(var.id()),
+            })
             .collect()
     }
 }
@@ -134,16 +140,16 @@ impl GetLink {
 
     // TODO: If we allowed link_id to be unbound we will need to add it here
     pub fn variables(&self) -> HashSet<VarId> {
-        let mut variables = HashSet::default();
+        let mut vars = HashSet::default();
 
         if let CidValue::Var(var) = self.cid {
-            variables.insert(var);
+            vars.insert(var.id());
         }
 
         if let CidValue::Var(var) = self.link_value {
-            variables.insert(var);
+            vars.insert(var.id());
         }
 
-        variables
+        vars
     }
 }

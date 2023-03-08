@@ -673,7 +673,7 @@ where
 mod tests {
     use crate::{
         builder::ProgramBuilder, fact::traits::IDBFact, logic::lower_to_ram,
-        storage::memory::MemoryBlockstore,
+        storage::memory::MemoryBlockstore, types::Any,
     };
     use pretty_assertions::assert_eq;
     use std::collections::BTreeSet;
@@ -743,9 +743,9 @@ mod tests {
     fn test_source_transitive_closure() -> Result<()> {
         let program = ProgramBuilder::build(|p| {
             p.input("evac", |h| {
-                h.column::<i32>("entity")
-                    .column::<&str>("attribute")
-                    .column::<i32>("value")
+                h.column::<Any>("entity")
+                    .column::<Any>("attribute")
+                    .column::<Any>("value")
             })?;
 
             p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;

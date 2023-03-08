@@ -6,36 +6,43 @@ use crate::{
 // TODO: Implement this with macros
 
 pub trait RuleVars {
-    type Vars: 'static;
-    const V: &'static Self::Vars;
+    type Vars;
+
+    fn into_vars() -> Self::Vars;
 }
 
 impl RuleVars for () {
     type Vars = ();
 
-    const V: &'static Self::Vars = &();
+    fn into_vars() -> Self::Vars {
+        ()
+    }
 }
 
-impl<V0: 'static> RuleVars for (V0,)
+impl<V0> RuleVars for (V0,)
 where
     Type: FromType<V0>,
 {
     type Vars = (Var,);
 
-    const V: &'static Self::Vars = &(Var::new(0),);
+    fn into_vars() -> Self::Vars {
+        (Var::new::<V0>("x0"),)
+    }
 }
 
-impl<V0: 'static, V1: 'static> RuleVars for (V0, V1)
+impl<V0, V1> RuleVars for (V0, V1)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
 {
     type Vars = (Var, Var);
 
-    const V: &'static Self::Vars = &(Var::new(0), Var::new(1));
+    fn into_vars() -> Self::Vars {
+        (Var::new::<V0>("x0"), Var::new::<V1>("x1"))
+    }
 }
 
-impl<V0: 'static, V1: 'static, V2: 'static> RuleVars for (V0, V1, V2)
+impl<V0, V1, V2> RuleVars for (V0, V1, V2)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -43,10 +50,16 @@ where
 {
     type Vars = (Var, Var, Var);
 
-    const V: &'static Self::Vars = &(Var::new(0), Var::new(1), Var::new(2));
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+        )
+    }
 }
 
-impl<V0: 'static, V1: 'static, V2: 'static, V3: 'static> RuleVars for (V0, V1, V2, V3)
+impl<V0, V1, V2, V3> RuleVars for (V0, V1, V2, V3)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -55,11 +68,17 @@ where
 {
     type Vars = (Var, Var, Var, Var);
 
-    const V: &'static Self::Vars = &(Var::new(0), Var::new(1), Var::new(2), Var::new(3));
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+            Var::new::<V3>("x3"),
+        )
+    }
 }
 
-impl<V0: 'static, V1: 'static, V2: 'static, V3: 'static, V4: 'static> RuleVars
-    for (V0, V1, V2, V3, V4)
+impl<V0, V1, V2, V3, V4> RuleVars for (V0, V1, V2, V3, V4)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -69,17 +88,18 @@ where
 {
     type Vars = (Var, Var, Var, Var, Var);
 
-    const V: &'static Self::Vars = &(
-        Var::new(0),
-        Var::new(1),
-        Var::new(2),
-        Var::new(3),
-        Var::new(4),
-    );
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+            Var::new::<V3>("x3"),
+            Var::new::<V4>("x4"),
+        )
+    }
 }
 
-impl<V0: 'static, V1: 'static, V2: 'static, V3: 'static, V4: 'static, V5: 'static> RuleVars
-    for (V0, V1, V2, V3, V4, V5)
+impl<V0, V1, V2, V3, V4, V5> RuleVars for (V0, V1, V2, V3, V4, V5)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -90,18 +110,19 @@ where
 {
     type Vars = (Var, Var, Var, Var, Var, Var);
 
-    const V: &'static Self::Vars = &(
-        Var::new(0),
-        Var::new(1),
-        Var::new(2),
-        Var::new(3),
-        Var::new(4),
-        Var::new(5),
-    );
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+            Var::new::<V3>("x3"),
+            Var::new::<V4>("x4"),
+            Var::new::<V5>("x5"),
+        )
+    }
 }
 
-impl<V0: 'static, V1: 'static, V2: 'static, V3: 'static, V4: 'static, V5: 'static, V6: 'static>
-    RuleVars for (V0, V1, V2, V3, V4, V5, V6)
+impl<V0, V1, V2, V3, V4, V5, V6> RuleVars for (V0, V1, V2, V3, V4, V5, V6)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -113,27 +134,20 @@ where
 {
     type Vars = (Var, Var, Var, Var, Var, Var, Var);
 
-    const V: &'static Self::Vars = &(
-        Var::new(0),
-        Var::new(1),
-        Var::new(2),
-        Var::new(3),
-        Var::new(4),
-        Var::new(5),
-        Var::new(6),
-    );
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+            Var::new::<V3>("x3"),
+            Var::new::<V4>("x4"),
+            Var::new::<V5>("x5"),
+            Var::new::<V6>("x6"),
+        )
+    }
 }
 
-impl<
-        V0: 'static,
-        V1: 'static,
-        V2: 'static,
-        V3: 'static,
-        V4: 'static,
-        V5: 'static,
-        V6: 'static,
-        V7: 'static,
-    > RuleVars for (V0, V1, V2, V3, V4, V5, V6, V7)
+impl<V0, V1, V2, V3, V4, V5, V6, V7> RuleVars for (V0, V1, V2, V3, V4, V5, V6, V7)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -146,29 +160,21 @@ where
 {
     type Vars = (Var, Var, Var, Var, Var, Var, Var, Var);
 
-    const V: &'static Self::Vars = &(
-        Var::new(0),
-        Var::new(1),
-        Var::new(2),
-        Var::new(3),
-        Var::new(4),
-        Var::new(5),
-        Var::new(6),
-        Var::new(7),
-    );
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+            Var::new::<V3>("x3"),
+            Var::new::<V4>("x4"),
+            Var::new::<V5>("x5"),
+            Var::new::<V6>("x6"),
+            Var::new::<V7>("x7"),
+        )
+    }
 }
 
-impl<
-        V0: 'static,
-        V1: 'static,
-        V2: 'static,
-        V3: 'static,
-        V4: 'static,
-        V5: 'static,
-        V6: 'static,
-        V7: 'static,
-        V8: 'static,
-    > RuleVars for (V0, V1, V2, V3, V4, V5, V6, V7, V8)
+impl<V0, V1, V2, V3, V4, V5, V6, V7, V8> RuleVars for (V0, V1, V2, V3, V4, V5, V6, V7, V8)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -182,31 +188,22 @@ where
 {
     type Vars = (Var, Var, Var, Var, Var, Var, Var, Var, Var);
 
-    const V: &'static Self::Vars = &(
-        Var::new(0),
-        Var::new(1),
-        Var::new(2),
-        Var::new(3),
-        Var::new(4),
-        Var::new(5),
-        Var::new(6),
-        Var::new(7),
-        Var::new(8),
-    );
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+            Var::new::<V3>("x3"),
+            Var::new::<V4>("x4"),
+            Var::new::<V5>("x5"),
+            Var::new::<V6>("x6"),
+            Var::new::<V7>("x7"),
+            Var::new::<V8>("x8"),
+        )
+    }
 }
 
-impl<
-        V0: 'static,
-        V1: 'static,
-        V2: 'static,
-        V3: 'static,
-        V4: 'static,
-        V5: 'static,
-        V6: 'static,
-        V7: 'static,
-        V8: 'static,
-        V9: 'static,
-    > RuleVars for (V0, V1, V2, V3, V4, V5, V6, V7, V8, V9)
+impl<V0, V1, V2, V3, V4, V5, V6, V7, V8, V9> RuleVars for (V0, V1, V2, V3, V4, V5, V6, V7, V8, V9)
 where
     Type: FromType<V0>,
     Type: FromType<V1>,
@@ -221,16 +218,18 @@ where
 {
     type Vars = (Var, Var, Var, Var, Var, Var, Var, Var, Var, Var);
 
-    const V: &'static Self::Vars = &(
-        Var::new(0),
-        Var::new(1),
-        Var::new(2),
-        Var::new(3),
-        Var::new(4),
-        Var::new(5),
-        Var::new(6),
-        Var::new(7),
-        Var::new(8),
-        Var::new(9),
-    );
+    fn into_vars() -> Self::Vars {
+        (
+            Var::new::<V0>("x0"),
+            Var::new::<V1>("x1"),
+            Var::new::<V2>("x2"),
+            Var::new::<V3>("x3"),
+            Var::new::<V4>("x4"),
+            Var::new::<V5>("x5"),
+            Var::new::<V6>("x6"),
+            Var::new::<V7>("x7"),
+            Var::new::<V8>("x8"),
+            Var::new::<V9>("x9"),
+        )
+    }
 }

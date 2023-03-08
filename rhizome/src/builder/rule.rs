@@ -27,7 +27,7 @@ impl<'a> RuleHeadBuilder<'a> {
 
     pub fn finalize(
         self,
-        bound_vars: &HashMap<VarId, ColumnType>,
+        bound_vars: &HashMap<VarId, Type>,
     ) -> Result<HashMap<ColumnId, ColumnValue>> {
         let mut columns = HashMap::default();
 
@@ -42,15 +42,13 @@ impl<'a> RuleHeadBuilder<'a> {
 
             match &column_value {
                 ColumnValue::Literal(value) => column.column_type().check(&value)?,
-                ColumnValue::Binding(var_id) => {
-                    if let Some(bound_type) = bound_vars.get(&var_id) {
-                        if bound_type != column.column_type() {
-                            return error(Error::VariableTypeConflict(
-                                *var_id,
-                                *column.column_type(),
-                                *bound_type,
-                            ));
-                        }
+                ColumnValue::Binding(var) => {
+                    if let None = column.column_type().downcast(&var.typ()) {
+                        return error(Error::VariableTypeConflict(
+                            var.id(),
+                            *column.column_type(),
+                            var.typ(),
+                        ));
                     }
                 }
             }
@@ -65,9 +63,9 @@ impl<'a> RuleHeadBuilder<'a> {
         }
 
         for (column_id, value) in &columns {
-            if let ColumnValue::Binding(var_id) = value {
-                if !bound_vars.contains_key(&var_id) {
-                    return error(Error::ClauseNotRangeRestricted(*column_id, *var_id));
+            if let ColumnValue::Binding(var) = value {
+                if !bound_vars.contains_key(&var.id()) {
+                    return error(Error::ClauseNotRangeRestricted(*column_id, var.id()));
                 }
             }
         }
@@ -94,8 +92,7 @@ impl<'a> RuleHeadBuilder<'a> {
     {
         let column_id = ColumnId::new(column_id);
 
-        self.bindings
-            .push((column_id, ColumnValue::Binding(var.id())));
+        self.bindings.push((column_id, ColumnValue::Binding(*var)));
 
         self
     }
@@ -124,7 +121,7 @@ impl<'a> RuleBodyBuilder<'a> {
         }
     }
 
-    pub fn finalize(self, bound_vars: &mut HashMap<VarId, ColumnType>) -> Result<Vec<BodyTerm>> {
+    pub fn finalize(self, bound_vars: &mut HashMap<VarId, Type>) -> Result<Vec<BodyTerm>> {
         let mut body_terms = Vec::default();
 
         for (id, builder) in self.predicates {
@@ -139,11 +136,11 @@ impl<'a> RuleBodyBuilder<'a> {
         }
 
         for (cid, link_id, value) in self.get_links {
-            if let CidValue::Var(var_id) = cid {
-                if let Some(bound_type) = bound_vars.insert(var_id, ColumnType::Type(Type::Cid)) {
-                    if bound_type != ColumnType::Type(Type::Cid) {
+            if let CidValue::Var(var) = cid {
+                if let Some(bound_type) = bound_vars.insert(var.id(), Type::Cid) {
+                    if bound_type != Type::Cid {
                         return error(Error::VariableTypeConflict(
-                            var_id,
+                            var.id(),
                             ColumnType::Type(Type::Cid),
                             bound_type,
                         ));
@@ -151,11 +148,11 @@ impl<'a> RuleBodyBuilder<'a> {
                 }
             }
 
-            if let CidValue::Var(var_id) = value {
-                if let Some(bound_type) = bound_vars.insert(var_id, ColumnType::Type(Type::Cid)) {
-                    if bound_type != ColumnType::Type(Type::Cid) {
+            if let CidValue::Var(var) = value {
+                if let Some(bound_type) = bound_vars.insert(var.id(), Type::Cid) {
+                    if bound_type != Type::Cid {
                         return error(Error::VariableTypeConflict(
-                            var_id,
+                            var.id(),
                             ColumnType::Type(Type::Cid),
                             bound_type,
                         ));

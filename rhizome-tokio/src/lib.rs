@@ -17,6 +17,7 @@ mod tests {
         fact::traits::{EDBFact, IDBFact},
         logic::lower_to_ram,
         runtime::client::Client,
+        types::Any,
     };
 
     #[test]
@@ -26,9 +27,9 @@ mod tests {
 
         let program = ProgramBuilder::build(|p| {
             p.input("evac", |h| {
-                h.column::<i32>("entity")
-                    .column::<&str>("attribute")
-                    .column::<i32>("value")
+                h.column::<Any>("entity")
+                    .column::<Any>("attribute")
+                    .column::<Any>("value")
             })?;
 
             p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;

@@ -42,8 +42,8 @@ pub enum Error {
     ClauseHeadEDB(RelationId),
     #[error("Type mismatch: expected {0}, got {1}")]
     TypeMismatch(Type, Type),
-    #[error("Attempted to bind {0} to column of type {1}, but it is already bound to a column of type {2}")]
-    VariableTypeConflict(VarId, ColumnType, ColumnType),
+    #[error("Attempted to bind {0}, of type {2}, to column of type {1}")]
+    VariableTypeConflict(VarId, ColumnType, Type),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

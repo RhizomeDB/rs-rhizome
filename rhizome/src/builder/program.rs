@@ -96,7 +96,7 @@ impl ProgramBuilder {
         f: &'b dyn Fn(
             RuleHeadBuilder<'a>,
             RuleBodyBuilder<'a>,
-            &'static T::Vars,
+            &T::Vars,
         ) -> (RuleHeadBuilder<'a>, RuleBodyBuilder<'a>),
     ) -> Result<()>
     where
@@ -110,7 +110,7 @@ impl ProgramBuilder {
         let head_builder = RuleHeadBuilder::new(declaration);
         let body_builder = RuleBodyBuilder::new(&self.relations);
 
-        let (h, b) = f(head_builder, body_builder, T::V);
+        let (h, b) = f(head_builder, body_builder, &T::into_vars());
 
         let body = b.finalize(&mut bound_vars)?;
         let head = h.finalize(&mut bound_vars)?;

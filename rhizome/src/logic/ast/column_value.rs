@@ -1,9 +1,11 @@
-use derive_more::{From, IsVariant, TryInto};
+use derive_more::From;
 
-use crate::{id::VarId, value::Value};
+use crate::value::Value;
 
-#[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
+use super::Var;
+
+#[derive(Debug, Clone, Eq, From, PartialEq)]
 pub enum ColumnValue {
     Literal(Value),
-    Binding(VarId),
+    Binding(Var),
 }

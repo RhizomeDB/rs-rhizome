@@ -268,13 +268,13 @@ pub fn lower_rule_to_ram(
                 for (attribute_id, attribute_value) in predicate.args().clone() {
                     match attribute_value {
                         ColumnValue::Literal(_) => continue,
-                        ColumnValue::Binding(variable) if !bindings.contains_key(&variable) => {
+                        ColumnValue::Binding(var) if !bindings.contains_key(&var.id()) => {
                             let binding = match &**predicate.relation() {
                                 Declaration::EDB(inner) => RelationBinding::edb(inner.id(), alias),
                                 Declaration::IDB(inner) => RelationBinding::idb(inner.id(), alias),
                             };
 
-                            bindings.insert(variable, Term::Attribute(attribute_id, binding))
+                            bindings.insert(var.id(), Term::Attribute(attribute_id, binding))
                         }
                         _ => continue,
                     };
@@ -303,7 +303,7 @@ pub fn lower_rule_to_ram(
         .iter()
         .map(|(k, v)| match v {
             ColumnValue::Literal(c) => (*k, Term::Literal(c.clone())),
-            ColumnValue::Binding(v) => (*k, bindings.get(v).unwrap().clone()),
+            ColumnValue::Binding(v) => (*k, bindings.get(&v.id()).unwrap().clone()),
         })
         .collect();
 
@@ -312,7 +312,7 @@ pub fn lower_rule_to_ram(
         .iter()
         .filter_map(|(_, v)| match *v {
             ColumnValue::Literal(_) => None,
-            ColumnValue::Binding(variable) => Some(variable),
+            ColumnValue::Binding(var) => Some(var.id()),
         })
         .collect();
 
@@ -362,21 +362,19 @@ pub fn lower_rule_to_ram(
 
                                 formulae.push(formula);
                             }
-                            ColumnValue::Binding(variable) => {
-                                match metadata.bindings.get(variable) {
-                                    None => (),
-                                    Some(Term::Attribute(_, attribute_binding))
-                                        if *attribute_binding == binding => {}
-                                    Some(bound_value) => {
-                                        let formula = Formula::equality(
-                                            Term::Attribute(attribute_id, binding),
-                                            bound_value.clone(),
-                                        );
+                            ColumnValue::Binding(var) => match metadata.bindings.get(&var.id()) {
+                                None => (),
+                                Some(Term::Attribute(_, attribute_binding))
+                                    if *attribute_binding == binding => {}
+                                Some(bound_value) => {
+                                    let formula = Formula::equality(
+                                        Term::Attribute(attribute_id, binding),
+                                        bound_value.clone(),
+                                    );
 
-                                        formulae.push(formula);
-                                    }
+                                    formulae.push(formula);
                                 }
-                            }
+                            },
                         }
                     }
 
@@ -402,8 +400,8 @@ pub fn lower_rule_to_ram(
                     for negation in satisfied {
                         let attributes = negation.args().iter().map(|(k, v)| match v {
                             ColumnValue::Literal(literal) => (*k, Term::Literal(literal.clone())),
-                            ColumnValue::Binding(variable) => {
-                                (*k, metadata.bindings.get(variable).unwrap().clone())
+                            ColumnValue::Binding(var) => {
+                                (*k, metadata.bindings.get(&var.id()).unwrap().clone())
                             }
                         });
 
@@ -445,13 +443,13 @@ pub fn lower_rule_to_ram(
                     };
 
                     let cid_term = match inner.cid() {
-                        CidValue::Cid(inner) => Term::Literal(Value::Cid(inner)),
-                        CidValue::Var(inner) => bindings.get(&inner).unwrap().clone(),
+                        CidValue::Cid(cid) => Term::Literal(Value::Cid(cid)),
+                        CidValue::Var(var) => bindings.get(&var.id()).unwrap().clone(),
                     };
 
                     let link_value = match inner.link_value() {
-                        CidValue::Cid(inner) => Term::Literal(Value::Cid(inner)),
-                        CidValue::Var(inner) => bindings.get(&inner).unwrap().clone(),
+                        CidValue::Cid(cid) => Term::Literal(Value::Cid(cid)),
+                        CidValue::Var(var) => bindings.get(&var.id()).unwrap().clone(),
                     };
 
                     previous = Operation::GetLink(GetLink::new(

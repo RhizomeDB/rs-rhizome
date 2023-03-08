@@ -1,18 +1,30 @@
-use crate::id::VarId;
+use crate::{
+    id::VarId,
+    types::{FromType, Type},
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Var {
-    // TODO: I'd love for this to be VarId, but we need to create these statically,
-    // and VarId requires the intern table
-    id: usize,
+    id: VarId,
+    typ: Type,
 }
 
 impl Var {
-    pub const fn new(id: usize) -> Self {
-        Self { id }
+    pub fn new<T>(id: &str) -> Self
+    where
+        Type: FromType<T>,
+    {
+        let id = VarId::new(id);
+        let typ = FromType::<T>::from_type();
+
+        Self { id, typ }
     }
 
     pub fn id(&self) -> VarId {
-        VarId::new(format!("X{}", self.id))
+        self.id
+    }
+
+    pub fn typ(&self) -> Type {
+        self.typ
     }
 }

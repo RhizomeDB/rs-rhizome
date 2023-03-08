@@ -5,7 +5,7 @@ use crate::{
     error::{error, Error},
     id::{ColumnId, VarId},
     logic::ast::{ColumnValue, Declaration, Negation, Var},
-    types::ColumnType,
+    types::Type,
     value::Value,
 };
 
@@ -24,7 +24,7 @@ impl NegationBuilder {
     pub fn finalize(
         self,
         relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<VarId, ColumnType>,
+        bound_vars: &mut HashMap<VarId, Type>,
     ) -> Result<Negation> {
         let mut columns = HashMap::default();
 
@@ -39,15 +39,15 @@ impl NegationBuilder {
 
             match &column_value {
                 ColumnValue::Literal(value) => column.column_type().check(&value)?,
-                ColumnValue::Binding(var_id) => {
-                    if let Some(bound_type) = bound_vars.get(&var_id) {
-                        if bound_type != column.column_type() {
-                            return error(Error::VariableTypeConflict(
-                                *var_id,
-                                *column.column_type(),
-                                *bound_type,
-                            ));
-                        }
+                ColumnValue::Binding(var) => {
+                    if let Some(downcasted) = column.column_type().downcast(&var.typ()) {
+                        bound_vars.insert(var.id(), downcasted);
+                    } else {
+                        return error(Error::VariableTypeConflict(
+                            var.id(),
+                            *column.column_type(),
+                            var.typ(),
+                        ));
                     }
                 }
             }
@@ -66,8 +66,7 @@ impl NegationBuilder {
     {
         let column_id = ColumnId::new(column_id);
 
-        self.bindings
-            .push((column_id, ColumnValue::Binding(var.id())));
+        self.bindings.push((column_id, ColumnValue::Binding(*var)));
 
         self
     }
