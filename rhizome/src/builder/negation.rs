@@ -29,7 +29,7 @@ impl NegationBuilder {
             match &column_value {
                 ColumnValue::Literal(value) => column.column_type().check(value)?,
                 ColumnValue::Binding(var) => {
-                    if let None = column.column_type().downcast(&var.typ()) {
+                    if column.column_type().downcast(&var.typ()).is_none() {
                         return error(Error::VariableTypeConflict(
                             var.id(),
                             *column.column_type(),
