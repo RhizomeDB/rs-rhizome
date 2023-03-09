@@ -3,9 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     error::{error, Error},
-    id::{ColumnId, VarId},
+    id::ColumnId,
     logic::ast::{ColumnValue, Declaration, Negation, Var},
-    types::Type,
     value::Value,
 };
 
@@ -15,11 +14,7 @@ pub struct NegationBuilder {
 }
 
 impl NegationBuilder {
-    pub fn finalize(
-        self,
-        relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<VarId, Type>,
-    ) -> Result<Negation> {
+    pub fn finalize(self, relation: Arc<Declaration>) -> Result<Negation> {
         let mut columns = HashMap::default();
 
         for (column_id, column_value) in self.bindings {
@@ -34,9 +29,7 @@ impl NegationBuilder {
             match &column_value {
                 ColumnValue::Literal(value) => column.column_type().check(value)?,
                 ColumnValue::Binding(var) => {
-                    if let Some(downcasted) = column.column_type().downcast(&var.typ()) {
-                        bound_vars.insert(var.id(), downcasted);
-                    } else {
+                    if let None = column.column_type().downcast(&var.typ()) {
                         return error(Error::VariableTypeConflict(
                             var.id(),
                             *column.column_type(),
