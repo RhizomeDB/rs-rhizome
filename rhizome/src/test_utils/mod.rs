@@ -4,7 +4,7 @@ mod rvg;
 pub use rvg::*;
 
 #[macro_export]
-macro_rules! assert_compiles {
+macro_rules! assert_compile {
     ($program_closure:expr) => {
         let program = match $crate::builder::ProgramBuilder::build($program_closure) {
             std::result::Result::Ok(v) => v,
@@ -17,6 +17,25 @@ macro_rules! assert_compiles {
             std::result::Result::Ok(v) => v,
             std::result::Result::Err(e) => {
                 panic!("Failed to lower program: {:?}", e);
+            }
+        };
+    };
+}
+
+#[macro_export]
+macro_rules! assert_compile_err {
+    ($err:expr, $program_closure:expr) => {
+        match $crate::builder::ProgramBuilder::build($program_closure) {
+            std::result::Result::Ok(v) => match $crate::logic::lower_to_ram::lower_to_ram(&v) {
+                std::result::Result::Ok(_) => {
+                    panic!("Expected an error, but compilation succeeded!");
+                }
+                std::result::Result::Err(e) => {
+                    assert_eq!(Some($err), e.downcast_ref());
+                }
+            },
+            std::result::Result::Err(e) => {
+                assert_eq!(Some($err), e.downcast_ref());
             }
         };
     };
