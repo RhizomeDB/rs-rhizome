@@ -185,7 +185,7 @@ impl<'a> RuleBodyBuilder<'a> {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
-            let negation = builder.finalize(Arc::clone(declaration), bound_vars)?;
+            let negation = builder.finalize(Arc::clone(declaration))?;
 
             for var_id in negation.variables() {
                 if !bound_vars.contains_key(&var_id) {
