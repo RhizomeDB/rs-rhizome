@@ -1,95 +1,74 @@
 use anyhow::Result;
+use futures::{sink::unfold, StreamExt};
+use rhizome::{
+    builder::ProgramBuilder, fact::traits::EDBFact, logic::lower_to_ram, runtime::client::Client,
+    types::Any,
+};
+use tokio::spawn;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // let (tx, rx) = oneshot::channel();
+    let program = ProgramBuilder::build(|p| {
+        p.input("evac", |h| {
+            h.column::<Any>("entity")
+                .column::<Any>("attribute")
+                .column::<Any>("value")
+        })?;
 
-    // spawn(async move {
-    //     let program = parser::parse(
-    //         r#"
-    //         input evac(cid, entity, attribute, value).
+        p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
+        p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
-    //         output edge(from, to).
-    //         output path(from, to).
+        p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
+            (
+                h.bind((("from", x), ("to", y))),
+                b.search("evac", (("entity", x), ("attribute", "to"), ("value", y))),
+            )
+        })?;
 
-    //         edge(from: X, to: Y) :- evac(entity: X, attribute: "to", value: Y).
+        p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
+            (
+                h.bind((("from", x), ("to", y))),
+                b.search("edge", (("from", x), ("to", y))),
+            )
+        })?;
 
-    //         path(from: X, to: Y) :- edge(from: X, to: Y).
-    //         path(from: X, to: Z) :- edge(from: X, to: Y), path(from: Y, to: Z).
-    //         "#,
-    //     )
-    //     .unwrap();
+        p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
+            (
+                h.bind((("from", x), ("to", z))),
+                b.search("edge", (("from", x), ("to", y)))
+                    .search("path", (("from", y), ("to", z))),
+            )
+        })
+    })?;
 
-    //     let mut reactor = rhizome::spawn(&program).unwrap();
-    //     reactor
-    //         .register_stream(move || {
-    //             Box::new(stream::iter([
-    //                 EDBFact::new(
-    //                     "evac",
-    //                     [
-    //                         ("entity", Datum::int(0)),
-    //                         ("attribute", Datum::string("to")),
-    //                         ("value", Datum::int(1)),
-    //                     ],
-    //                     Vec::<(LinkId, Cid)>::default(),
-    //                 ),
-    //                 EDBFact::new(
-    //                     "evac",
-    //                     [
-    //                         ("entity", Datum::int(1)),
-    //                         ("attribute", Datum::string("to")),
-    //                         ("value", Datum::int(2)),
-    //                     ],
-    //                     Vec::<(LinkId, Cid)>::default(),
-    //                 ),
-    //                 EDBFact::new(
-    //                     "evac",
-    //                     [
-    //                         ("entity", Datum::int(2)),
-    //                         ("attribute", Datum::string("to")),
-    //                         ("value", Datum::int(3)),
-    //                     ],
-    //                     Vec::<(LinkId, Cid)>::default(),
-    //                 ),
-    //                 EDBFact::new(
-    //                     "evac",
-    //                     [
-    //                         ("entity", Datum::int(3)),
-    //                         ("attribute", Datum::string("to")),
-    //                         ("value", Datum::int(4)),
-    //                     ],
-    //                     Vec::<(LinkId, Cid)>::default(),
-    //                 ),
-    //             ]))
-    //         })
-    //         .unwrap();
+    let program = lower_to_ram::lower_to_ram(&program)?;
+    let (mut client, mut rx, reactor) = Client::new(program);
 
-    //     reactor
-    //         .register_sink("path", move || {
-    //             Box::new(unfold((), move |_, fact| async move {
-    //                 println!("{fact}");
+    spawn(async move { reactor.async_run().await });
+    spawn(async move {
+        loop {
+            let _ = rx.next().await;
+        }
+    });
 
-    //                 Ok(())
-    //             }))
-    //         })
-    //         .unwrap();
+    client
+        .register_sink(
+            "path",
+            Box::new(|| {
+                Box::new(unfold((), move |(), fact| async move {
+                    println!("{fact}");
 
-    //     reactor
-    //         .register_sink("edge", move || {
-    //             Box::new(unfold((), move |_, fact| async move {
-    //                 println!("{fact}");
+                    Ok(())
+                }))
+            }),
+        )
+        .await?;
 
-    //                 Ok(())
-    //             }))
-    //         })
-    //         .unwrap();
-
-    //     reactor.subscribe(tx);
-
-    //     reactor.async_run().await.unwrap();
-    // });
-
-    // rx.await?;
+    client.insert_fact(EDBFact::new(0, "to", 1, vec![])).await?;
+    client.insert_fact(EDBFact::new(1, "to", 2, vec![])).await?;
+    client.insert_fact(EDBFact::new(2, "to", 3, vec![])).await?;
+    client.insert_fact(EDBFact::new(3, "to", 4, vec![])).await?;
+    client.flush().await?;
 
     Ok(())
 }
