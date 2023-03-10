@@ -3,10 +3,10 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
     error::{error, Error},
-    id::{ColumnId, LinkId, VarId},
-    logic::ast::{BodyTerm, CidValue, ColumnValue, Declaration, GetLink},
+    id::{ColId, LinkId, VarId},
+    logic::ast::{BodyTerm, CidValue, ColVal, Declaration, GetLink},
     types::Type,
-    value::Value,
+    value::Val,
 };
 
 use super::{
@@ -18,7 +18,7 @@ use super::{
 #[derive(Debug)]
 pub struct RuleHeadBuilder<'a> {
     relation: &'a Declaration,
-    pub(super) bindings: Vec<(ColumnId, ColumnValue)>,
+    pub(super) bindings: Vec<(ColId, ColVal)>,
 }
 
 impl<'a> RuleHeadBuilder<'a> {
@@ -29,76 +29,70 @@ impl<'a> RuleHeadBuilder<'a> {
         }
     }
 
-    pub fn finalize(
-        self,
-        bound_vars: &HashMap<VarId, Type>,
-    ) -> Result<HashMap<ColumnId, ColumnValue>> {
-        let mut columns = HashMap::default();
+    pub fn finalize(self, bound_vars: &HashMap<VarId, Type>) -> Result<HashMap<ColId, ColVal>> {
+        let mut cols = HashMap::default();
 
-        for (column_id, column_value) in self.bindings {
-            let Some(column) = self.relation.schema().get_column(&column_id) else {
-                return error(Error::UnrecognizedColumnBinding(self.relation.id(), column_id));
+        for (col_id, col_val) in self.bindings {
+            let Some(col) = self.relation.schema().get_col(&col_id) else {
+                return error(Error::UnrecognizedColumnBinding(self.relation.id(), col_id));
             };
 
-            if columns.contains_key(&column_id) {
-                return error(Error::ConflictingColumnBinding(
-                    self.relation.id(),
-                    column_id,
-                ));
+            if cols.contains_key(&col_id) {
+                return error(Error::ConflictingColumnBinding(self.relation.id(), col_id));
             }
 
-            match &column_value {
-                ColumnValue::Literal(val) => {
-                    if column.column_type().check(val).is_err() {
+            match &col_val {
+                ColVal::Lit(val) => {
+                    if col.col_type().check(val).is_err() {
                         return error(Error::ColumnValueTypeConflict(
                             self.relation.id(),
-                            column_id,
-                            column_value,
-                            *column.column_type(),
+                            col_id,
+                            col_val,
+                            *col.col_type(),
                         ));
                     }
                 }
-                ColumnValue::Binding(var) => {
-                    if column.column_type().downcast(&var.typ()).is_none() {
+                ColVal::Binding(var) => {
+                    if col.col_type().downcast(&var.typ()).is_none() {
                         return error(Error::ColumnValueTypeConflict(
                             self.relation.id(),
-                            column_id,
-                            ColumnValue::Binding(*var),
-                            *column.column_type(),
+                            col_id,
+                            ColVal::Binding(*var),
+                            *col.col_type(),
                         ));
                     }
                 }
             }
 
-            columns.insert(column_id, column_value);
+            cols.insert(col_id, col_val);
         }
 
-        for column_id in self.relation.schema().columns().keys() {
-            if !columns.contains_key(column_id) {
-                return error(Error::ColumnMissing(self.relation.id(), *column_id));
+        for col_id in self.relation.schema().cols().keys() {
+            if !cols.contains_key(col_id) {
+                return error(Error::ColumnMissing(self.relation.id(), *col_id));
             }
         }
 
-        for (column_id, value) in &columns {
-            if let ColumnValue::Binding(var) = value {
+        for (col_id, val) in &cols {
+            if let ColVal::Binding(var) = val {
                 if !bound_vars.contains_key(&var.id()) {
-                    return error(Error::ClauseNotRangeRestricted(*column_id, var.id()));
+                    return error(Error::ClauseNotRangeRestricted(*col_id, var.id()));
                 }
             }
         }
 
-        Ok(columns)
+        Ok(cols)
     }
 
     pub fn set<S, T>(mut self, id: S, value: T) -> Self
     where
         S: AsRef<str>,
-        T: Into<Value>,
+        T: Into<Val>,
     {
-        let id = ColumnId::new(id);
+        let id = ColId::new(id);
         let value = value.into();
 
-        self.bindings.push((id, ColumnValue::Literal(value)));
+        self.bindings.push((id, ColVal::Lit(value)));
 
         self
     }
@@ -107,7 +101,7 @@ impl<'a> RuleHeadBuilder<'a> {
     where
         T: AtomArgs<A>,
     {
-        for (id, value) in T::into_columns(bindings) {
+        for (id, value) in T::into_cols(bindings) {
             self.bindings.push((id, value));
         }
 
@@ -118,7 +112,7 @@ impl<'a> RuleHeadBuilder<'a> {
     where
         T: AtomArg<A>,
     {
-        let (id, value) = binding.into_column();
+        let (id, value) = binding.into_col();
 
         self.bindings.push((id, value));
 
@@ -200,7 +194,7 @@ impl<'a> RuleBodyBuilder<'a> {
 
             let negation = builder.finalize(Arc::clone(declaration))?;
 
-            for var_id in negation.variables() {
+            for var_id in negation.vars() {
                 if !bound_vars.contains_key(&var_id) {
                     return error(Error::ClauseNotDomainIndependent(var_id));
                 }
@@ -220,8 +214,8 @@ impl<'a> RuleBodyBuilder<'a> {
     {
         let mut builder = PredicateBuilder::new();
 
-        for (column_id, column_value) in T::into_columns(t) {
-            builder.bindings.push((column_id, column_value));
+        for (col_id, col_val) in T::into_cols(t) {
+            builder.bindings.push((col_id, col_val));
         }
 
         self.predicates.push((id.to_string(), builder));
@@ -247,8 +241,8 @@ impl<'a> RuleBodyBuilder<'a> {
     {
         let mut builder = NegationBuilder::default();
 
-        for (column_id, column_value) in T::into_columns(t) {
-            builder.bindings.push((column_id, column_value));
+        for (col_id, col_val) in T::into_cols(t) {
+            builder.bindings.push((col_id, col_val));
         }
 
         self.negations.push((id.to_string(), builder));

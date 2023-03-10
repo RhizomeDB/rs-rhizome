@@ -20,10 +20,10 @@ use crate::{
 };
 
 use super::ast::{
-    attribute_value::AttributeValue,
     body_term::{BodyTerm, GetLink, Negation, Predicate},
     cid_value::CidValue,
     clause::Clause,
+    col_val::ColValue,
     column::Column,
     fact::Fact,
     literal::Literal,

@@ -3,15 +3,15 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     error::{error, Error},
-    id::{ColumnId, VarId},
-    logic::ast::{ColumnValue, Declaration, Predicate, Var},
+    id::{ColId, VarId},
+    logic::ast::{ColVal, Declaration, Predicate, Var},
     types::Type,
-    value::Value,
+    value::Val,
 };
 
 #[derive(Debug, Default)]
 pub struct PredicateBuilder {
-    pub(super) bindings: Vec<(ColumnId, ColumnValue)>,
+    pub(super) bindings: Vec<(ColId, ColVal)>,
 }
 
 impl PredicateBuilder {
@@ -25,70 +25,70 @@ impl PredicateBuilder {
         relation: Arc<Declaration>,
         bound_vars: &mut HashMap<VarId, Type>,
     ) -> Result<Predicate> {
-        let mut columns = HashMap::default();
+        let mut cols = HashMap::default();
 
-        for (column_id, column_value) in self.bindings {
-            let Some(column) = relation.schema().get_column(&column_id) else {
-                return error(Error::UnrecognizedColumnBinding(relation.id(), column_id));
+        for (col_id, col_val) in self.bindings {
+            let Some(col) = relation.schema().get_col(&col_id) else {
+                return error(Error::UnrecognizedColumnBinding(relation.id(), col_id));
             };
 
-            if columns.contains_key(&column_id) {
-                return error(Error::ConflictingColumnBinding(relation.id(), column_id));
+            if cols.contains_key(&col_id) {
+                return error(Error::ConflictingColumnBinding(relation.id(), col_id));
             }
 
-            match &column_value {
-                ColumnValue::Literal(val) => {
-                    if column.column_type().check(val).is_err() {
+            match &col_val {
+                ColVal::Lit(val) => {
+                    if col.col_type().check(val).is_err() {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
-                            column_id,
-                            column_value,
-                            *column.column_type(),
+                            col_id,
+                            col_val,
+                            *col.col_type(),
                         ));
                     }
                 }
-                ColumnValue::Binding(var) => {
-                    if let Some(downcasted) = column.column_type().downcast(&var.typ()) {
+                ColVal::Binding(var) => {
+                    if let Some(downcasted) = col.col_type().downcast(&var.typ()) {
                         bound_vars.insert(var.id(), downcasted);
                     } else {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
-                            column_id,
-                            ColumnValue::Binding(*var),
-                            *column.column_type(),
+                            col_id,
+                            ColVal::Binding(*var),
+                            *col.col_type(),
                         ));
                     }
                 }
             }
 
-            columns.insert(column_id, column_value);
+            cols.insert(col_id, col_val);
         }
 
-        let predicate = Predicate::new(relation, columns);
+        let predicate = Predicate::new(relation, cols);
 
         Ok(predicate)
     }
 
-    pub fn bind<S>(mut self, column_id: S, var: &Var) -> Self
+    pub fn bind<S>(mut self, col_id: S, var: &Var) -> Self
     where
         S: AsRef<str>,
     {
-        let column_id = ColumnId::new(column_id);
+        let col_id = ColId::new(col_id);
 
-        self.bindings.push((column_id, ColumnValue::Binding(*var)));
+        self.bindings.push((col_id, ColVal::Binding(*var)));
 
         self
     }
 
-    pub fn when<S, T>(mut self, column_id: S, value: T) -> Self
+    pub fn when<S, T>(mut self, col_id: S, val: T) -> Self
     where
         S: AsRef<str>,
-        T: Into<Value>,
+        T: Into<Val>,
     {
-        let column_id = ColumnId::new(column_id);
-        let value = value.into();
+        let col_id = ColId::new(col_id);
+        let val = val.into();
 
-        self.bindings.push((column_id, ColumnValue::Literal(value)));
+        self.bindings.push((col_id, ColVal::Lit(val)));
 
         self
     }

@@ -5,46 +5,46 @@ use std::{
 
 use crate::{
     error::{error, Error},
-    value::Value,
+    value::Val,
 };
 use anyhow::Result;
 use cid::Cid;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
-pub enum ColumnType {
+pub enum ColType {
     #[default]
     Any,
     Type(Type),
 }
 
-impl ColumnType {
+impl ColType {
     pub fn new<T>() -> Self
     where
-        ColumnType: FromType<T>,
+        ColType: FromType<T>,
     {
         FromType::<T>::from_type()
     }
 
     pub fn downcast(&self, downcast_to: &Type) -> Option<Type> {
         match self {
-            ColumnType::Any => Some(*downcast_to),
-            ColumnType::Type(typ) if typ == downcast_to => Some(*downcast_to),
+            ColType::Any => Some(*downcast_to),
+            ColType::Type(typ) if typ == downcast_to => Some(*downcast_to),
             _ => None,
         }
     }
 
-    pub fn check(&self, value: &Value) -> Result<()> {
+    pub fn check(&self, value: &Val) -> Result<()> {
         match self {
-            ColumnType::Any => Ok(()),
-            ColumnType::Type(t) => t.check(value),
+            ColType::Any => Ok(()),
+            ColType::Type(t) => t.check(value),
         }
     }
 
     #[allow(dead_code)]
     fn inner(&self) -> Option<&Type> {
         match self {
-            ColumnType::Any => None,
-            ColumnType::Type(t) => Some(t),
+            ColType::Any => None,
+            ColType::Type(t) => Some(t),
         }
     }
 }
@@ -56,7 +56,7 @@ pub trait FromType<T> {
     fn from_type() -> Self;
 }
 
-impl<T> FromType<T> for ColumnType
+impl<T> FromType<T> for ColType
 where
     Type: FromType<T>,
 {
@@ -67,7 +67,7 @@ where
     }
 }
 
-impl FromType<Any> for ColumnType {
+impl FromType<Any> for ColType {
     fn from_type() -> Self {
         Self::Any
     }
@@ -145,11 +145,11 @@ impl FromType<Cid> for Type {
     }
 }
 
-impl Display for ColumnType {
+impl Display for ColType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ColumnType::Any => f.write_str("any"),
-            ColumnType::Type(t) => Display::fmt(t, f),
+            ColType::Any => f.write_str("any"),
+            ColType::Type(t) => Display::fmt(t, f),
         }
     }
 }
@@ -178,7 +178,7 @@ impl Type {
         FromType::<T>::from_type()
     }
 
-    pub fn check(&self, value: &Value) -> Result<()> {
+    pub fn check(&self, value: &Val) -> Result<()> {
         let other = &value.type_of();
 
         if self == other {

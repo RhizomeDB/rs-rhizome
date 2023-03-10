@@ -1,7 +1,7 @@
 use derive_more::{From, IsVariant, TryInto};
 use pretty::RcDoc;
 
-use crate::{id::ColumnId, pretty::Pretty};
+use crate::{id::ColId, pretty::Pretty};
 
 use super::{Equality, NotIn, RelationRef, Term};
 
@@ -16,12 +16,12 @@ impl Formula {
         Self::Equality(Equality::new(left, right))
     }
 
-    pub fn not_in<A, T>(attributes: impl IntoIterator<Item = (A, T)>, relation: RelationRef) -> Self
+    pub fn not_in<A, T>(cols: impl IntoIterator<Item = (A, T)>, relation: RelationRef) -> Self
     where
-        A: Into<ColumnId>,
+        A: Into<ColId>,
         T: Into<Term>,
     {
-        Self::NotIn(NotIn::new(attributes, relation))
+        Self::NotIn(NotIn::new(cols, relation))
     }
 }
 
