@@ -672,7 +672,6 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{assert_derives, fact::traits::IDBFact, types::Any};
-    use pretty_assertions::assert_eq;
 
     use super::*;
 

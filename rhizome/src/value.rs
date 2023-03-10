@@ -106,6 +106,12 @@ impl From<&str> for Value {
     }
 }
 
+impl From<Cid> for Value {
+    fn from(value: Cid) -> Self {
+        Self::Cid(value)
+    }
+}
+
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

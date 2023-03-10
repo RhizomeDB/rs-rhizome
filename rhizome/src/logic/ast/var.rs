@@ -1,3 +1,5 @@
+use std::fmt::{self, Display};
+
 use crate::{
     id::VarId,
     types::{FromType, Type},
@@ -26,5 +28,11 @@ impl Var {
 
     pub fn typ(&self) -> Type {
         self.typ
+    }
+}
+
+impl Display for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{} : {}", self.id, self.typ))
     }
 }
