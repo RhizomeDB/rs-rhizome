@@ -57,11 +57,7 @@ where
     A0: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-
-        columns
+        vec![self.0.into_column()]
     }
 }
 
@@ -70,11 +66,7 @@ where
     A0: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-
-        columns
+        vec![self.0.into_column()]
     }
 }
 
@@ -84,12 +76,7 @@ where
     A1: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-
-        columns
+        vec![self.0.into_column(), self.1.into_column()]
     }
 }
 
@@ -99,12 +86,7 @@ where
     A1: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-
-        columns
+        vec![self.0.into_column(), self.1.into_column()]
     }
 }
 
@@ -114,12 +96,7 @@ where
     A1: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-
-        columns
+        vec![self.0.into_column(), self.1.into_column()]
     }
 }
 
@@ -129,12 +106,7 @@ where
     A1: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-
-        columns
+        vec![self.0.into_column(), self.1.into_column()]
     }
 }
 
@@ -145,13 +117,11 @@ where
     A2: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -162,13 +132,11 @@ where
     A2: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -179,13 +147,11 @@ where
     A2: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -196,13 +162,11 @@ where
     A2: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -213,13 +177,11 @@ where
     A2: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -230,13 +192,11 @@ where
     A2: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -247,13 +207,11 @@ where
     A2: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -264,13 +222,11 @@ where
     A2: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+        ]
     }
 }
 
@@ -282,14 +238,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 
@@ -301,14 +255,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(Value, &'a Var, Value, Value)> for (A0, A1, A2, A3)
@@ -319,14 +271,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(Value, &'a Var, &'a Var, Value)> for (A0, A1, A2, A3)
@@ -337,14 +287,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 
@@ -356,14 +304,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 
@@ -375,14 +321,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(&'a Var, &'a Var, Value, Value)> for (A0, A1, A2, A3)
@@ -393,14 +337,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(&'a Var, &'a Var, &'a Var, Value)> for (A0, A1, A2, A3)
@@ -411,14 +353,12 @@ where
     A3: AtomArg<Value>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 
@@ -430,14 +370,12 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 
@@ -449,14 +387,12 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(Value, &'a Var, Value, &'a Var)> for (A0, A1, A2, A3)
@@ -467,14 +403,12 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(Value, &'a Var, &'a Var, &'a Var)> for (A0, A1, A2, A3)
@@ -485,14 +419,12 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 
@@ -504,14 +436,12 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 
@@ -523,14 +453,12 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(&'a Var, &'a Var, Value, &'a Var)> for (A0, A1, A2, A3)
@@ -541,14 +469,12 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
 impl<'a, A0, A1, A2, A3> AtomArgs<(&'a Var, &'a Var, &'a Var, &'a Var)> for (A0, A1, A2, A3)
@@ -559,13 +485,11 @@ where
     A3: AtomArg<&'a Var>,
 {
     fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
-        let mut columns = Vec::default();
-
-        columns.push(self.0.into_column());
-        columns.push(self.1.into_column());
-        columns.push(self.2.into_column());
-        columns.push(self.3.into_column());
-
-        columns
+        vec![
+            self.0.into_column(),
+            self.1.into_column(),
+            self.2.into_column(),
+            self.3.into_column(),
+        ]
     }
 }
