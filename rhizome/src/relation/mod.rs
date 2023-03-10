@@ -65,12 +65,10 @@ where
 
     fn contains(&self, fact: &F) -> bool {
         // TODO: This is incredibly slow. We either need to project relations down to the columns used in existence checks, or
-        // only allow negation over the complete set of attributes for a relation.
-        self.inner.iter().any(|f| {
-            fact.attributes()
-                .iter()
-                .all(|(k, v)| f.attributes().get(k) == Some(v))
-        })
+        // only allow negation over the complete set of columns for a relation.
+        self.inner
+            .iter()
+            .any(|f| fact.cols().iter().all(|(k, v)| f.cols().get(k) == Some(v)))
     }
 
     fn insert(self, fact: F) -> Self {

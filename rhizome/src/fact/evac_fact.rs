@@ -4,39 +4,39 @@ use cid::Cid;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    id::{ColumnId, LinkId, RelationId},
+    id::{ColId, LinkId, RelationId},
     relation::EDB,
     storage::content_addressable::ContentAddressable,
-    value::Value,
+    value::Val,
 };
 
 use super::traits::{EDBFact, Fact};
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct EVACFact {
-    pub entity: Value,
-    pub attribute: Value,
-    pub value: Value,
+    pub entity: Val,
+    pub attr: Val,
+    pub val: Val,
     pub causal_links: BTreeMap<LinkId, Cid>,
 }
 
 impl EDBFact for EVACFact {
     fn new(
-        entity: impl Into<Value>,
-        attribute: impl Into<Value>,
-        value: impl Into<Value>,
+        entity: impl Into<Val>,
+        attr: impl Into<Val>,
+        val: impl Into<Val>,
         links: Vec<(&str, Cid)>,
     ) -> Self {
         let entity = entity.into();
-        let attribute = attribute.into();
-        let value = value.into();
+        let attr = attr.into();
+        let val = val.into();
 
         let causal_links = links.into_iter().map(|(k, v)| (k.into(), v)).collect();
 
         Self {
             entity,
-            attribute,
-            value,
+            attr,
+            val,
             causal_links,
         }
     }
@@ -53,34 +53,34 @@ impl EDBFact for EVACFact {
 impl Fact for EVACFact {
     type Marker = EDB;
 
-    fn attribute(&self, id: &ColumnId) -> Option<Value> {
-        if *id == ColumnId::new("cid") {
-            Some(Value::Cid(self.cid()))
-        } else if *id == ColumnId::new("entity") {
+    fn col(&self, id: &ColId) -> Option<Val> {
+        if *id == ColId::new("cid") {
+            Some(Val::Cid(self.cid()))
+        } else if *id == ColId::new("entity") {
             Some(self.entity.clone())
-        } else if *id == ColumnId::new("attribute") {
-            Some(self.attribute.clone())
-        } else if *id == ColumnId::new("value") {
-            Some(self.value.clone())
+        } else if *id == ColId::new("attribute") {
+            Some(self.attr.clone())
+        } else if *id == ColId::new("value") {
+            Some(self.val.clone())
         } else {
             None
         }
     }
 
-    fn attributes(&self) -> BTreeMap<ColumnId, Value> {
+    fn cols(&self) -> BTreeMap<ColId, Val> {
         BTreeMap::from_iter([
-            (ColumnId::new("cid"), Value::Cid(self.cid())),
-            (ColumnId::new("entity"), self.entity.clone()),
-            (ColumnId::new("attribute"), self.attribute.clone()),
-            (ColumnId::new("value"), self.value.clone()),
+            (ColId::new("cid"), Val::Cid(self.cid())),
+            (ColId::new("entity"), self.entity.clone()),
+            (ColId::new("attribute"), self.attr.clone()),
+            (ColId::new("value"), self.val.clone()),
         ])
     }
 }
 
 impl Display for EVACFact {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let attributes = self
-            .attributes()
+        let cols = self
+            .cols()
             .iter()
             .map(|(k, v)| format!("{k}: {v}"))
             .collect::<Vec<String>>()
@@ -93,6 +93,6 @@ impl Display for EVACFact {
             .collect::<Vec<String>>()
             .join(", ");
 
-        write!(f, "evac({attributes}, links: [{links}])")
+        write!(f, "evac({cols}, links: [{links}])")
     }
 }

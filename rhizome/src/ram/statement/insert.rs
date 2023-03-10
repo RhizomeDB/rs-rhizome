@@ -5,7 +5,7 @@ use crate::{pretty::Pretty, ram::operation::Operation};
 #[derive(Clone, Debug)]
 pub struct Insert {
     operation: Operation,
-    // Whether the insertion is for a ground atom with all constant attributes.
+    // Whether the insertion is for a ground atom with all constant columns.
     // I don't love this, but it enables us to ensure ground facts are only inserted
     // into the delta relation once.
     is_ground: bool,

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::Type;
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub enum Value {
+pub enum Val {
     Bool(bool),
     S8(i8),
     U8(u8),
@@ -21,112 +21,112 @@ pub enum Value {
     Cid(Cid),
 }
 
-impl Value {
+impl Val {
     pub fn type_of(&self) -> Type {
         match self {
-            Value::Bool(_) => Type::Bool,
-            Value::S8(_) => Type::S8,
-            Value::U8(_) => Type::U8,
-            Value::S16(_) => Type::S16,
-            Value::U16(_) => Type::U16,
-            Value::S32(_) => Type::S32,
-            Value::U32(_) => Type::U32,
-            Value::S64(_) => Type::S64,
-            Value::U64(_) => Type::U64,
-            Value::Char(_) => Type::Char,
-            Value::String(_) => Type::String,
-            Value::Cid(_) => Type::Cid,
+            Val::Bool(_) => Type::Bool,
+            Val::S8(_) => Type::S8,
+            Val::U8(_) => Type::U8,
+            Val::S16(_) => Type::S16,
+            Val::U16(_) => Type::U16,
+            Val::S32(_) => Type::S32,
+            Val::U32(_) => Type::U32,
+            Val::S64(_) => Type::S64,
+            Val::U64(_) => Type::U64,
+            Val::Char(_) => Type::Char,
+            Val::String(_) => Type::String,
+            Val::Cid(_) => Type::Cid,
         }
     }
 }
 
-impl From<bool> for Value {
+impl From<bool> for Val {
     fn from(value: bool) -> Self {
         Self::Bool(value)
     }
 }
 
-impl From<i8> for Value {
+impl From<i8> for Val {
     fn from(value: i8) -> Self {
         Self::S8(value)
     }
 }
 
-impl From<u8> for Value {
+impl From<u8> for Val {
     fn from(value: u8) -> Self {
         Self::U8(value)
     }
 }
 
-impl From<i16> for Value {
+impl From<i16> for Val {
     fn from(value: i16) -> Self {
         Self::S16(value)
     }
 }
 
-impl From<u16> for Value {
+impl From<u16> for Val {
     fn from(value: u16) -> Self {
         Self::U16(value)
     }
 }
 
-impl From<i32> for Value {
+impl From<i32> for Val {
     fn from(value: i32) -> Self {
         Self::S32(value)
     }
 }
 
-impl From<u32> for Value {
+impl From<u32> for Val {
     fn from(value: u32) -> Self {
         Self::U32(value)
     }
 }
 
-impl From<i64> for Value {
+impl From<i64> for Val {
     fn from(value: i64) -> Self {
         Self::S64(value)
     }
 }
 
-impl From<u64> for Value {
+impl From<u64> for Val {
     fn from(value: u64) -> Self {
         Self::U64(value)
     }
 }
 
-impl From<char> for Value {
+impl From<char> for Val {
     fn from(value: char) -> Self {
         Self::Char(value)
     }
 }
 
-impl From<&str> for Value {
+impl From<&str> for Val {
     fn from(value: &str) -> Self {
         Self::String(value.to_string().into_boxed_str())
     }
 }
 
-impl From<Cid> for Value {
+impl From<Cid> for Val {
     fn from(value: Cid) -> Self {
         Self::Cid(value)
     }
 }
 
-impl Display for Value {
+impl Display for Val {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Bool(v) => Display::fmt(v, f),
-            Value::S8(v) => Display::fmt(v, f),
-            Value::U8(v) => Display::fmt(v, f),
-            Value::S16(v) => Display::fmt(v, f),
-            Value::U16(v) => Display::fmt(v, f),
-            Value::S32(v) => Display::fmt(v, f),
-            Value::U32(v) => Display::fmt(v, f),
-            Value::S64(v) => Display::fmt(v, f),
-            Value::U64(v) => Display::fmt(v, f),
-            Value::Char(v) => f.write_fmt(format_args!("{v:?}")),
-            Value::String(v) => f.write_fmt(format_args!("{v:?}")),
-            Value::Cid(v) => f.write_fmt(format_args!("\"{v}\"")),
+            Val::Bool(v) => Display::fmt(v, f),
+            Val::S8(v) => Display::fmt(v, f),
+            Val::U8(v) => Display::fmt(v, f),
+            Val::S16(v) => Display::fmt(v, f),
+            Val::U16(v) => Display::fmt(v, f),
+            Val::S32(v) => Display::fmt(v, f),
+            Val::U32(v) => Display::fmt(v, f),
+            Val::S64(v) => Display::fmt(v, f),
+            Val::U64(v) => Display::fmt(v, f),
+            Val::Char(v) => f.write_fmt(format_args!("{v:?}")),
+            Val::String(v) => f.write_fmt(format_args!("{v:?}")),
+            Val::Cid(v) => f.write_fmt(format_args!("\"{v}\"")),
         }
     }
 }

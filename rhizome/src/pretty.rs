@@ -10,7 +10,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        id::{ColumnId, RelationId},
+        id::{ColId, RelationId},
         ram::{
             alias_id::AliasId,
             formula::Formula,
@@ -20,7 +20,7 @@ mod tests {
             relation_version::RelationVersion,
             term::Term,
         },
-        value::Value,
+        value::Val,
     };
 
     use super::*;
@@ -28,20 +28,20 @@ mod tests {
     #[test]
     fn test() {
         let formula1 = Formula::equality(
-            Term::Attribute(
-                ColumnId::new("name"),
+            Term::Col(
+                ColId::new("name"),
                 RelationBinding::edb(RelationId::new("person"), Some(AliasId::new().next())),
             ),
-            Term::Literal(Value::String("Quinn".into())),
+            Term::Lit(Val::String("Quinn".into())),
         );
 
         let formula2 = Formula::not_in(
-            [("age", Term::Literal(Value::U32(29)))],
+            [("age", Term::Lit(Val::U32(29)))],
             RelationRef::edb(RelationId::new("person"), RelationVersion::Total),
         );
 
         let project = Operation::Project(Project::new(
-            hashmap! {"age" => Term::Literal(Value::S32(29))},
+            hashmap! {"age" => Term::Lit(Val::S32(29))},
             RelationRef::edb(RelationId::new("person"), RelationVersion::Total),
         ));
 

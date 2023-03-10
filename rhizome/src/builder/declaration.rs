@@ -3,16 +3,16 @@ use std::{collections::HashMap, marker::PhantomData};
 
 use crate::{
     error::{error, Error},
-    id::{ColumnId, RelationId},
-    logic::ast::{Column, InnerDeclaration, Schema},
+    id::{ColId, RelationId},
+    logic::ast::{Col, InnerDeclaration, Schema},
     relation::RelationSource,
-    types::{ColumnType, FromType},
+    types::{ColType, FromType},
 };
 
 #[derive(Debug)]
 pub struct DeclarationBuilder<T> {
     id: RelationId,
-    columns: Vec<(ColumnId, Column)>,
+    cols: Vec<(ColId, Col)>,
     _marker: PhantomData<T>,
 }
 
@@ -23,23 +23,23 @@ where
     fn new(id: RelationId) -> Self {
         Self {
             id,
-            columns: Vec::default(),
+            cols: Vec::default(),
             _marker: PhantomData::default(),
         }
     }
 
     fn finalize(self) -> Result<InnerDeclaration<T>> {
-        let mut columns = HashMap::default();
+        let mut cols = HashMap::default();
 
-        for (column_id, column) in self.columns {
-            if columns.insert(column_id, column).is_some() {
-                return error(Error::DuplicateDeclarationColumn(self.id, column_id));
+        for (col_id, col) in self.cols {
+            if cols.insert(col_id, col).is_some() {
+                return error(Error::DuplicateDeclarationCol(self.id, col_id));
             }
 
-            columns.insert(column_id, column);
+            cols.insert(col_id, col);
         }
 
-        let schema = Schema::new(columns);
+        let schema = Schema::new(cols);
         let declaration = InnerDeclaration::new(self.id, schema);
 
         Ok(declaration)
@@ -54,13 +54,13 @@ where
 
     pub fn column<C>(mut self, id: &str) -> Self
     where
-        ColumnType: FromType<C>,
+        ColType: FromType<C>,
     {
-        let id = ColumnId::new(id);
-        let t = ColumnType::new::<C>();
-        let column = Column::new(id, t);
+        let id = ColId::new(id);
+        let t = ColType::new::<C>();
+        let col = Col::new(id, t);
 
-        self.columns.push((id, column));
+        self.cols.push((id, col));
 
         self
     }

@@ -8,7 +8,7 @@ use crate::{
         traits::{EDBFact, Fact, IDBFact},
         DefaultEDBFact, DefaultIDBFact,
     },
-    id::{ColumnId, RelationId, VarId},
+    id::{ColId, RelationId, VarId},
     ram::{
         formula::Formula,
         operation::{get_link::GetLink, project::Project, search::Search, Operation},
@@ -25,15 +25,15 @@ use crate::{
     relation::{DefaultRelation, Relation},
     storage::{blockstore::Blockstore, DefaultCodec},
     timestamp::{DefaultTimestamp, Timestamp},
-    value::Value,
+    value::Val,
 };
 
-type Bindings = im::HashMap<BindingKey, Value>;
+type Bindings = im::HashMap<BindingKey, Val>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum BindingKey {
-    Variable(VarId),
-    Relation(RelationBinding, ColumnId),
+    Var(VarId),
+    Relation(RelationBinding, ColId),
 }
 
 pub struct VM<
@@ -326,83 +326,17 @@ where
         for fact in &mut to_search.into_iter() {
             let mut next_bindings = bindings.clone();
 
-            for (k, v) in fact.attributes() {
+            for (k, v) in fact.cols() {
                 next_bindings.insert(BindingKey::Relation(relation_binding, k), v);
             }
 
-            let is_satisfied = search.when().iter().all(|f| match f {
-                Formula::Equality(equality) => {
-                    let left = match equality.left() {
-                        Term::Attribute(column, column_binding)
-                            if *column_binding == relation_binding =>
-                        {
-                            fact.attribute(column)
-                        }
-                        Term::Attribute(column, column_binding) => bindings
-                            .get(&BindingKey::Relation(*column_binding, *column))
-                            .cloned(),
-                        Term::Variable(variable) => {
-                            bindings.get(&BindingKey::Variable(*variable)).cloned()
-                        }
-                        Term::Literal(value) => Some(value.clone()),
-                    };
-
-                    let right = match equality.right() {
-                        Term::Attribute(column, column_binding)
-                            if *column_binding == relation_binding =>
-                        {
-                            fact.attribute(column)
-                        }
-                        Term::Attribute(column, column_binding) => bindings
-                            .get(&BindingKey::Relation(*column_binding, *column))
-                            .cloned(),
-                        Term::Variable(variable) => {
-                            bindings.get(&BindingKey::Variable(*variable)).cloned()
-                        }
-                        Term::Literal(value) => Some(value.clone()),
-                    };
-
-                    left == right
-                }
-                Formula::NotIn(not_in) => {
-                    // TODO: Dry up constructing a fact from BTreeMap<AttributeId, Term>
-                    let mut bound: Vec<(ColumnId, Value)> = Vec::default();
-
-                    for (id, term) in not_in.attributes() {
-                        match term {
-                            Term::Attribute(column, column_binding) => {
-                                let value = next_bindings
-                                    .get(&BindingKey::Relation(*column_binding, *column))
-                                    .unwrap();
-
-                                bound.push((*id, value.clone()));
-                            }
-                            Term::Variable(variable) => {
-                                let value =
-                                    next_bindings.get(&BindingKey::Variable(*variable)).unwrap();
-
-                                bound.push((*id, value.clone()));
-                            }
-                            Term::Literal(value) => bound.push((*id, value.clone())),
-                        }
-                    }
-
-                    match *not_in.relation() {
-                        RelationRef::EDB(_) => unreachable!(),
-                        RelationRef::IDB(inner) => {
-                            let bound_fact = IF::new(inner.id(), bound);
-
-                            !self
-                                .idb
-                                .get(&(inner.id(), inner.version()))
-                                .map(|r| r.contains(&bound_fact))
-                                .unwrap()
-                        }
-                    }
-                }
-            });
-
-            if !is_satisfied {
+            if !self.is_formulae_satisfied(
+                search.when(),
+                fact,
+                relation_binding,
+                bindings,
+                &next_bindings,
+            ) {
                 continue;
             }
 
@@ -414,23 +348,23 @@ where
     where
         BS: Blockstore,
     {
-        let mut bound: Vec<(ColumnId, Value)> = Vec::default();
+        let mut bound: Vec<(ColId, Val)> = Vec::default();
 
-        for (id, term) in project.attributes() {
+        for (id, term) in project.cols() {
             match term {
-                Term::Attribute(column, column_binding) => {
+                Term::Col(col, col_binding) => {
                     let value = bindings
-                        .get(&BindingKey::Relation(*column_binding, *column))
+                        .get(&BindingKey::Relation(*col_binding, *col))
                         .unwrap();
 
                     bound.push((*id, value.clone()));
                 }
-                Term::Variable(variable) => {
-                    let value = bindings.get(&BindingKey::Variable(*variable)).unwrap();
+                Term::Var(var) => {
+                    let value = bindings.get(&BindingKey::Var(*var)).unwrap();
 
                     bound.push((*id, value.clone()));
                 }
-                Term::Literal(value) => bound.push((*id, value.clone())),
+                Term::Lit(value) => bound.push((*id, value.clone())),
             }
         }
 
@@ -456,24 +390,24 @@ where
     where
         BS: Blockstore,
     {
-        let value = match get_link.cid_term() {
-            Term::Attribute(column, column_binding) => bindings
-                .get(&BindingKey::Relation(*column_binding, *column))
+        let val = match get_link.cid_term() {
+            Term::Col(col, col_binding) => bindings
+                .get(&BindingKey::Relation(*col_binding, *col))
                 .cloned(),
-            Term::Variable(variable) => bindings.get(&BindingKey::Variable(*variable)).cloned(),
-            Term::Literal(value) => Some(value.clone()),
+            Term::Var(var) => bindings.get(&BindingKey::Var(*var)).cloned(),
+            Term::Lit(value) => Some(value.clone()),
         };
 
-        match value {
-            Some(Value::Cid(cid)) => match blockstore.get_serializable::<DefaultCodec, EF>(&cid) {
+        match val {
+            Some(Val::Cid(cid)) => match blockstore.get_serializable::<DefaultCodec, EF>(&cid) {
                 Ok(Some(fact)) => match fact.link(*get_link.link_id()) {
                     Some(link_cid) => match get_link.link_value() {
-                        Term::Attribute(column, column_binding) => {
-                            let binding_key = BindingKey::Relation(*column_binding, *column);
+                        Term::Col(col, col_binding) => {
+                            let binding_key = BindingKey::Relation(*col_binding, *col);
 
                             match bindings.get(&binding_key) {
                                 Some(value) => {
-                                    if *value == Value::Cid(*link_cid) {
+                                    if *value == Val::Cid(*link_cid) {
                                         self.do_handle_operation(
                                             get_link.operation(),
                                             blockstore,
@@ -484,7 +418,7 @@ where
                                 }
                                 None => {
                                     let bindings =
-                                        bindings.update(binding_key, Value::Cid(*link_cid));
+                                        bindings.update(binding_key, Val::Cid(*link_cid));
 
                                     self.do_handle_operation(
                                         get_link.operation(),
@@ -494,34 +428,30 @@ where
                                 }
                             }
                         }
-                        Term::Variable(variable) => {
-                            match bindings.get(&BindingKey::Variable(*variable)) {
-                                Some(value) => {
-                                    if *value == Value::Cid(*link_cid) {
-                                        self.do_handle_operation(
-                                            get_link.operation(),
-                                            blockstore,
-                                            bindings,
-                                        );
-                                    } else {
-                                    }
-                                }
-                                None => {
-                                    let bindings = bindings.update(
-                                        BindingKey::Variable(*variable),
-                                        Value::Cid(*link_cid),
-                                    );
-
+                        Term::Var(var) => match bindings.get(&BindingKey::Var(*var)) {
+                            Some(value) => {
+                                if *value == Val::Cid(*link_cid) {
                                     self.do_handle_operation(
                                         get_link.operation(),
                                         blockstore,
-                                        &bindings,
+                                        bindings,
                                     );
+                                } else {
                                 }
                             }
-                        }
-                        Term::Literal(value) => {
-                            if *value == Value::Cid(*link_cid) {
+                            None => {
+                                let bindings =
+                                    bindings.update(BindingKey::Var(*var), Val::Cid(*link_cid));
+
+                                self.do_handle_operation(
+                                    get_link.operation(),
+                                    blockstore,
+                                    &bindings,
+                                );
+                            }
+                        },
+                        Term::Lit(value) => {
+                            if *value == Val::Cid(*link_cid) {
                                 self.do_handle_operation(
                                     get_link.operation(),
                                     blockstore,
@@ -666,5 +596,80 @@ where
         }
 
         Ok(())
+    }
+
+    fn is_formulae_satisfied<F>(
+        &self,
+        when: &Vec<Formula>,
+        fact: F,
+        relation_binding: RelationBinding,
+        bindings: &Bindings,
+        next_bindings: &Bindings,
+    ) -> bool
+    where
+        F: Fact,
+    {
+        when.iter().all(|f| match f {
+            Formula::Equality(equality) => {
+                let left = match equality.left() {
+                    Term::Col(col, col_binding) if *col_binding == relation_binding => {
+                        fact.col(col)
+                    }
+                    Term::Col(col, col_binding) => bindings
+                        .get(&BindingKey::Relation(*col_binding, *col))
+                        .cloned(),
+                    Term::Var(var) => bindings.get(&BindingKey::Var(*var)).cloned(),
+                    Term::Lit(value) => Some(value.clone()),
+                };
+
+                let right = match equality.right() {
+                    Term::Col(col, col_binding) if *col_binding == relation_binding => {
+                        fact.col(col)
+                    }
+                    Term::Col(col, col_binding) => bindings
+                        .get(&BindingKey::Relation(*col_binding, *col))
+                        .cloned(),
+                    Term::Var(var) => bindings.get(&BindingKey::Var(*var)).cloned(),
+                    Term::Lit(value) => Some(value.clone()),
+                };
+
+                left == right
+            }
+            Formula::NotIn(not_in) => {
+                // TODO: Dry up constructing a fact from BTreeMap<ColId, Term>
+                let mut bound: Vec<(ColId, Val)> = Vec::default();
+
+                for (id, term) in not_in.cols() {
+                    match term {
+                        Term::Col(col, col_binding) => {
+                            let value = next_bindings
+                                .get(&BindingKey::Relation(*col_binding, *col))
+                                .unwrap();
+
+                            bound.push((*id, value.clone()));
+                        }
+                        Term::Var(var) => {
+                            let value = next_bindings.get(&BindingKey::Var(*var)).unwrap();
+
+                            bound.push((*id, value.clone()));
+                        }
+                        Term::Lit(value) => bound.push((*id, value.clone())),
+                    }
+                }
+
+                match *not_in.relation() {
+                    RelationRef::EDB(_) => unreachable!(),
+                    RelationRef::IDB(inner) => {
+                        let bound_fact = IF::new(inner.id(), bound);
+
+                        !self
+                            .idb
+                            .get(&(inner.id(), inner.version()))
+                            .map(|r| r.contains(&bound_fact))
+                            .unwrap()
+                    }
+                }
+            }
+        })
     }
 }
