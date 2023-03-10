@@ -45,6 +45,18 @@ mod tests {
     }
 
     #[test]
+    fn test_get_link() {
+        assert_compile!(|p| {
+            p.input("evac", |h| h)?;
+            p.output("p", |h| h.column::<Cid>("x"))?;
+
+            p.rule::<(Cid, Cid)>("p", &|h, b, (x, y)| {
+                (h.bind((("x", x),)), b.get_link(x, "link", y))
+            })
+        });
+    }
+
+    #[test]
     fn test_stratifiable_negation() {
         assert_compile!(|p| {
             p.input("r", |h| h.column::<i32>("r0").column::<i32>("r1"))?;
