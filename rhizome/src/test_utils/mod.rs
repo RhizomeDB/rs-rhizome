@@ -31,11 +31,11 @@ macro_rules! assert_compile_err {
                     panic!("Expected an error, but compilation succeeded!");
                 }
                 std::result::Result::Err(e) => {
-                    assert_eq!(Some($err), e.downcast_ref());
+                    pretty_assertions::assert_eq!(Some($err), e.downcast_ref());
                 }
             },
             std::result::Result::Err(e) => {
-                assert_eq!(Some($err), e.downcast_ref());
+                pretty_assertions::assert_eq!(Some($err), e.downcast_ref());
             }
         };
     };
@@ -84,6 +84,6 @@ macro_rules! assert_derives {
 
         let expected = std::collections::BTreeSet::from_iter($expected);
 
-        assert_eq!(facts, expected);
+        pretty_assertions::assert_eq!(facts, expected);
     };
 }

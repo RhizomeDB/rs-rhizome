@@ -5,7 +5,7 @@ use crate::{
     error::{error, Error},
     id::{ColumnId, LinkId, VarId},
     logic::ast::{BodyTerm, CidValue, ColumnValue, Declaration, GetLink},
-    types::{ColumnType, Type},
+    types::Type,
     value::Value,
 };
 
@@ -37,21 +37,34 @@ impl<'a> RuleHeadBuilder<'a> {
 
         for (column_id, column_value) in self.bindings {
             let Some(column) = self.relation.schema().get_column(&column_id) else {
-                return error(Error::UnrecognizedColumnBinding(column_id, self.relation.id()));
+                return error(Error::UnrecognizedColumnBinding(self.relation.id(), column_id));
             };
 
             if columns.contains_key(&column_id) {
-                return error(Error::ConflictingColumnBinding(column_id));
+                return error(Error::ConflictingColumnBinding(
+                    self.relation.id(),
+                    column_id,
+                ));
             }
 
             match &column_value {
-                ColumnValue::Literal(value) => column.column_type().check(value)?,
+                ColumnValue::Literal(val) => {
+                    if column.column_type().check(val).is_err() {
+                        return error(Error::ColumnValueTypeConflict(
+                            self.relation.id(),
+                            column_id,
+                            column_value,
+                            *column.column_type(),
+                        ));
+                    }
+                }
                 ColumnValue::Binding(var) => {
                     if column.column_type().downcast(&var.typ()).is_none() {
-                        return error(Error::VariableTypeConflict(
-                            var.id(),
+                        return error(Error::ColumnValueTypeConflict(
+                            self.relation.id(),
+                            column_id,
+                            ColumnValue::Binding(*var),
                             *column.column_type(),
-                            var.typ(),
                         ));
                     }
                 }
@@ -62,7 +75,7 @@ impl<'a> RuleHeadBuilder<'a> {
 
         for column_id in self.relation.schema().columns().keys() {
             if !columns.contains_key(column_id) {
-                return error(Error::ColumnMissing(*column_id, self.relation.id()));
+                return error(Error::ColumnMissing(self.relation.id(), *column_id));
             }
         }
 
@@ -152,25 +165,25 @@ impl<'a> RuleBodyBuilder<'a> {
 
         for (cid, link_id, value) in self.get_links {
             if let CidValue::Var(var) = cid {
+                if var.typ() != Type::Cid {
+                    return error(Error::VarTypeConflict(var, Type::Cid));
+                }
+
                 if let Some(bound_type) = bound_vars.insert(var.id(), Type::Cid) {
                     if bound_type != Type::Cid {
-                        return error(Error::VariableTypeConflict(
-                            var.id(),
-                            ColumnType::Type(Type::Cid),
-                            bound_type,
-                        ));
+                        return error(Error::VarTypeConflict(var, Type::Cid));
                     }
                 }
             }
 
             if let CidValue::Var(var) = value {
+                if var.typ() != Type::Cid {
+                    return error(Error::VarTypeConflict(var, Type::Cid));
+                }
+
                 if let Some(bound_type) = bound_vars.insert(var.id(), Type::Cid) {
                     if bound_type != Type::Cid {
-                        return error(Error::VariableTypeConflict(
-                            var.id(),
-                            ColumnType::Type(Type::Cid),
-                            bound_type,
-                        ));
+                        return error(Error::VarTypeConflict(var, Type::Cid));
                     }
                 }
             }

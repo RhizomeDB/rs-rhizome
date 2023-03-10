@@ -29,23 +29,33 @@ impl PredicateBuilder {
 
         for (column_id, column_value) in self.bindings {
             let Some(column) = relation.schema().get_column(&column_id) else {
-                return error(Error::UnrecognizedColumnBinding(column_id, relation.id()));
+                return error(Error::UnrecognizedColumnBinding(relation.id(), column_id));
             };
 
             if columns.contains_key(&column_id) {
-                return error(Error::ConflictingColumnBinding(column_id));
+                return error(Error::ConflictingColumnBinding(relation.id(), column_id));
             }
 
             match &column_value {
-                ColumnValue::Literal(value) => column.column_type().check(value)?,
+                ColumnValue::Literal(val) => {
+                    if column.column_type().check(val).is_err() {
+                        return error(Error::ColumnValueTypeConflict(
+                            relation.id(),
+                            column_id,
+                            column_value,
+                            *column.column_type(),
+                        ));
+                    }
+                }
                 ColumnValue::Binding(var) => {
                     if let Some(downcasted) = column.column_type().downcast(&var.typ()) {
                         bound_vars.insert(var.id(), downcasted);
                     } else {
-                        return error(Error::VariableTypeConflict(
-                            var.id(),
+                        return error(Error::ColumnValueTypeConflict(
+                            relation.id(),
+                            column_id,
+                            ColumnValue::Binding(*var),
                             *column.column_type(),
-                            var.typ(),
                         ));
                     }
                 }
