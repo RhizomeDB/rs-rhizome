@@ -1,24 +1,20 @@
 use std::collections::HashMap;
 
-use crate::id::{ColumnId, RelationId};
+use crate::id::{ColId, RelationId};
 
 use super::{
-    ColumnValue, Declaration, Edge, {BodyTerm, Negation, Predicate},
+    ColVal, Declaration, Edge, {BodyTerm, Negation, Predicate},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rule {
     head: RelationId,
-    args: HashMap<ColumnId, ColumnValue>,
+    args: HashMap<ColId, ColVal>,
     body: Vec<BodyTerm>,
 }
 
 impl Rule {
-    pub fn new(
-        head: RelationId,
-        args: HashMap<ColumnId, ColumnValue>,
-        body: Vec<BodyTerm>,
-    ) -> Self {
+    pub fn new(head: RelationId, args: HashMap<ColId, ColVal>, body: Vec<BodyTerm>) -> Self {
         Self { head, args, body }
     }
 
@@ -26,7 +22,7 @@ impl Rule {
         self.head
     }
 
-    pub fn args(&self) -> &HashMap<ColumnId, ColumnValue> {
+    pub fn args(&self) -> &HashMap<ColId, ColVal> {
         &self.args
     }
 

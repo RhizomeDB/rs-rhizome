@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use crate::{
     error::{error, Error},
-    id::ColumnId,
-    logic::ast::{ColumnValue, Declaration, Fact},
-    value::Value,
+    id::ColId,
+    logic::ast::{ColVal, Declaration, Fact},
+    value::Val,
 };
 
 use super::atom_args::{AtomArg, AtomArgs};
@@ -13,7 +13,7 @@ use super::atom_args::{AtomArg, AtomArgs};
 #[derive(Debug)]
 pub struct FactBuilder<'a> {
     relation: &'a Declaration,
-    bindings: Vec<(ColumnId, ColumnValue)>,
+    bindings: Vec<(ColId, ColVal)>,
 }
 
 impl<'a> FactBuilder<'a> {
@@ -32,53 +32,46 @@ impl<'a> FactBuilder<'a> {
     }
 
     pub fn finalize(self) -> Result<Fact> {
-        let mut columns = HashMap::default();
+        let mut cols = HashMap::default();
 
-        for (column_id, column_value) in self.bindings {
-            match column_value {
-                ColumnValue::Literal(val) => {
-                    let Some(column) = self.relation.schema().get_column(&column_id) else {
-                        return error(Error::UnrecognizedColumnBinding(self.relation.id(), column_id));
+        for (col_id, col_val) in self.bindings {
+            match col_val {
+                ColVal::Lit(val) => {
+                    let Some(col) = self.relation.schema().get_col(&col_id) else {
+                        return error(Error::UnrecognizedColumnBinding(self.relation.id(), col_id));
                     };
 
-                    if columns.contains_key(&column_id) {
-                        return error(Error::ConflictingColumnBinding(
-                            self.relation.id(),
-                            column_id,
-                        ));
+                    if cols.contains_key(&col_id) {
+                        return error(Error::ConflictingColumnBinding(self.relation.id(), col_id));
                     }
 
-                    if column.column_type().check(&val).is_err() {
+                    if col.col_type().check(&val).is_err() {
                         return error(Error::ColumnValueTypeConflict(
                             self.relation.id(),
-                            column_id,
-                            ColumnValue::Literal(val),
-                            *column.column_type(),
+                            col_id,
+                            ColVal::Lit(val),
+                            *col.col_type(),
                         ));
                     };
 
-                    columns.insert(column_id, val);
+                    cols.insert(col_id, val);
                 }
-                ColumnValue::Binding(var) => {
-                    return error(Error::NonGroundFact(
-                        self.relation.id(),
-                        column_id,
-                        var.id(),
-                    ));
+                ColVal::Binding(var) => {
+                    return error(Error::NonGroundFact(self.relation.id(), col_id, var.id()));
                 }
             }
         }
 
-        for column_id in self.relation.schema().columns().keys() {
-            if !columns.contains_key(column_id) {
-                return error(Error::ColumnMissing(self.relation.id(), *column_id));
+        for col_id in self.relation.schema().cols().keys() {
+            if !cols.contains_key(col_id) {
+                return error(Error::ColumnMissing(self.relation.id(), *col_id));
             }
         }
 
         match self.relation {
             Declaration::EDB(inner) => error(Error::ClauseHeadEDB(inner.id())),
             Declaration::IDB(inner) => {
-                let fact = Fact::new(inner.id(), columns);
+                let fact = Fact::new(inner.id(), cols);
 
                 Ok(fact)
             }
@@ -89,7 +82,7 @@ impl<'a> FactBuilder<'a> {
     where
         T: AtomArgs<A>,
     {
-        for (id, value) in T::into_columns(bindings) {
+        for (id, value) in T::into_cols(bindings) {
             self.bindings.push((id, value));
         }
 
@@ -98,9 +91,9 @@ impl<'a> FactBuilder<'a> {
 
     pub fn bind_one<T>(mut self, binding: T) -> Self
     where
-        T: AtomArg<Value>,
+        T: AtomArg<Val>,
     {
-        let (id, value) = binding.into_column();
+        let (id, value) = binding.into_col();
 
         self.bindings.push((id, value));
 

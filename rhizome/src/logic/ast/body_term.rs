@@ -5,9 +5,9 @@ use std::{
 
 use derive_more::{From, IsVariant, TryInto};
 
-use crate::id::{ColumnId, LinkId, VarId};
+use crate::id::{ColId, LinkId, VarId};
 
-use super::{CidValue, ColumnValue, Declaration, Polarity};
+use super::{CidValue, ColVal, Declaration, Polarity};
 
 #[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum BodyTerm {
@@ -17,11 +17,11 @@ pub enum BodyTerm {
 }
 
 impl BodyTerm {
-    pub fn variables(&self) -> HashSet<VarId> {
+    pub fn vars(&self) -> HashSet<VarId> {
         match self {
-            BodyTerm::Predicate(inner) => inner.variables(),
-            BodyTerm::Negation(inner) => inner.variables(),
-            BodyTerm::GetLink(inner) => inner.variables(),
+            BodyTerm::Predicate(inner) => inner.vars(),
+            BodyTerm::Negation(inner) => inner.vars(),
+            BodyTerm::GetLink(inner) => inner.vars(),
         }
     }
 
@@ -45,11 +45,11 @@ impl BodyTerm {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Predicate {
     relation: Arc<Declaration>,
-    args: HashMap<ColumnId, ColumnValue>,
+    args: HashMap<ColId, ColVal>,
 }
 
 impl Predicate {
-    pub fn new(relation: Arc<Declaration>, args: HashMap<ColumnId, ColumnValue>) -> Self {
+    pub fn new(relation: Arc<Declaration>, args: HashMap<ColId, ColVal>) -> Self {
         Self { relation, args }
     }
 
@@ -57,16 +57,16 @@ impl Predicate {
         &self.relation
     }
 
-    pub fn args(&self) -> &HashMap<ColumnId, ColumnValue> {
+    pub fn args(&self) -> &HashMap<ColId, ColVal> {
         &self.args
     }
 
-    pub fn variables(&self) -> HashSet<VarId> {
+    pub fn vars(&self) -> HashSet<VarId> {
         self.args
             .iter()
             .filter_map(|(_, v)| match v {
-                ColumnValue::Literal(_) => None,
-                ColumnValue::Binding(var) => Some(var.id()),
+                ColVal::Lit(_) => None,
+                ColVal::Binding(var) => Some(var.id()),
             })
             .collect()
     }
@@ -75,11 +75,11 @@ impl Predicate {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Negation {
     relation: Arc<Declaration>,
-    args: HashMap<ColumnId, ColumnValue>,
+    args: HashMap<ColId, ColVal>,
 }
 
 impl Negation {
-    pub fn new(relation: Arc<Declaration>, args: HashMap<ColumnId, ColumnValue>) -> Self {
+    pub fn new(relation: Arc<Declaration>, args: HashMap<ColId, ColVal>) -> Self {
         Self { relation, args }
     }
 
@@ -87,16 +87,16 @@ impl Negation {
         &self.relation
     }
 
-    pub fn args(&self) -> &HashMap<ColumnId, ColumnValue> {
+    pub fn args(&self) -> &HashMap<ColId, ColVal> {
         &self.args
     }
 
-    pub fn variables(&self) -> HashSet<VarId> {
+    pub fn vars(&self) -> HashSet<VarId> {
         self.args
             .iter()
             .filter_map(|(_, v)| match v {
-                ColumnValue::Literal(_) => None,
-                ColumnValue::Binding(var) => Some(var.id()),
+                ColVal::Lit(_) => None,
+                ColVal::Binding(var) => Some(var.id()),
             })
             .collect()
     }
@@ -139,7 +139,7 @@ impl GetLink {
     }
 
     // TODO: If we allowed link_id to be unbound we will need to add it here
-    pub fn variables(&self) -> HashSet<VarId> {
+    pub fn vars(&self) -> HashSet<VarId> {
         let mut vars = HashSet::default();
 
         if let CidValue::Var(var) = self.cid {

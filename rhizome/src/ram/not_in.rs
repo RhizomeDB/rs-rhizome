@@ -2,35 +2,32 @@ use std::collections::HashMap;
 
 use pretty::RcDoc;
 
-use crate::{id::ColumnId, pretty::Pretty};
+use crate::{id::ColId, pretty::Pretty};
 
 use super::{RelationRef, Term};
 
 #[derive(Clone, Debug)]
 pub struct NotIn {
-    attributes: HashMap<ColumnId, Term>,
+    cols: HashMap<ColId, Term>,
     relation: RelationRef,
 }
 
 impl NotIn {
-    pub fn new<A, T>(attributes: impl IntoIterator<Item = (A, T)>, relation: RelationRef) -> Self
+    pub fn new<A, T>(cols: impl IntoIterator<Item = (A, T)>, relation: RelationRef) -> Self
     where
-        A: Into<ColumnId>,
+        A: Into<ColId>,
         T: Into<Term>,
     {
-        let attributes = attributes
+        let cols = cols
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
 
-        Self {
-            attributes,
-            relation,
-        }
+        Self { cols, relation }
     }
 
-    pub fn attributes(&self) -> &HashMap<ColumnId, Term> {
-        &self.attributes
+    pub fn cols(&self) -> &HashMap<ColId, Term> {
+        &self.cols
     }
 
     pub fn relation(&self) -> &RelationRef {
@@ -40,13 +37,9 @@ impl NotIn {
 
 impl Pretty for NotIn {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        let attributes_doc = RcDoc::intersperse(
-            self.attributes().iter().map(|(attribute, term)| {
-                RcDoc::concat([
-                    RcDoc::as_string(attribute),
-                    RcDoc::text(": "),
-                    term.to_doc(),
-                ])
+        let cols_doc = RcDoc::intersperse(
+            self.cols().iter().map(|(col, term)| {
+                RcDoc::concat([RcDoc::as_string(col), RcDoc::text(": "), term.to_doc()])
             }),
             RcDoc::text(",").append(RcDoc::line()),
         )
@@ -55,7 +48,7 @@ impl Pretty for NotIn {
 
         RcDoc::concat([
             RcDoc::text("("),
-            attributes_doc,
+            cols_doc,
             RcDoc::text(")"),
             RcDoc::text(" notin "),
             self.relation().to_doc(),

@@ -16,9 +16,9 @@ mod tests {
     use crate::{
         assert_compile, assert_compile_err,
         error::Error,
-        logic::ast::{ColumnValue, Var},
-        types::{Any, ColumnType, Type},
-        value::Value,
+        logic::ast::{ColVal, Var},
+        types::{Any, ColType, Type},
+        value::Val,
     };
 
     #[test]
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_duplicate_input_declaration_column() {
         assert_compile_err!(
-            &Error::DuplicateDeclarationColumn("p".into(), "x".into()),
+            &Error::DuplicateDeclarationCol("p".into(), "x".into()),
             |p| { p.input("p", |h| h.column::<i32>("x").column::<i32>("x")) }
         );
     }
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn test_duplicate_output_declaration_column() {
         assert_compile_err!(
-            &Error::DuplicateDeclarationColumn("q".into(), "y".into()),
+            &Error::DuplicateDeclarationCol("q".into(), "y".into()),
             |p| { p.output("q", |h| h.column::<i32>("y").column::<i32>("y")) }
         );
     }
@@ -460,8 +460,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::S8(5)),
-                ColumnType::Type(Type::S32)
+                ColVal::Lit(Val::S8(5)),
+                ColType::Type(Type::S32)
             ),
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
@@ -474,8 +474,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::String("foo".to_string().into_boxed_str())),
-                ColumnType::Type(Type::Cid)
+                ColVal::Lit(Val::String("foo".to_string().into_boxed_str())),
+                ColType::Type(Type::Cid)
             ),
             |p| {
                 p.output("p", |h| h.column::<Cid>("x"))?;
@@ -488,8 +488,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::Char('f')),
-                ColumnType::Type(Type::String)
+                ColVal::Lit(Val::Char('f')),
+                ColType::Type(Type::String)
             ),
             |p| {
                 p.output("p", |h| h.column::<&str>("x"))?;
@@ -505,8 +505,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::U16(8)),
-                ColumnType::Type(Type::Bool)
+                ColVal::Lit(Val::U16(8)),
+                ColType::Type(Type::Bool)
             ),
             |p| {
                 p.output("p", |h| h.column::<bool>("x"))?;
@@ -519,8 +519,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::Bool(true)),
-                ColumnType::Type(Type::U32)
+                ColVal::Lit(Val::Bool(true)),
+                ColType::Type(Type::U32)
             ),
             |p| {
                 p.output("p", |h| h.column::<u32>("x"))?;
@@ -533,8 +533,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::String("b".to_string().into_boxed_str())),
-                ColumnType::Type(Type::Char)
+                ColVal::Lit(Val::String("b".to_string().into_boxed_str())),
+                ColType::Type(Type::Char)
             ),
             |p| {
                 p.output("p", |h| h.column::<char>("x"))?;
@@ -550,8 +550,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::U16(8)),
-                ColumnType::Type(Type::Bool)
+                ColVal::Lit(Val::U16(8)),
+                ColType::Type(Type::Bool)
             ),
             |p| {
                 p.input("q", |h| h.column::<bool>("x"))?;
@@ -567,8 +567,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::Bool(true)),
-                ColumnType::Type(Type::U32)
+                ColVal::Lit(Val::Bool(true)),
+                ColType::Type(Type::U32)
             ),
             |p| {
                 p.input("q", |h| h.column::<u32>("x"))?;
@@ -584,8 +584,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColumnValue::Literal(Value::String("b".to_string().into_boxed_str())),
-                ColumnType::Type(Type::Char)
+                ColVal::Lit(Val::String("b".to_string().into_boxed_str())),
+                ColType::Type(Type::Char)
             ),
             |p| {
                 p.input("q", |h| h.column::<char>("x"))?;
@@ -604,8 +604,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "y".into(),
-                ColumnValue::Binding(Var::new::<u32>("x0")),
-                ColumnType::Type(Type::Bool)
+                ColVal::Binding(Var::new::<u32>("x0")),
+                ColType::Type(Type::Bool)
             ),
             |p| {
                 p.input("q", |h| h.column::<u32>("x"))?;
@@ -624,8 +624,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColumnValue::Binding(Var::new::<bool>("x0")),
-                ColumnType::Type(Type::U32)
+                ColVal::Binding(Var::new::<bool>("x0")),
+                ColType::Type(Type::U32)
             ),
             |p| {
                 p.input("q", |h| h.column::<u32>("x"))?;
@@ -644,8 +644,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "y".into(),
-                ColumnValue::Binding(Var::new::<bool>("x0")),
-                ColumnType::Type(Type::U32)
+                ColVal::Binding(Var::new::<bool>("x0")),
+                ColType::Type(Type::U32)
             ),
             |p| {
                 p.input("q", |h| h.column::<Any>("x").column::<u32>("y"))?;
@@ -661,8 +661,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "y".into(),
-                ColumnValue::Binding(Var::new::<bool>("x0")),
-                ColumnType::Type(Type::U32)
+                ColVal::Binding(Var::new::<bool>("x0")),
+                ColType::Type(Type::U32)
             ),
             |p| {
                 p.input("q", |h| h.column::<Any>("x").column::<u32>("y"))?;
@@ -678,8 +678,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColumnValue::Binding(Var::new::<bool>("x0")),
-                ColumnType::Type(Type::U32)
+                ColVal::Binding(Var::new::<bool>("x0")),
+                ColType::Type(Type::U32)
             ),
             |p| {
                 p.input("q", |h| h.column::<Any>("x"))?;
@@ -695,8 +695,8 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "y".into(),
-                ColumnValue::Binding(Var::new::<u32>("x0")),
-                ColumnType::Type(Type::Bool)
+                ColVal::Binding(Var::new::<u32>("x0")),
+                ColType::Type(Type::Bool)
             ),
             |p| {
                 p.input("q", |h| h.column::<Any>("x"))?;

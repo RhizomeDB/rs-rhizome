@@ -1,10 +1,10 @@
 use crate::{
-    id::{ColumnId, RelationId},
+    id::{ColId, RelationId},
     relation::{RelationSource, EDB, IDB},
 };
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
-use super::Column;
+use super::Col;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Declaration {
@@ -58,23 +58,23 @@ where
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Schema {
-    columns: HashMap<ColumnId, Column>,
+    cols: HashMap<ColId, Col>,
 }
 
 impl Schema {
-    pub fn new(columns: HashMap<ColumnId, Column>) -> Self {
-        Self { columns }
+    pub fn new(cols: HashMap<ColId, Col>) -> Self {
+        Self { cols }
     }
 
-    pub fn has_column(&self, k: &ColumnId) -> bool {
-        self.columns().contains_key(k)
+    pub fn has_col(&self, k: &ColId) -> bool {
+        self.cols().contains_key(k)
     }
 
-    pub fn get_column(&self, k: &ColumnId) -> Option<&Column> {
-        self.columns.get(k)
+    pub fn get_col(&self, k: &ColId) -> Option<&Col> {
+        self.cols.get(k)
     }
 
-    pub fn columns(&self) -> &HashMap<ColumnId, Column> {
-        &self.columns
+    pub fn cols(&self) -> &HashMap<ColId, Col> {
+        &self.cols
     }
 }
