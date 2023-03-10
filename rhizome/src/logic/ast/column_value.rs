@@ -1,3 +1,5 @@
+use std::fmt::{self, Display};
+
 use crate::value::Value;
 
 use super::Var;
@@ -23,5 +25,14 @@ impl From<Var> for ColumnValue {
 impl From<&Var> for ColumnValue {
     fn from(value: &Var) -> Self {
         Self::Binding(*value)
+    }
+}
+
+impl Display for ColumnValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ColumnValue::Literal(inner) => Display::fmt(&inner, f),
+            ColumnValue::Binding(inner) => Display::fmt(&inner, f),
+        }
     }
 }

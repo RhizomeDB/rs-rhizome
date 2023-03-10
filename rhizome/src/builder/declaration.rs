@@ -33,7 +33,7 @@ where
 
         for (column_id, column) in self.columns {
             if columns.insert(column_id, column).is_some() {
-                return error(Error::DuplicateSchemaAttributeId(column_id));
+                return error(Error::DuplicateDeclarationColumn(self.id, column_id));
             }
 
             columns.insert(column_id, column);

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     id::ColumnId,
     logic::ast::{ColumnValue, Var},
@@ -45,12 +43,12 @@ where
 }
 
 pub trait AtomArgs<T> {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue>;
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)>;
 }
 
 impl AtomArgs<()> for () {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        HashMap::default()
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        Vec::default()
     }
 }
 
@@ -58,12 +56,10 @@ impl<'a, A0> AtomArgs<(Value,)> for (A0,)
 where
     A0: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-
-        columns.insert(a0, v0);
+        columns.push(self.0.into_column());
 
         columns
     }
@@ -73,12 +69,10 @@ impl<'a, A0> AtomArgs<(&'a Var,)> for (A0,)
 where
     A0: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-
-        columns.insert(a0, v0);
+        columns.push(self.0.into_column());
 
         columns
     }
@@ -89,14 +83,11 @@ where
     A0: AtomArg<Value>,
     A1: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
 
         columns
     }
@@ -107,14 +98,11 @@ where
     A0: AtomArg<Value>,
     A1: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
 
         columns
     }
@@ -125,14 +113,11 @@ where
     A0: AtomArg<&'a Var>,
     A1: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
 
         columns
     }
@@ -143,14 +128,11 @@ where
     A0: AtomArg<&'a Var>,
     A1: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
 
         columns
     }
@@ -162,16 +144,12 @@ where
     A1: AtomArg<Value>,
     A2: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -183,16 +161,12 @@ where
     A1: AtomArg<Value>,
     A2: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -204,16 +178,12 @@ where
     A1: AtomArg<&'a Var>,
     A2: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -225,16 +195,12 @@ where
     A1: AtomArg<&'a Var>,
     A2: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -246,16 +212,12 @@ where
     A1: AtomArg<Value>,
     A2: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -267,16 +229,12 @@ where
     A1: AtomArg<Value>,
     A2: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -288,16 +246,12 @@ where
     A1: AtomArg<&'a Var>,
     A2: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -309,16 +263,12 @@ where
     A1: AtomArg<&'a Var>,
     A2: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
 
         columns
     }
@@ -331,18 +281,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -355,18 +300,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -378,18 +318,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -401,18 +336,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -425,18 +355,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -449,18 +374,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -472,18 +392,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -495,18 +410,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<Value>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -519,18 +429,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -543,18 +448,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -566,18 +466,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -589,18 +484,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -613,18 +503,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -637,18 +522,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -660,18 +540,13 @@ where
     A2: AtomArg<Value>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
@@ -683,18 +558,13 @@ where
     A2: AtomArg<&'a Var>,
     A3: AtomArg<&'a Var>,
 {
-    fn into_columns(self) -> HashMap<ColumnId, ColumnValue> {
-        let mut columns = HashMap::default();
+    fn into_columns(self) -> Vec<(ColumnId, ColumnValue)> {
+        let mut columns = Vec::default();
 
-        let (a0, v0) = self.0.into_column();
-        let (a1, v1) = self.1.into_column();
-        let (a2, v2) = self.2.into_column();
-        let (a3, v3) = self.3.into_column();
-
-        columns.insert(a0, v0);
-        columns.insert(a1, v1);
-        columns.insert(a2, v2);
-        columns.insert(a3, v3);
+        columns.push(self.0.into_column());
+        columns.push(self.1.into_column());
+        columns.push(self.2.into_column());
+        columns.push(self.3.into_column());
 
         columns
     }
