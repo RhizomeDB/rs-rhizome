@@ -9,12 +9,12 @@ use petgraph::{
 
 use crate::{
     error::{error, Error},
-    id::{ColId, RelationId, VarId},
+    id::{ColId, RelationId},
     ram::{
         self,
         alias_id::AliasId,
         formula::Formula,
-        operation::{get_link::GetLink, project::Project, search::Search, Operation},
+        operation::{project::Project, search::Search, Operation},
         relation_binding::RelationBinding,
         relation_ref::RelationRef,
         relation_version::RelationVersion,
@@ -39,6 +39,7 @@ use super::ast::{
     program::Program,
     rule::Rule,
     stratum::Stratum,
+    Var,
 };
 
 pub fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
@@ -95,7 +96,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum, program: &Program) -> Result<Vec<
         // that change during this stratum
         let (dynamic_rules, static_rules): (Vec<Rule>, Vec<Rule>) =
             stratum.rules().into_iter().partition(|r| {
-                r.predicates().iter().any(|p| match &**p.relation() {
+                r.predicate_terms().iter().any(|p| match &**p.relation() {
                     Declaration::EDB(_) => false,
                     Declaration::IDB(inner) => stratum.relations().contains(&inner.id()),
                 })
@@ -228,16 +229,16 @@ pub fn lower_fact_to_ram(fact: &Fact) -> Result<Statement> {
 
 struct TermMetadata {
     alias: Option<AliasId>,
-    bindings: im::HashMap<VarId, Term>,
+    bindings: im::HashMap<Var, Term>,
 }
 
 impl TermMetadata {
-    fn new(alias: Option<AliasId>, bindings: im::HashMap<VarId, Term>) -> Self {
+    fn new(alias: Option<AliasId>, bindings: im::HashMap<Var, Term>) -> Self {
         Self { alias, bindings }
     }
 
-    fn is_bound(&self, var: VarId) -> bool {
-        self.bindings.contains_key(&var)
+    fn is_bound(&self, var: &Var) -> bool {
+        self.bindings.contains_key(var)
     }
 }
 
@@ -248,7 +249,7 @@ pub fn lower_rule_to_ram(
     version: RelationVersion,
 ) -> Result<Vec<Statement>> {
     let mut next_alias = im::HashMap::<RelationId, AliasId>::default();
-    let mut bindings = im::HashMap::<VarId, Term>::default();
+    let mut bindings = im::HashMap::<Var, Term>::default();
     let mut term_metadata = Vec::<(BodyTerm, TermMetadata)>::default();
 
     for body_term in rule.body() {
@@ -265,13 +266,13 @@ pub fn lower_rule_to_ram(
                 for (col_id, col_val) in predicate.args().clone() {
                     match col_val {
                         ColVal::Lit(_) => continue,
-                        ColVal::Binding(var) if !bindings.contains_key(&var.id()) => {
+                        ColVal::Binding(var) if !bindings.contains_key(&var) => {
                             let col_binding = match &**predicate.relation() {
                                 Declaration::EDB(inner) => RelationBinding::edb(inner.id(), alias),
                                 Declaration::IDB(inner) => RelationBinding::idb(inner.id(), alias),
                             };
 
-                            bindings.insert(var.id(), Term::Col(col_id, col_binding))
+                            bindings.insert(var, Term::Col(col_id, col_binding))
                         }
                         _ => continue,
                     };
@@ -284,13 +285,28 @@ pub fn lower_rule_to_ram(
             }
             BodyTerm::Negation(_) => continue,
             BodyTerm::GetLink(inner) => {
-                for v in inner.vars() {
-                    if !bindings.contains_key(&v) {
-                        bindings.insert(v, Term::Var(v));
+                if let CidValue::Var(val_var) = inner.link_value() {
+                    if !bindings.contains_key(&val_var) {
+                        match inner.cid() {
+                            CidValue::Cid(cid) => {
+                                bindings.insert(
+                                    val_var,
+                                    Term::Link(inner.link_id(), Box::new(Term::Lit(Val::Cid(cid)))),
+                                );
+                            }
+                            CidValue::Var(var) => {
+                                if let Some(term) = bindings.get(&var) {
+                                    bindings.insert(
+                                        val_var,
+                                        Term::Link(inner.link_id(), Box::new(term.clone())),
+                                    );
+                                } else {
+                                    return error(Error::ClauseNotDomainIndependent(var.id()));
+                                }
+                            }
+                        };
                     }
                 }
-
-                term_metadata.push((body_term.clone(), TermMetadata::new(None, bindings.clone())));
             }
         }
     }
@@ -300,16 +316,16 @@ pub fn lower_rule_to_ram(
         .iter()
         .map(|(k, v)| match v {
             ColVal::Lit(c) => (*k, Term::Lit(c.clone())),
-            ColVal::Binding(v) => (*k, bindings.get(&v.id()).unwrap().clone()),
+            ColVal::Binding(v) => (*k, bindings.get(v).unwrap().clone()),
         })
         .collect();
 
-    let projection_vars: Vec<VarId> = rule
+    let projection_vars: Vec<Var> = rule
         .args()
         .iter()
         .filter_map(|(_, v)| match *v {
             ColVal::Lit(_) => None,
-            ColVal::Binding(var) => Some(var.id()),
+            ColVal::Binding(var) => Some(var),
         })
         .collect();
 
@@ -329,17 +345,16 @@ pub fn lower_rule_to_ram(
         // bitmask of dynamic predicate versions (1 => delta, 0 => total)
         let mask = (1 << term_metadata.len()) - 1 - offset;
 
-        let mut negations = rule.negations().clone();
-        let mut previous = projection.clone();
+        let mut negation_terms = rule.negation_terms().clone();
+        let mut get_link_terms = rule.get_link_terms().clone();
 
-        // TODO: Hack to handle skipping rewrites involving static terms
-        let mut skip = false;
+        let mut previous = projection.clone();
 
         for (i, (body_term, metadata)) in term_metadata.iter().rev().enumerate() {
             let mut formulae = Vec::default();
 
             // TODO: Add this once, after all projection vars are bound
-            if projection_vars.iter().all(|&v| metadata.is_bound(v)) {
+            if projection_vars.iter().all(|&v| metadata.is_bound(&v)) {
                 formulae.push(Formula::not_in(
                     Vec::from_iter(projection_cols.clone()),
                     RelationRef::idb(rule.head(), RelationVersion::Total),
@@ -367,7 +382,7 @@ pub fn lower_rule_to_ram(
 
                                 formulae.push(formula);
                             }
-                            ColVal::Binding(var) => match metadata.bindings.get(&var.id()) {
+                            ColVal::Binding(var) => match metadata.bindings.get(var) {
                                 None => (),
                                 Some(Term::Col(_, col_binding)) if *col_binding == binding => {}
                                 Some(bound_value) => {
@@ -382,17 +397,17 @@ pub fn lower_rule_to_ram(
                         }
                     }
 
-                    let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = negations
+                    let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = negation_terms
                         .into_iter()
                         .partition(|n| n.vars().iter().all(|v| metadata.bindings.contains_key(v)));
 
-                    negations = unsatisfied;
+                    negation_terms = unsatisfied;
 
                     for negation in satisfied {
                         let cols = negation.args().iter().map(|(k, v)| match v {
                             ColVal::Lit(val) => (*k, Term::Lit(val.clone())),
                             ColVal::Binding(var) => {
-                                (*k, metadata.bindings.get(&var.id()).unwrap().clone())
+                                (*k, metadata.bindings.get(var).unwrap().clone())
                             }
                         });
 
@@ -406,6 +421,34 @@ pub fn lower_rule_to_ram(
                         };
 
                         formulae.push(Formula::not_in(cols, relation_ref))
+                    }
+
+                    let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = get_link_terms
+                        .into_iter()
+                        .partition(|term| match term.cid() {
+                            CidValue::Cid(_) => true,
+                            CidValue::Var(var) => bindings.contains_key(&var),
+                        });
+
+                    get_link_terms = unsatisfied;
+
+                    for term in satisfied {
+                        let cid_term = match term.cid() {
+                            CidValue::Cid(cid) => Term::Lit(Val::Cid(cid)),
+                            CidValue::Var(var) => Term::Link(
+                                term.link_id(),
+                                Box::new(metadata.bindings.get(&var).unwrap().clone()),
+                            ),
+                        };
+
+                        let val_term = match term.link_value() {
+                            CidValue::Cid(cid) => {
+                                Term::Link(term.link_id(), Box::new(Term::Lit(Val::Cid(cid))))
+                            }
+                            CidValue::Var(var) => metadata.bindings.get(&var).unwrap().clone(),
+                        };
+
+                        formulae.push(Formula::equality(cid_term, val_term));
                     }
 
                     let version = if mask & (1 << i) != 0 {
@@ -426,39 +469,12 @@ pub fn lower_rule_to_ram(
                         previous,
                     ));
                 }
-                BodyTerm::GetLink(inner) => {
-                    if mask & (1 << i) != 0 {
-                        skip = true;
-
-                        break;
-                    };
-
-                    let cid_term = match inner.cid() {
-                        CidValue::Cid(cid) => Term::Lit(Val::Cid(cid)),
-                        CidValue::Var(var) => bindings.get(&var.id()).unwrap().clone(),
-                    };
-
-                    let link_value = match inner.link_value() {
-                        CidValue::Cid(cid) => Term::Lit(Val::Cid(cid)),
-                        CidValue::Var(var) => bindings.get(&var.id()).unwrap().clone(),
-                    };
-
-                    previous = Operation::GetLink(GetLink::new(
-                        cid_term,
-                        inner.link_id(),
-                        link_value,
-                        // TODO: move unification logic into formula
-                        formulae,
-                        previous,
-                    ));
-                }
+                BodyTerm::GetLink(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
             };
         }
 
-        if !skip {
-            statements.push(Statement::Insert(Insert::new(previous, false)));
-        }
+        statements.push(Statement::Insert(Insert::new(previous, false)));
     }
 
     Ok(statements)

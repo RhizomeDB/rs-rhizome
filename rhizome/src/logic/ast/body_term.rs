@@ -5,9 +5,9 @@ use std::{
 
 use derive_more::{From, IsVariant, TryInto};
 
-use crate::id::{ColId, LinkId, VarId};
+use crate::id::{ColId, LinkId};
 
-use super::{CidValue, ColVal, Declaration, Polarity};
+use super::{CidValue, ColVal, Declaration, Polarity, Var};
 
 #[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum BodyTerm {
@@ -17,14 +17,6 @@ pub enum BodyTerm {
 }
 
 impl BodyTerm {
-    pub fn vars(&self) -> HashSet<VarId> {
-        match self {
-            BodyTerm::Predicate(inner) => inner.vars(),
-            BodyTerm::Negation(inner) => inner.vars(),
-            BodyTerm::GetLink(inner) => inner.vars(),
-        }
-    }
-
     pub fn depends_on(&self) -> Vec<&Declaration> {
         match self {
             BodyTerm::Predicate(inner) => vec![inner.relation()],
@@ -61,12 +53,12 @@ impl Predicate {
         &self.args
     }
 
-    pub fn vars(&self) -> HashSet<VarId> {
+    pub fn vars(&self) -> HashSet<&Var> {
         self.args
             .iter()
             .filter_map(|(_, v)| match v {
                 ColVal::Lit(_) => None,
-                ColVal::Binding(var) => Some(var.id()),
+                ColVal::Binding(var) => Some(var),
             })
             .collect()
     }
@@ -91,12 +83,12 @@ impl Negation {
         &self.args
     }
 
-    pub fn vars(&self) -> HashSet<VarId> {
+    pub fn vars(&self) -> HashSet<&Var> {
         self.args
             .iter()
             .filter_map(|(_, v)| match v {
                 ColVal::Lit(_) => None,
-                ColVal::Binding(var) => Some(var.id()),
+                ColVal::Binding(var) => Some(var),
             })
             .collect()
     }
@@ -139,15 +131,15 @@ impl GetLink {
     }
 
     // TODO: If we allowed link_id to be unbound we will need to add it here
-    pub fn vars(&self) -> HashSet<VarId> {
+    pub fn vars(&self) -> HashSet<&Var> {
         let mut vars = HashSet::default();
 
-        if let CidValue::Var(var) = self.cid {
-            vars.insert(var.id());
+        if let CidValue::Var(var) = &self.cid {
+            vars.insert(var);
         }
 
-        if let CidValue::Var(var) = self.link_value {
-            vars.insert(var.id());
+        if let CidValue::Var(var) = &self.link_value {
+            vars.insert(var);
         }
 
         vars

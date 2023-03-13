@@ -46,12 +46,15 @@ mod tests {
 
     #[test]
     fn test_get_link() {
+        let cid =
+            Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily").unwrap();
+
         assert_compile!(|p| {
             p.input("evac", |h| h)?;
             p.output("p", |h| h.column::<Cid>("x"))?;
 
-            p.rule::<(Cid, Cid)>("p", &|h, b, (x, y)| {
-                (h.bind((("x", x),)), b.get_link(x, "link", y))
+            p.rule::<(Cid,)>("p", &|h, b, (x,)| {
+                (h.bind((("x", x),)), b.get_link(cid, "link", x))
             })
         });
     }
@@ -441,14 +444,17 @@ mod tests {
 
     #[test]
     fn test_var_type_conflict_get_link_value() {
+        let cid =
+            Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily").unwrap();
+
         assert_compile_err!(
-            &Error::VarTypeConflict(Var::new::<i32>("x1"), Type::Cid),
+            &Error::VarTypeConflict(Var::new::<i32>("x0"), Type::Cid),
             |p| {
                 p.input("evac", |h| h)?;
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.rule::<(Cid, i32)>("p", &|h, b, (x, y)| {
-                    (h.bind((("x", y),)), b.get_link(x, "link", y))
+                p.rule::<(i32,)>("p", &|h, b, (x,)| {
+                    (h.bind((("x", x),)), b.get_link(cid, "link", x))
                 })
             }
         );

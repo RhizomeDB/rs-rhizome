@@ -8,10 +8,10 @@ use crate::{
         traits::{EDBFact, Fact, IDBFact},
         DefaultEDBFact, DefaultIDBFact,
     },
-    id::{ColId, RelationId, VarId},
+    id::{ColId, RelationId},
     ram::{
         formula::Formula,
-        operation::{get_link::GetLink, project::Project, search::Search, Operation},
+        operation::{project::Project, search::Search, Operation},
         program::Program,
         relation_binding::RelationBinding,
         relation_ref::RelationRef,
@@ -32,7 +32,6 @@ type Bindings = im::HashMap<BindingKey, Val>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum BindingKey {
-    Var(VarId),
     Relation(RelationBinding, ColId),
 }
 
@@ -281,7 +280,6 @@ where
         match operation {
             Operation::Search(inner) => self.handle_search(inner, blockstore, bindings),
             Operation::Project(inner) => self.handle_project(inner, blockstore, bindings),
-            Operation::GetLink(inner) => self.handle_get_link(inner, blockstore, bindings),
         }
     }
 
@@ -330,13 +328,7 @@ where
                 next_bindings.insert(BindingKey::Relation(relation_binding, k), v);
             }
 
-            if !self.is_formulae_satisfied(
-                search.when(),
-                fact,
-                relation_binding,
-                bindings,
-                &next_bindings,
-            ) {
+            if !self.is_formulae_satisfied(search.when(), blockstore, &next_bindings) {
                 continue;
             }
 
@@ -344,27 +336,17 @@ where
         }
     }
 
-    fn handle_project<BS>(&mut self, project: &Project, _blockstore: &BS, bindings: &Bindings)
+    fn handle_project<BS>(&mut self, project: &Project, blockstore: &BS, bindings: &Bindings)
     where
         BS: Blockstore,
     {
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in project.cols() {
-            match term {
-                Term::Col(col, col_binding) => {
-                    let value = bindings
-                        .get(&BindingKey::Relation(*col_binding, *col))
-                        .unwrap();
-
-                    bound.push((*id, value.clone()));
-                }
-                Term::Var(var) => {
-                    let value = bindings.get(&BindingKey::Var(*var)).unwrap();
-
-                    bound.push((*id, value.clone()));
-                }
-                Term::Lit(value) => bound.push((*id, value.clone())),
+            if let Some(val) = Self::resolve_term(term, blockstore, bindings) {
+                bound.push((*id, val));
+            } else {
+                return;
             }
         }
 
@@ -383,91 +365,6 @@ where
                     (inner.id(), inner.version()),
                 )
             }
-        }
-    }
-
-    fn handle_get_link<BS>(&mut self, get_link: &GetLink, blockstore: &BS, bindings: &Bindings)
-    where
-        BS: Blockstore,
-    {
-        let val = match get_link.cid_term() {
-            Term::Col(col, col_binding) => bindings
-                .get(&BindingKey::Relation(*col_binding, *col))
-                .cloned(),
-            Term::Var(var) => bindings.get(&BindingKey::Var(*var)).cloned(),
-            Term::Lit(value) => Some(value.clone()),
-        };
-
-        match val {
-            Some(Val::Cid(cid)) => match blockstore.get_serializable::<DefaultCodec, EF>(&cid) {
-                Ok(Some(fact)) => match fact.link(*get_link.link_id()) {
-                    Some(link_cid) => match get_link.link_value() {
-                        Term::Col(col, col_binding) => {
-                            let binding_key = BindingKey::Relation(*col_binding, *col);
-
-                            match bindings.get(&binding_key) {
-                                Some(value) => {
-                                    if *value == Val::Cid(*link_cid) {
-                                        self.do_handle_operation(
-                                            get_link.operation(),
-                                            blockstore,
-                                            bindings,
-                                        );
-                                    } else {
-                                    }
-                                }
-                                None => {
-                                    let bindings =
-                                        bindings.update(binding_key, Val::Cid(*link_cid));
-
-                                    self.do_handle_operation(
-                                        get_link.operation(),
-                                        blockstore,
-                                        &bindings,
-                                    );
-                                }
-                            }
-                        }
-                        Term::Var(var) => match bindings.get(&BindingKey::Var(*var)) {
-                            Some(value) => {
-                                if *value == Val::Cid(*link_cid) {
-                                    self.do_handle_operation(
-                                        get_link.operation(),
-                                        blockstore,
-                                        bindings,
-                                    );
-                                } else {
-                                }
-                            }
-                            None => {
-                                let bindings =
-                                    bindings.update(BindingKey::Var(*var), Val::Cid(*link_cid));
-
-                                self.do_handle_operation(
-                                    get_link.operation(),
-                                    blockstore,
-                                    &bindings,
-                                );
-                            }
-                        },
-                        Term::Lit(value) => {
-                            if *value == Val::Cid(*link_cid) {
-                                self.do_handle_operation(
-                                    get_link.operation(),
-                                    blockstore,
-                                    bindings,
-                                );
-                            } else {
-                            }
-                        }
-                    },
-                    None => (),
-                },
-                Ok(None) => todo!(),
-                Err(_) => todo!(),
-            },
-            Some(_) => todo!(),
-            None => todo!(),
         }
     }
 
@@ -598,40 +495,42 @@ where
         Ok(())
     }
 
-    fn is_formulae_satisfied<F>(
+    fn resolve_term<BS>(term: &Term, blockstore: &BS, bindings: &Bindings) -> Option<Val>
+    where
+        BS: Blockstore,
+    {
+        match term {
+            Term::Link(link_id, cid_term) => {
+                let Some(Val::Cid(cid)) = Self::resolve_term(cid_term, blockstore, bindings) else {
+                        panic!();
+                    };
+
+                let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(&cid) else {
+                        return None;
+                    };
+
+                fact.link(*link_id).cloned()
+            }
+            Term::Col(col, col_binding) => bindings
+                .get(&BindingKey::Relation(*col_binding, *col))
+                .cloned(),
+            Term::Lit(val) => Some(val.clone()),
+        }
+    }
+
+    fn is_formulae_satisfied<BS>(
         &self,
-        when: &Vec<Formula>,
-        fact: F,
-        relation_binding: RelationBinding,
+        when: &[Formula],
+        blockstore: &BS,
         bindings: &Bindings,
-        next_bindings: &Bindings,
     ) -> bool
     where
-        F: Fact,
+        BS: Blockstore,
     {
         when.iter().all(|f| match f {
             Formula::Equality(equality) => {
-                let left = match equality.left() {
-                    Term::Col(col, col_binding) if *col_binding == relation_binding => {
-                        fact.col(col)
-                    }
-                    Term::Col(col, col_binding) => bindings
-                        .get(&BindingKey::Relation(*col_binding, *col))
-                        .cloned(),
-                    Term::Var(var) => bindings.get(&BindingKey::Var(*var)).cloned(),
-                    Term::Lit(value) => Some(value.clone()),
-                };
-
-                let right = match equality.right() {
-                    Term::Col(col, col_binding) if *col_binding == relation_binding => {
-                        fact.col(col)
-                    }
-                    Term::Col(col, col_binding) => bindings
-                        .get(&BindingKey::Relation(*col_binding, *col))
-                        .cloned(),
-                    Term::Var(var) => bindings.get(&BindingKey::Var(*var)).cloned(),
-                    Term::Lit(value) => Some(value.clone()),
-                };
+                let left = Self::resolve_term(equality.left(), blockstore, bindings);
+                let right = Self::resolve_term(equality.right(), blockstore, bindings);
 
                 left == right
             }
@@ -640,20 +539,8 @@ where
                 let mut bound: Vec<(ColId, Val)> = Vec::default();
 
                 for (id, term) in not_in.cols() {
-                    match term {
-                        Term::Col(col, col_binding) => {
-                            let value = next_bindings
-                                .get(&BindingKey::Relation(*col_binding, *col))
-                                .unwrap();
-
-                            bound.push((*id, value.clone()));
-                        }
-                        Term::Var(var) => {
-                            let value = next_bindings.get(&BindingKey::Var(*var)).unwrap();
-
-                            bound.push((*id, value.clone()));
-                        }
-                        Term::Lit(value) => bound.push((*id, value.clone())),
+                    if let Some(val) = Self::resolve_term(term, blockstore, bindings) {
+                        bound.push((*id, val));
                     }
                 }
 
