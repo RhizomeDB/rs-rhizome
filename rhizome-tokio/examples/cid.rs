@@ -6,7 +6,6 @@ use rhizome::{
     fact::{evac_fact::EVACFact, traits::EDBFact},
     logic::lower_to_ram,
     runtime::client::Client,
-    storage::content_addressable::ContentAddressable,
     types::Any,
 };
 use tokio::spawn;
@@ -65,7 +64,12 @@ async fn main() -> Result<()> {
                 )),
                 b.search(
                     "evac",
-                    (("entity", e), ("attribute", "write"), ("value", v)),
+                    (
+                        ("cid", cid),
+                        ("entity", e),
+                        ("attribute", "write"),
+                        ("value", v),
+                    ),
                 )
                 .get_link(cid, "parent", parent)
                 .search("create", (("cid", parent), ("entity", e))),
@@ -82,7 +86,12 @@ async fn main() -> Result<()> {
                 )),
                 b.search(
                     "evac",
-                    (("entity", e), ("attribute", "write"), ("value", v)),
+                    (
+                        ("cid", cid),
+                        ("entity", e),
+                        ("attribute", "write"),
+                        ("value", v),
+                    ),
                 )
                 .get_link(cid, "parent", parent)
                 .search("update", (("cid", parent), ("entity", e))),
@@ -107,6 +116,7 @@ async fn main() -> Result<()> {
     })?;
 
     let program = lower_to_ram::lower_to_ram(&program)?;
+
     let (mut client, mut rx, reactor) = Client::new(program);
 
     spawn(async move { reactor.async_run().await });
@@ -166,7 +176,6 @@ async fn main() -> Result<()> {
     client.insert_fact(e2).await?;
     client.insert_fact(e3).await?;
     client.insert_fact(e4).await?;
-
     client.flush().await?;
 
     Ok(())

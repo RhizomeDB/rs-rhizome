@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     error::{error, Error},
-    id::{ColId, VarId},
+    id::ColId,
     logic::ast::{ColVal, Declaration, Predicate, Var},
     types::Type,
     value::Val,
@@ -23,7 +23,7 @@ impl PredicateBuilder {
     pub fn finalize(
         self,
         relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<VarId, Type>,
+        bound_vars: &mut HashMap<Var, Type>,
     ) -> Result<Predicate> {
         let mut cols = HashMap::default();
 
@@ -49,7 +49,7 @@ impl PredicateBuilder {
                 }
                 ColVal::Binding(var) => {
                     if let Some(downcasted) = col.col_type().downcast(&var.typ()) {
-                        bound_vars.insert(var.id(), downcasted);
+                        bound_vars.insert(*var, downcasted);
                     } else {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),

@@ -1,4 +1,3 @@
-use cid::Cid;
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display},
@@ -24,11 +23,15 @@ pub trait EDBFact: Fact<Marker = EDB> + ContentAddressable {
         entity: impl Into<Val>,
         attr: impl Into<Val>,
         val: impl Into<Val>,
-        links: Vec<(&str, Cid)>,
+        links: Vec<(&str, Val)>,
     ) -> Self;
 
     fn id(&self) -> RelationId;
-    fn link(&self, id: LinkId) -> Option<&Cid>;
+    fn link(&self, id: LinkId) -> Option<&Val>;
+
+    fn cid(&self) -> Val {
+        Val::Cid(ContentAddressable::cid(self))
+    }
 }
 pub trait IDBFact: Fact<Marker = IDB> {
     fn new<A: Into<ColId> + Ord, D: Into<Val>>(

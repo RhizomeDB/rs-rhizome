@@ -3,8 +3,8 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
     error::{error, Error},
-    id::{ColId, LinkId, VarId},
-    logic::ast::{BodyTerm, CidValue, ColVal, Declaration, GetLink},
+    id::{ColId, LinkId},
+    logic::ast::{BodyTerm, CidValue, ColVal, Declaration, GetLink, Var},
     types::Type,
     value::Val,
 };
@@ -29,7 +29,7 @@ impl<'a> RuleHeadBuilder<'a> {
         }
     }
 
-    pub fn finalize(self, bound_vars: &HashMap<VarId, Type>) -> Result<HashMap<ColId, ColVal>> {
+    pub fn finalize(self, bound_vars: &HashMap<Var, Type>) -> Result<HashMap<ColId, ColVal>> {
         let mut cols = HashMap::default();
 
         for (col_id, col_val) in self.bindings {
@@ -75,7 +75,7 @@ impl<'a> RuleHeadBuilder<'a> {
 
         for (col_id, val) in &cols {
             if let ColVal::Binding(var) = val {
-                if !bound_vars.contains_key(&var.id()) {
+                if !bound_vars.contains_key(var) {
                     return error(Error::ClauseNotRangeRestricted(*col_id, var.id()));
                 }
             }
@@ -143,7 +143,7 @@ impl<'a> RuleBodyBuilder<'a> {
         }
     }
 
-    pub fn finalize(self, bound_vars: &mut HashMap<VarId, Type>) -> Result<Vec<BodyTerm>> {
+    pub fn finalize(self, bound_vars: &mut HashMap<Var, Type>) -> Result<Vec<BodyTerm>> {
         let mut body_terms = Vec::default();
 
         for (id, builder) in self.predicates {
@@ -163,10 +163,12 @@ impl<'a> RuleBodyBuilder<'a> {
                     return error(Error::VarTypeConflict(var, Type::Cid));
                 }
 
-                if let Some(bound_type) = bound_vars.insert(var.id(), Type::Cid) {
+                if let Some(bound_type) = bound_vars.insert(var, Type::Cid) {
                     if bound_type != Type::Cid {
                         return error(Error::VarTypeConflict(var, Type::Cid));
                     }
+                } else {
+                    return error(Error::ClauseNotDomainIndependent(var.id()));
                 }
             }
 
@@ -175,7 +177,7 @@ impl<'a> RuleBodyBuilder<'a> {
                     return error(Error::VarTypeConflict(var, Type::Cid));
                 }
 
-                if let Some(bound_type) = bound_vars.insert(var.id(), Type::Cid) {
+                if let Some(bound_type) = bound_vars.insert(var, Type::Cid) {
                     if bound_type != Type::Cid {
                         return error(Error::VarTypeConflict(var, Type::Cid));
                     }
@@ -194,9 +196,9 @@ impl<'a> RuleBodyBuilder<'a> {
 
             let negation = builder.finalize(Arc::clone(declaration))?;
 
-            for var_id in negation.vars() {
-                if !bound_vars.contains_key(&var_id) {
-                    return error(Error::ClauseNotDomainIndependent(var_id));
+            for var in negation.vars() {
+                if !bound_vars.contains_key(var) {
+                    return error(Error::ClauseNotDomainIndependent(var.id()));
                 }
             }
 

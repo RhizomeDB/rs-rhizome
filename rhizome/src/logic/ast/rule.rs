@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::id::{ColId, RelationId};
 
 use super::{
-    ColVal, Declaration, Edge, {BodyTerm, Negation, Predicate},
+    ColVal, Declaration, Edge, GetLink, {BodyTerm, Negation, Predicate},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -30,12 +30,16 @@ impl Rule {
         &self.body
     }
 
-    pub fn predicates(&self) -> Vec<Predicate> {
+    pub fn predicate_terms(&self) -> Vec<Predicate> {
         self.body_terms_of::<Predicate>()
     }
 
-    pub fn negations(&self) -> Vec<Negation> {
+    pub fn negation_terms(&self) -> Vec<Negation> {
         self.body_terms_of::<Negation>()
+    }
+
+    pub fn get_link_terms(&self) -> Vec<GetLink> {
+        self.body_terms_of::<GetLink>()
     }
 
     pub fn depends_on(&self) -> Vec<Edge> {
