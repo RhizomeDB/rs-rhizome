@@ -61,10 +61,25 @@ macro_rules! assert_derives {
             }
         };
 
-        let bs = $crate::storage::memory::MemoryBlockstore::default();
+        let mut b = Vec::default();
+        $crate::pretty::Pretty::to_doc(&program)
+            .render(80, &mut b)
+            .unwrap();
+
+        let pretty = String::from_utf8(b).unwrap();
+
+        let mut bs = $crate::storage::memory::MemoryBlockstore::default();
         let mut vm = <$crate::runtime::vm::VM>::new(program);
 
         for fact in $edb {
+            $crate::storage::blockstore::Blockstore::put_serializable(
+                &mut bs,
+                &fact,
+                $crate::storage::DefaultCodec::default(),
+                $crate::storage::DEFAULT_MULTIHASH,
+            )
+            .unwrap();
+
             vm.push(fact).unwrap();
         }
 
@@ -84,6 +99,6 @@ macro_rules! assert_derives {
 
         let expected = std::collections::BTreeSet::from_iter($expected);
 
-        pretty_assertions::assert_eq!(facts, expected);
+        pretty_assertions::assert_eq!(facts, expected, "program = \n{}", pretty);
     };
 }

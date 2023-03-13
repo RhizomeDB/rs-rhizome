@@ -83,7 +83,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{assert_derives, fact::traits::IDBFact, types::Any};
+    use cid::Cid;
+
+    use crate::{
+        assert_derives,
+        fact::{evac_fact::EVACFact, traits::IDBFact},
+        types::Any,
+        value::Val,
+    };
 
     use super::*;
 
@@ -182,6 +189,116 @@ mod tests {
                 IDBFact::new("path", [("from", 2), ("to", 4)]),
                 IDBFact::new("path", [("from", 3), ("to", 4)]),
             ]
+        );
+    }
+
+    #[test]
+    fn test_get_link() {
+        let f00 = EVACFact::new(0, "node", 0, vec![]);
+        let f01 = EVACFact::new(0, "node", 0, vec![("parent", f00.cid())]);
+        let f02 = EVACFact::new(0, "node", 0, vec![("parent", f01.cid())]);
+        let f03 = EVACFact::new(0, "node", 0, vec![("parent", f02.cid())]);
+        let f04 = EVACFact::new(0, "node", 1, vec![("parent", f02.cid())]);
+        let f10 = EVACFact::new(1, "node", 0, vec![("parent", f00.cid())]);
+        let f11 = EVACFact::new(1, "node", 0, vec![("parent", f10.cid())]);
+        let f12 = EVACFact::new(1, "node", 0, vec![("parent", f11.cid())]);
+
+        let idb = [
+            IDBFact::new(
+                "parent",
+                [
+                    ("tree", Val::S32(0)),
+                    ("parent", f00.cid()),
+                    ("child", f01.cid()),
+                ],
+            ),
+            IDBFact::new(
+                "parent",
+                [
+                    ("tree", Val::S32(0)),
+                    ("parent", f01.cid()),
+                    ("child", f02.cid()),
+                ],
+            ),
+            IDBFact::new(
+                "parent",
+                [
+                    ("tree", Val::S32(0)),
+                    ("parent", f02.cid()),
+                    ("child", f03.cid()),
+                ],
+            ),
+            IDBFact::new(
+                "parent",
+                [
+                    ("tree", Val::S32(0)),
+                    ("parent", f02.cid()),
+                    ("child", f04.cid()),
+                ],
+            ),
+            IDBFact::new(
+                "parent",
+                [
+                    ("tree", Val::S32(1)),
+                    ("parent", f10.cid()),
+                    ("child", f11.cid()),
+                ],
+            ),
+            IDBFact::new(
+                "parent",
+                [
+                    ("tree", Val::S32(1)),
+                    ("parent", f10.cid()),
+                    ("child", f12.cid()),
+                ],
+            ),
+        ];
+
+        assert_derives!(
+            "parent",
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("parent", |h| {
+                    h.column::<i32>("tree")
+                        .column::<Cid>("parent")
+                        .column::<Cid>("child")
+                })?;
+
+                p.output("root", |h| {
+                    h.column::<i32>("tree")
+                        .column::<Cid>("root")
+                        .column::<Cid>("id")
+                })?;
+
+                p.rule::<(i32, Cid, Cid)>("parent", &|h, b, (tree, parent, child)| {
+                    (
+                        h.bind((("tree", tree), ("parent", parent), ("child", child))),
+                        b.search("evac", (("cid", parent), ("entity", tree)))
+                            .search("evac", (("cid", child), ("entity", tree)))
+                            .get_link(child, "parent", parent),
+                    )
+                })?;
+
+                p.rule::<(i32, Cid, Cid)>("root", &|h, b, (tree, root, child)| {
+                    (
+                        h.bind((("tree", tree), ("root", root), ("id", child))),
+                        b.search("evac", (("cid", child), ("entity", tree)))
+                            .search("evac", (("cid", root), ("entity", tree)))
+                            .except(
+                                "parent",
+                                (("parent", root), ("child", child), ("tree", tree)),
+                            ),
+                    )
+                })
+            },
+            [f00, f01, f02, f03, f04, f10, f11, f12,],
+            idb
         );
     }
 }
