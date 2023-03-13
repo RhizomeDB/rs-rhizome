@@ -83,11 +83,12 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use cid::Cid;
 
     use crate::{
         assert_derives,
-        fact::{evac_fact::EVACFact, traits::IDBFact},
+        fact::{btree_fact::BTreeFact, evac_fact::EVACFact, traits::IDBFact},
         types::Any,
         value::Val,
     };
@@ -97,7 +98,6 @@ mod tests {
     #[test]
     fn test_step_epoch_transitive_closure() {
         assert_derives!(
-            "path",
             |p| {
                 p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
                 p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
@@ -122,25 +122,27 @@ mod tests {
                     )
                 })
             },
-            [
-                IDBFact::new("path", [("from", 0), ("to", 1)],),
-                IDBFact::new("path", [("from", 0), ("to", 2)],),
-                IDBFact::new("path", [("from", 0), ("to", 3)],),
-                IDBFact::new("path", [("from", 0), ("to", 4)],),
-                IDBFact::new("path", [("from", 1), ("to", 2)],),
-                IDBFact::new("path", [("from", 1), ("to", 3)],),
-                IDBFact::new("path", [("from", 1), ("to", 4)],),
-                IDBFact::new("path", [("from", 2), ("to", 3)],),
-                IDBFact::new("path", [("from", 2), ("to", 4)],),
-                IDBFact::new("path", [("from", 3), ("to", 4)],),
-            ]
+            [(
+                "path",
+                [
+                    BTreeFact::new("path", [("from", 0), ("to", 1)],),
+                    BTreeFact::new("path", [("from", 0), ("to", 2)],),
+                    BTreeFact::new("path", [("from", 0), ("to", 3)],),
+                    BTreeFact::new("path", [("from", 0), ("to", 4)],),
+                    BTreeFact::new("path", [("from", 1), ("to", 2)],),
+                    BTreeFact::new("path", [("from", 1), ("to", 3)],),
+                    BTreeFact::new("path", [("from", 1), ("to", 4)],),
+                    BTreeFact::new("path", [("from", 2), ("to", 3)],),
+                    BTreeFact::new("path", [("from", 2), ("to", 4)],),
+                    BTreeFact::new("path", [("from", 3), ("to", 4)],),
+                ]
+            )]
         );
     }
 
     #[test]
     fn test_source_transitive_closure() {
         assert_derives!(
-            "path",
             |p| {
                 p.input("evac", |h| {
                     h.column::<Any>("entity")
@@ -172,23 +174,26 @@ mod tests {
                 })
             },
             [
-                EDBFact::new(0, "to", 1, vec![]),
-                EDBFact::new(1, "to", 2, vec![]),
-                EDBFact::new(2, "to", 3, vec![]),
-                EDBFact::new(3, "to", 4, vec![]),
+                EVACFact::new(0, "to", 1, vec![]),
+                EVACFact::new(1, "to", 2, vec![]),
+                EVACFact::new(2, "to", 3, vec![]),
+                EVACFact::new(3, "to", 4, vec![]),
             ],
-            [
-                IDBFact::new("path", [("from", 0), ("to", 1)]),
-                IDBFact::new("path", [("from", 0), ("to", 2)]),
-                IDBFact::new("path", [("from", 0), ("to", 3)]),
-                IDBFact::new("path", [("from", 0), ("to", 4)]),
-                IDBFact::new("path", [("from", 1), ("to", 2)]),
-                IDBFact::new("path", [("from", 1), ("to", 3)]),
-                IDBFact::new("path", [("from", 1), ("to", 4)]),
-                IDBFact::new("path", [("from", 2), ("to", 3)]),
-                IDBFact::new("path", [("from", 2), ("to", 4)]),
-                IDBFact::new("path", [("from", 3), ("to", 4)]),
-            ]
+            [(
+                "path",
+                [
+                    BTreeFact::new("path", [("from", 0), ("to", 1)]),
+                    BTreeFact::new("path", [("from", 0), ("to", 2)]),
+                    BTreeFact::new("path", [("from", 0), ("to", 3)]),
+                    BTreeFact::new("path", [("from", 0), ("to", 4)]),
+                    BTreeFact::new("path", [("from", 1), ("to", 2)]),
+                    BTreeFact::new("path", [("from", 1), ("to", 3)]),
+                    BTreeFact::new("path", [("from", 1), ("to", 4)]),
+                    BTreeFact::new("path", [("from", 2), ("to", 3)]),
+                    BTreeFact::new("path", [("from", 2), ("to", 4)]),
+                    BTreeFact::new("path", [("from", 3), ("to", 4)]),
+                ]
+            )]
         );
     }
 
@@ -204,58 +209,69 @@ mod tests {
         let f12 = EVACFact::new(1, "node", 0, vec![("parent", f11.cid())]);
 
         let idb = [
-            IDBFact::new(
-                "parent",
-                [
-                    ("tree", Val::S32(0)),
-                    ("parent", f00.cid()),
-                    ("child", f01.cid()),
+            (
+                "root",
+                vec![
+                    BTreeFact::new("root", [("tree", Val::S32(0)), ("id", f00.cid())]),
+                    BTreeFact::new("root", [("tree", Val::S32(1)), ("id", f10.cid())]),
                 ],
             ),
-            IDBFact::new(
+            (
                 "parent",
-                [
-                    ("tree", Val::S32(0)),
-                    ("parent", f01.cid()),
-                    ("child", f02.cid()),
-                ],
-            ),
-            IDBFact::new(
-                "parent",
-                [
-                    ("tree", Val::S32(0)),
-                    ("parent", f02.cid()),
-                    ("child", f03.cid()),
-                ],
-            ),
-            IDBFact::new(
-                "parent",
-                [
-                    ("tree", Val::S32(0)),
-                    ("parent", f02.cid()),
-                    ("child", f04.cid()),
-                ],
-            ),
-            IDBFact::new(
-                "parent",
-                [
-                    ("tree", Val::S32(1)),
-                    ("parent", f10.cid()),
-                    ("child", f11.cid()),
-                ],
-            ),
-            IDBFact::new(
-                "parent",
-                [
-                    ("tree", Val::S32(1)),
-                    ("parent", f10.cid()),
-                    ("child", f12.cid()),
+                vec![
+                    BTreeFact::new(
+                        "parent",
+                        [
+                            ("tree", Val::S32(0)),
+                            ("parent", f00.cid()),
+                            ("child", f01.cid()),
+                        ],
+                    ),
+                    BTreeFact::new(
+                        "parent",
+                        [
+                            ("tree", Val::S32(0)),
+                            ("parent", f01.cid()),
+                            ("child", f02.cid()),
+                        ],
+                    ),
+                    BTreeFact::new(
+                        "parent",
+                        [
+                            ("tree", Val::S32(0)),
+                            ("parent", f02.cid()),
+                            ("child", f03.cid()),
+                        ],
+                    ),
+                    BTreeFact::new(
+                        "parent",
+                        [
+                            ("tree", Val::S32(0)),
+                            ("parent", f02.cid()),
+                            ("child", f04.cid()),
+                        ],
+                    ),
+                    BTreeFact::new(
+                        "parent",
+                        [
+                            ("tree", Val::S32(1)),
+                            ("parent", f10.cid()),
+                            ("child", f11.cid()),
+                        ],
+                    ),
+                    BTreeFact::new(
+                        "parent",
+                        [
+                            ("tree", Val::S32(1)),
+                            ("parent", f11.cid()),
+                            ("child", f12.cid()),
+                        ],
+                    ),
                 ],
             ),
         ];
 
         assert_derives!(
-            "parent",
             |p| {
                 p.input("evac", |h| {
                     h.column::<Cid>("cid")
@@ -270,11 +286,7 @@ mod tests {
                         .column::<Cid>("child")
                 })?;
 
-                p.output("root", |h| {
-                    h.column::<i32>("tree")
-                        .column::<Cid>("root")
-                        .column::<Cid>("id")
-                })?;
+                p.output("root", |h| h.column::<i32>("tree").column::<Cid>("id"))?;
 
                 p.rule::<(i32, Cid, Cid)>("parent", &|h, b, (tree, parent, child)| {
                     (
@@ -285,15 +297,11 @@ mod tests {
                     )
                 })?;
 
-                p.rule::<(i32, Cid, Cid)>("root", &|h, b, (tree, root, child)| {
+                p.rule::<(i32, Cid)>("root", &|h, b, (tree, root)| {
                     (
-                        h.bind((("tree", tree), ("root", root), ("id", child))),
-                        b.search("evac", (("cid", child), ("entity", tree)))
-                            .search("evac", (("cid", root), ("entity", tree)))
-                            .except(
-                                "parent",
-                                (("parent", root), ("child", child), ("tree", tree)),
-                            ),
+                        h.bind((("tree", tree), ("id", root))),
+                        b.search("evac", (("cid", root), ("entity", tree)))
+                            .except("parent", (("child", root), ("tree", tree))),
                     )
                 })
             },
