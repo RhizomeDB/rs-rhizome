@@ -5,7 +5,7 @@ use crate::{
     types::{FromType, Type},
 };
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Var {
     id: VarId,
     typ: Type,

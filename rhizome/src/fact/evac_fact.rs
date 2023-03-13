@@ -1,12 +1,10 @@
 use std::{collections::BTreeMap, fmt::Display};
 
-use cid::Cid;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     id::{ColId, LinkId, RelationId},
     relation::EDB,
-    storage::content_addressable::ContentAddressable,
     value::Val,
 };
 
@@ -17,7 +15,7 @@ pub struct EVACFact {
     pub entity: Val,
     pub attr: Val,
     pub val: Val,
-    pub causal_links: BTreeMap<LinkId, Cid>,
+    pub causal_links: BTreeMap<LinkId, Val>,
 }
 
 impl EDBFact for EVACFact {
@@ -25,13 +23,16 @@ impl EDBFact for EVACFact {
         entity: impl Into<Val>,
         attr: impl Into<Val>,
         val: impl Into<Val>,
-        links: Vec<(&str, Cid)>,
+        links: Vec<(&str, Val)>,
     ) -> Self {
         let entity = entity.into();
         let attr = attr.into();
         let val = val.into();
 
-        let causal_links = links.into_iter().map(|(k, v)| (k.into(), v)).collect();
+        let causal_links = links
+            .into_iter()
+            .map(|(k, v)| (k.into(), v))
+            .collect();
 
         Self {
             entity,
@@ -45,7 +46,7 @@ impl EDBFact for EVACFact {
         RelationId::new("evac")
     }
 
-    fn link(&self, id: LinkId) -> Option<&Cid> {
+    fn link(&self, id: LinkId) -> Option<&Val> {
         self.causal_links.get(&id)
     }
 }
@@ -55,7 +56,7 @@ impl Fact for EVACFact {
 
     fn col(&self, id: &ColId) -> Option<Val> {
         if *id == ColId::new("cid") {
-            Some(Val::Cid(self.cid()))
+            Some(self.cid())
         } else if *id == ColId::new("entity") {
             Some(self.entity.clone())
         } else if *id == ColId::new("attribute") {
@@ -69,7 +70,7 @@ impl Fact for EVACFact {
 
     fn cols(&self) -> BTreeMap<ColId, Val> {
         BTreeMap::from_iter([
-            (ColId::new("cid"), Val::Cid(self.cid())),
+            (ColId::new("cid"), self.cid()),
             (ColId::new("entity"), self.entity.clone()),
             (ColId::new("attribute"), self.attr.clone()),
             (ColId::new("value"), self.val.clone()),

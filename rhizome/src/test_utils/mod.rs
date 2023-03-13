@@ -61,17 +61,6 @@ macro_rules! assert_derives {
             }
         };
 
-        // dbg!(program);
-
-        // let mut w = Vec::new();
-        // $crate::pretty::Pretty::to_doc(&program)
-        //     .render(80, &mut w)
-        //     .unwrap();
-
-        // // println!("{}", String::from_utf8(w).unwrap());
-
-        // panic!();
-
         let bs = $crate::storage::memory::MemoryBlockstore::default();
         let mut vm = <$crate::runtime::vm::VM>::new(program);
 
