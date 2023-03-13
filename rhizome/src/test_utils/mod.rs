@@ -43,10 +43,14 @@ macro_rules! assert_compile_err {
 
 #[macro_export]
 macro_rules! assert_derives {
-    ($relation:expr, $program_closure:expr, $expected:expr) => {
-        assert_derives!($relation, $program_closure, [], $expected);
+    ($program_closure:expr, $expected:expr) => {
+        assert_derives!(
+            $program_closure,
+            Vec::<$crate::fact::evac_fact::EVACFact>::default(),
+            $expected
+        );
     };
-    ($relation:expr, $program_closure:expr, $edb:expr, $expected:expr) => {
+    ($program_closure:expr, $edb:expr, $expected:expr) => {
         let program = match $crate::builder::ProgramBuilder::build($program_closure) {
             std::result::Result::Ok(v) => v,
             std::result::Result::Err(e) => {
@@ -71,16 +75,16 @@ macro_rules! assert_derives {
         let mut bs = $crate::storage::memory::MemoryBlockstore::default();
         let mut vm = <$crate::runtime::vm::VM>::new(program);
 
-        for fact in $edb {
+        for fact in &$edb {
             $crate::storage::blockstore::Blockstore::put_serializable(
                 &mut bs,
-                &fact,
+                fact,
                 $crate::storage::DefaultCodec::default(),
                 $crate::storage::DEFAULT_MULTIHASH,
             )
             .unwrap();
 
-            vm.push(fact).unwrap();
+            vm.push(fact.clone()).unwrap();
         }
 
         match vm.step_epoch(&bs) {
@@ -90,15 +94,30 @@ macro_rules! assert_derives {
             }
         };
 
-        let mut facts = std::collections::BTreeSet::default();
+        let mut facts = std::collections::BTreeMap::default();
+
+        for (relation, _) in &$expected {
+            facts.insert(
+                $crate::id::RelationId::new(relation),
+                std::collections::BTreeSet::default(),
+            );
+        }
+
         while let Ok(Some(fact)) = vm.pop() {
-            if fact.id() == $relation.into() {
-                facts.insert(fact);
+            if let Some(relation) = facts.get_mut(&fact.id()) {
+                relation.insert(fact);
             }
         }
 
-        let expected = std::collections::BTreeSet::from_iter($expected);
+        for (relation, expected) in $expected {
+            let actual = facts
+                .get(&$crate::id::RelationId::new(relation))
+                .unwrap()
+                .clone();
 
-        pretty_assertions::assert_eq!(facts, expected, "program = \n{}", pretty);
+            let expected = std::collections::BTreeSet::from_iter(expected.clone());
+
+            pretty_assertions::assert_eq!(actual, expected, "program = \n{}", pretty);
+        }
     };
 }
