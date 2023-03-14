@@ -1,6 +1,6 @@
 use crate::{
-    logic::ast::Var,
     types::{FromType, Type},
+    var::Var,
 };
 
 // TODO: Implement this with macros
@@ -14,9 +14,7 @@ pub trait RuleVars {
 impl RuleVars for () {
     type Vars = ();
 
-    fn into_vars() -> Self::Vars {
-
-    }
+    fn into_vars() -> Self::Vars {}
 }
 
 impl<V0> RuleVars for (V0,)

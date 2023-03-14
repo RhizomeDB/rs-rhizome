@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
-use crate::id::{ColId, RelationId};
-
-use super::{
-    ColVal, Declaration, Edge, GetLink, {BodyTerm, Negation, Predicate},
+use crate::{
+    col_val::ColVal,
+    id::{ColId, RelationId},
 };
+
+use super::{BodyTerm, Declaration, Edge, GetLink, Negation, Predicate};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rule {
@@ -49,8 +50,8 @@ impl Rule {
             if let Some(polarity) = term.polarity() {
                 for dependency in term.depends_on() {
                     let edge = match dependency {
-                        Declaration::EDB(inner) => Edge::FromEDB(inner.id(), self.head, polarity),
-                        Declaration::IDB(inner) => Edge::FromIDB(inner.id(), self.head, polarity),
+                        Declaration::Edb(inner) => Edge::FromEDB(inner.id(), self.head, polarity),
+                        Declaration::Idb(inner) => Edge::FromIDB(inner.id(), self.head, polarity),
                     };
 
                     edges.push(edge);

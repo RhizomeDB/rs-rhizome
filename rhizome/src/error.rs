@@ -4,9 +4,10 @@ use anyhow::Result;
 use thiserror::Error;
 
 use crate::{
+    col_val::ColVal,
     id::{ColId, RelationId, VarId},
-    logic::ast::{ColVal, Var},
     types::{ColType, Type},
+    var::Var,
 };
 
 /// Rhizome errors.

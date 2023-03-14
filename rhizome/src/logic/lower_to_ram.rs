@@ -8,6 +8,7 @@ use petgraph::{
 };
 
 use crate::{
+    col_val::ColVal,
     error::{error, Error},
     id::{ColId, RelationId},
     ram::{
@@ -26,34 +27,33 @@ use crate::{
     },
     relation::{EDB, IDB},
     value::Val,
+    var::Var,
 };
 
 use super::ast::{
     body_term::BodyTerm,
     cid_value::CidValue,
     clause::Clause,
-    col_val::ColVal,
     declaration::{Declaration, InnerDeclaration},
     dependency::{Node, Polarity},
     fact::Fact,
     program::Program,
     rule::Rule,
     stratum::Stratum,
-    Var,
 };
 
 pub fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
-    let mut inputs: Vec<Arc<InnerDeclaration<EDB>>> = Vec::default();
-    let mut outputs: Vec<Arc<InnerDeclaration<IDB>>> = Vec::default();
+    let mut inputs: Vec<&InnerDeclaration<EDB>> = Vec::default();
+    let mut outputs: Vec<&InnerDeclaration<IDB>> = Vec::default();
     let mut statements: Vec<Statement> = Vec::default();
 
     for declaration in program.declarations() {
         match &**declaration {
-            Declaration::EDB(inner) => {
-                inputs.push(Arc::clone(inner));
+            Declaration::Edb(inner) => {
+                inputs.push(inner);
             }
-            Declaration::IDB(inner) => {
-                outputs.push(Arc::clone(inner));
+            Declaration::Idb(inner) => {
+                outputs.push(inner);
             }
         }
     }
@@ -78,7 +78,17 @@ pub fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
         statements.push(Statement::Purge(Purge::new(relation_ref)));
     }
 
-    Ok(ram::program::Program::new(inputs, outputs, statements))
+    let input_schemas = inputs.into_iter().map(|d| Arc::clone(d.schema())).collect();
+    let output_schemas = outputs
+        .into_iter()
+        .map(|d| Arc::clone(d.schema()))
+        .collect();
+
+    Ok(ram::program::Program::new(
+        input_schemas,
+        output_schemas,
+        statements,
+    ))
 }
 
 pub fn lower_stratum_to_ram(stratum: &Stratum, program: &Program) -> Result<Vec<Statement>> {
@@ -97,8 +107,8 @@ pub fn lower_stratum_to_ram(stratum: &Stratum, program: &Program) -> Result<Vec<
         let (dynamic_rules, static_rules): (Vec<Rule>, Vec<Rule>) =
             stratum.rules().into_iter().partition(|r| {
                 r.predicate_terms().iter().any(|p| match &**p.relation() {
-                    Declaration::EDB(_) => false,
-                    Declaration::IDB(inner) => stratum.relations().contains(&inner.id()),
+                    Declaration::Edb(_) => false,
+                    Declaration::Idb(inner) => stratum.relations().contains(&inner.id()),
                 })
             });
 
@@ -268,8 +278,8 @@ pub fn lower_rule_to_ram(
                         ColVal::Lit(_) => continue,
                         ColVal::Binding(var) if !bindings.contains_key(&var) => {
                             let col_binding = match &**predicate.relation() {
-                                Declaration::EDB(inner) => RelationBinding::edb(inner.id(), alias),
-                                Declaration::IDB(inner) => RelationBinding::idb(inner.id(), alias),
+                                Declaration::Edb(inner) => RelationBinding::edb(inner.id(), alias),
+                                Declaration::Idb(inner) => RelationBinding::idb(inner.id(), alias),
                             };
 
                             bindings.insert(var, Term::Col(col_id, col_binding))
@@ -365,10 +375,10 @@ pub fn lower_rule_to_ram(
                 BodyTerm::Predicate(predicate) => {
                     for (&col_id, col_val) in predicate.args() {
                         let binding = match &**predicate.relation() {
-                            Declaration::EDB(inner) => {
+                            Declaration::Edb(inner) => {
                                 RelationBinding::edb(inner.id(), metadata.alias)
                             }
-                            Declaration::IDB(inner) => {
+                            Declaration::Idb(inner) => {
                                 RelationBinding::idb(inner.id(), metadata.alias)
                             }
                         };
@@ -412,10 +422,10 @@ pub fn lower_rule_to_ram(
                         });
 
                         let relation_ref = match &**negation.relation() {
-                            Declaration::EDB(inner) => {
+                            Declaration::Edb(inner) => {
                                 RelationRef::edb(inner.id(), RelationVersion::Total)
                             }
-                            Declaration::IDB(inner) => {
+                            Declaration::Idb(inner) => {
                                 RelationRef::idb(inner.id(), RelationVersion::Total)
                             }
                         };
@@ -458,8 +468,8 @@ pub fn lower_rule_to_ram(
                     };
 
                     let relation_ref = match &**predicate.relation() {
-                        Declaration::EDB(inner) => RelationRef::edb(inner.id(), version),
-                        Declaration::IDB(inner) => RelationRef::idb(inner.id(), version),
+                        Declaration::Edb(inner) => RelationRef::edb(inner.id(), version),
+                        Declaration::Idb(inner) => RelationRef::idb(inner.id(), version),
                     };
 
                     previous = Operation::Search(Search::new(
@@ -505,9 +515,9 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>> {
         nodes = nodes.alter(
             |old| match old {
                 Some(node) => Some(node),
-                None => Some(edg.add_node(Node::IDB(clause.head()))),
+                None => Some(edg.add_node(Node::Idb(clause.head()))),
             },
-            Node::IDB(clause.head()),
+            Node::Idb(clause.head()),
         );
 
         for dependency in clause.depends_on() {
@@ -553,7 +563,7 @@ pub fn stratify(program: &Program) -> Result<Vec<Stratum>> {
             let mut clauses: Vec<Clause> = Vec::default();
 
             for i in nodes {
-                if let Some(Node::IDB(id)) = edg.node_weight(*i) {
+                if let Some(Node::Idb(id)) = edg.node_weight(*i) {
                     relations.insert(*id);
 
                     for clause in clauses_by_relation.get(id).cloned().unwrap_or_default() {

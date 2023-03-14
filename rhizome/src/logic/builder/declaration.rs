@@ -1,11 +1,13 @@
 use anyhow::Result;
-use std::{collections::HashMap, marker::PhantomData};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use crate::{
+    col::Col,
     error::{error, Error},
     id::{ColId, RelationId},
-    logic::ast::{Col, InnerDeclaration, Schema},
+    logic::ast::InnerDeclaration,
     relation::RelationSource,
+    schema::Schema,
     types::{ColType, FromType},
 };
 
@@ -39,8 +41,8 @@ where
             cols.insert(col_id, col);
         }
 
-        let schema = Schema::new(cols);
-        let declaration = InnerDeclaration::new(self.id, schema);
+        let schema = Schema::new(self.id, cols);
+        let declaration = InnerDeclaration::new(self.id, Arc::new(schema));
 
         Ok(declaration)
     }

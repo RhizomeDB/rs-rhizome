@@ -29,10 +29,7 @@ impl EDBFact for EVACFact {
         let attr = attr.into();
         let val = val.into();
 
-        let causal_links = links
-            .into_iter()
-            .map(|(k, v)| (k.into(), v))
-            .collect();
+        let causal_links = links.into_iter().map(|(k, v)| (k.into(), v)).collect();
 
         Self {
             entity,

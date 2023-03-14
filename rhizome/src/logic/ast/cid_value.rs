@@ -1,7 +1,7 @@
 use cid::Cid;
 use derive_more::{IsVariant, TryInto};
 
-use super::Var;
+use crate::var::Var;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IsVariant, TryInto)]
 pub enum CidValue {

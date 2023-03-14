@@ -13,7 +13,6 @@ mod tests {
     use tokio::{spawn, test};
 
     use rhizome::{
-        builder::ProgramBuilder,
         fact::traits::{EDBFact, IDBFact},
         logic::lower_to_ram,
         runtime::client::Client,
@@ -25,7 +24,7 @@ mod tests {
         let buf1 = Arc::new(Mutex::new(RefCell::new(BTreeSet::new())));
         let buf2 = Arc::clone(&buf1);
 
-        let program = ProgramBuilder::build(|p| {
+        let program = rhizome::build(|p| {
             p.input("evac", |h| {
                 h.column::<Any>("entity")
                     .column::<Any>("attribute")
