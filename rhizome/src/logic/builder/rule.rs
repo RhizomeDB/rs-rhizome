@@ -14,7 +14,7 @@ use crate::{
 use super::{
     atom_args::{AtomArg, AtomArgs},
     negation::NegationBuilder,
-    predicate::PredicateBuilder,
+    rel_predicate::RelPredicateBuilder,
 };
 
 #[derive(Debug)]
@@ -123,7 +123,7 @@ impl<'a> RuleHeadBuilder<'a> {
 }
 
 pub struct RuleBodyBuilder<'a> {
-    predicates: Vec<(String, PredicateBuilder)>,
+    rel_predicates: Vec<(String, RelPredicateBuilder)>,
     negations: Vec<(String, NegationBuilder)>,
     get_links: Vec<(CidValue, LinkId, CidValue)>,
     relations: &'a HashMap<String, Arc<Declaration>>,
@@ -138,7 +138,7 @@ impl<'a> Debug for RuleBodyBuilder<'a> {
 impl<'a> RuleBodyBuilder<'a> {
     pub fn new(relations: &'a HashMap<String, Arc<Declaration>>) -> Self {
         Self {
-            predicates: Vec::default(),
+            rel_predicates: Vec::default(),
             negations: Vec::default(),
             get_links: Vec::default(),
             relations,
@@ -148,13 +148,13 @@ impl<'a> RuleBodyBuilder<'a> {
     pub fn finalize(self, bound_vars: &mut HashMap<Var, Type>) -> Result<Vec<BodyTerm>> {
         let mut body_terms = Vec::default();
 
-        for (id, builder) in self.predicates {
+        for (id, builder) in self.rel_predicates {
             let Some(declaration) = self.relations.get(&id) else {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
             let predicate = builder.finalize(Arc::clone(declaration), bound_vars)?;
-            let term = BodyTerm::Predicate(predicate);
+            let term = BodyTerm::RelPredicate(predicate);
 
             body_terms.push(term);
         }
@@ -216,25 +216,25 @@ impl<'a> RuleBodyBuilder<'a> {
     where
         T: AtomArgs<A>,
     {
-        let mut builder = PredicateBuilder::new();
+        let mut builder = RelPredicateBuilder::new();
 
         for (col_id, col_val) in T::into_cols(t) {
             builder.bindings.push((col_id, col_val));
         }
 
-        self.predicates.push((id.to_string(), builder));
+        self.rel_predicates.push((id.to_string(), builder));
 
         self
     }
 
     pub fn build_search<F>(mut self, id: &str, f: F) -> Self
     where
-        F: Fn(PredicateBuilder) -> PredicateBuilder,
+        F: Fn(RelPredicateBuilder) -> RelPredicateBuilder,
     {
-        let builder = PredicateBuilder::new();
+        let builder = RelPredicateBuilder::new();
         let builder = f(builder);
 
-        self.predicates.push((id.to_string(), builder));
+        self.rel_predicates.push((id.to_string(), builder));
 
         self
     }
