@@ -1,7 +1,10 @@
 use anyhow::Result;
 
+use crate::ram::Program;
+
 use self::program::ProgramBuilder;
-use super::ast::Program;
+
+use super::lower_to_ram;
 
 mod atom_args;
 mod declaration;
@@ -16,7 +19,10 @@ pub fn build<F>(f: F) -> Result<Program>
 where
     F: FnOnce(&mut ProgramBuilder) -> Result<()>,
 {
-    ProgramBuilder::build(f)
+    let logic = ProgramBuilder::build(f)?;
+    let ram = lower_to_ram::lower_to_ram(&logic)?;
+
+    Ok(ram)
 }
 
 #[cfg(test)]

@@ -14,7 +14,6 @@ mod tests {
 
     use rhizome::{
         fact::traits::{EDBFact, IDBFact},
-        logic::lower_to_ram,
         runtime::client::Client,
         types::Any,
     };
@@ -57,7 +56,6 @@ mod tests {
             })
         })?;
 
-        let program = lower_to_ram::lower_to_ram(&program)?;
         let (mut client, mut rx, reactor) = Client::new(program);
 
         spawn(async move { reactor.async_run().await });

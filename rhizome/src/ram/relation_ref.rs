@@ -5,37 +5,37 @@ use pretty::RcDoc;
 use crate::{
     id::RelationId,
     pretty::Pretty,
-    relation::{EDB, IDB},
+    relation::{Edb, Idb},
 };
 
 use super::RelationVersion;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum RelationRef {
-    EDB(InnerRelationRef<EDB>),
-    IDB(InnerRelationRef<IDB>),
+    Edb(InnerRelationRef<Edb>),
+    Idb(InnerRelationRef<Idb>),
 }
 
 impl RelationRef {
     pub fn edb(id: RelationId, version: RelationVersion) -> Self {
-        Self::EDB(InnerRelationRef::new(id, version))
+        Self::Edb(InnerRelationRef::new(id, version))
     }
 
     pub fn idb(id: RelationId, version: RelationVersion) -> Self {
-        Self::IDB(InnerRelationRef::new(id, version))
+        Self::Idb(InnerRelationRef::new(id, version))
     }
 
     pub fn id(&self) -> RelationId {
         match self {
-            RelationRef::EDB(inner) => inner.id(),
-            RelationRef::IDB(inner) => inner.id(),
+            RelationRef::Edb(inner) => inner.id(),
+            RelationRef::Idb(inner) => inner.id(),
         }
     }
 
     pub fn version(&self) -> RelationVersion {
         match self {
-            RelationRef::EDB(inner) => inner.version(),
-            RelationRef::IDB(inner) => inner.version(),
+            RelationRef::Edb(inner) => inner.version(),
+            RelationRef::Idb(inner) => inner.version(),
         }
     }
 }

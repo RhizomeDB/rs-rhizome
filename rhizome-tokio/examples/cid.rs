@@ -3,7 +3,6 @@ use cid::Cid;
 use futures::{sink::unfold, StreamExt};
 use rhizome::{
     fact::{evac_fact::EVACFact, traits::EDBFact},
-    logic::lower_to_ram,
     runtime::client::Client,
     types::Any,
 };
@@ -113,8 +112,6 @@ async fn main() -> Result<()> {
             )
         })
     })?;
-
-    let program = lower_to_ram::lower_to_ram(&program)?;
 
     let (mut client, mut rx, reactor) = Client::new(program);
 

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use futures::{sink::unfold, StreamExt};
-use rhizome::{fact::traits::EDBFact, logic::lower_to_ram, runtime::client::Client, types::Any};
+use rhizome::{fact::traits::EDBFact, runtime::client::Client, types::Any};
 use tokio::spawn;
 
 #[tokio::main]
@@ -38,7 +38,6 @@ async fn main() -> Result<()> {
         })
     })?;
 
-    let program = lower_to_ram::lower_to_ram(&program)?;
     let (mut client, mut rx, reactor) = Client::new(program);
 
     spawn(async move { reactor.async_run().await });

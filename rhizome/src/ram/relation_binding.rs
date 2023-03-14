@@ -5,37 +5,37 @@ use pretty::RcDoc;
 use crate::{
     id::RelationId,
     pretty::Pretty,
-    relation::{EDB, IDB},
+    relation::{Edb, Idb},
 };
 
 use super::AliasId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum RelationBinding {
-    EDB(InnerRelationBinding<EDB>),
-    IDB(InnerRelationBinding<IDB>),
+    Edb(InnerRelationBinding<Edb>),
+    Idb(InnerRelationBinding<Idb>),
 }
 
 impl RelationBinding {
     pub fn edb(id: RelationId, alias: Option<AliasId>) -> Self {
-        Self::EDB(InnerRelationBinding::new(id, alias))
+        Self::Edb(InnerRelationBinding::new(id, alias))
     }
 
     pub fn idb(id: RelationId, alias: Option<AliasId>) -> Self {
-        Self::IDB(InnerRelationBinding::new(id, alias))
+        Self::Idb(InnerRelationBinding::new(id, alias))
     }
 
     pub fn id(&self) -> RelationId {
         match self {
-            RelationBinding::EDB(inner) => inner.id(),
-            RelationBinding::IDB(inner) => inner.id(),
+            RelationBinding::Edb(inner) => inner.id(),
+            RelationBinding::Idb(inner) => inner.id(),
         }
     }
 
     pub fn alias(&self) -> Option<AliasId> {
         match self {
-            RelationBinding::EDB(inner) => inner.alias(),
-            RelationBinding::IDB(inner) => inner.alias(),
+            RelationBinding::Edb(inner) => inner.alias(),
+            RelationBinding::Idb(inner) => inner.alias(),
         }
     }
 }

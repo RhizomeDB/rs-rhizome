@@ -4,24 +4,25 @@
 
 //! rhizome
 
-pub mod col;
-pub mod col_val;
+pub(crate) mod col;
+pub(crate) mod col_val;
+pub(crate) mod id;
+pub(crate) mod interner;
+pub(crate) mod lattice;
+pub(crate) mod logic;
+pub(crate) mod ram;
+pub(crate) mod relation;
+pub(crate) mod schema;
+pub(crate) mod timestamp;
+pub(crate) mod value;
+pub(crate) mod var;
+
 pub mod error;
 pub mod fact;
-pub mod id;
-pub mod interner;
-pub mod lattice;
-pub mod logic;
 pub mod pretty;
-pub mod ram;
-pub mod relation;
 pub mod runtime;
-pub mod schema;
 pub mod storage;
-pub mod timestamp;
 pub mod types;
-pub mod value;
-pub mod var;
 
 pub use logic::build;
 
