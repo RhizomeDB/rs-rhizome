@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     id::{ColId, LinkId, RelationId},
-    relation::EDB,
+    relation::Edb,
     value::Val,
 };
 
@@ -49,7 +49,7 @@ impl EDBFact for EVACFact {
 }
 
 impl Fact for EVACFact {
-    type Marker = EDB;
+    type Marker = Edb;
 
     fn col(&self, id: &ColId) -> Option<Val> {
         if *id == ColId::new("cid") {

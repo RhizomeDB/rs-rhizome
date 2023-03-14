@@ -12,20 +12,11 @@ use crate::{
     error::{error, Error},
     id::{ColId, RelationId},
     ram::{
-        self,
-        alias_id::AliasId,
-        formula::Formula,
-        operation::{project::Project, search::Search, Operation},
-        relation_binding::RelationBinding,
-        relation_ref::RelationRef,
-        relation_version::RelationVersion,
-        statement::{
-            exit::Exit, insert::Insert, merge::Merge, purge::Purge, recursive::Loop, sinks::Sinks,
-            sources::Sources, swap::Swap, Statement,
-        },
-        term::Term,
+        self, AliasId, Exit, Formula, Insert, Loop, Merge, Operation, Project, Purge,
+        RelationBinding, RelationRef, RelationVersion, Search, Sinks, Sources, Statement, Swap,
+        Term,
     },
-    relation::{EDB, IDB},
+    relation::{Edb, Idb},
     value::Val,
     var::Var,
 };
@@ -42,9 +33,9 @@ use super::ast::{
     stratum::Stratum,
 };
 
-pub fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
-    let mut inputs: Vec<&InnerDeclaration<EDB>> = Vec::default();
-    let mut outputs: Vec<&InnerDeclaration<IDB>> = Vec::default();
+pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
+    let mut inputs: Vec<&InnerDeclaration<Edb>> = Vec::default();
+    let mut outputs: Vec<&InnerDeclaration<Idb>> = Vec::default();
     let mut statements: Vec<Statement> = Vec::default();
 
     for declaration in program.declarations() {
@@ -91,7 +82,7 @@ pub fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
     ))
 }
 
-pub fn lower_stratum_to_ram(stratum: &Stratum, program: &Program) -> Result<Vec<Statement>> {
+pub(crate) fn lower_stratum_to_ram(stratum: &Stratum, program: &Program) -> Result<Vec<Statement>> {
     let mut statements: Vec<Statement> = Vec::default();
 
     if stratum.is_recursive() {
@@ -225,7 +216,7 @@ pub fn lower_stratum_to_ram(stratum: &Stratum, program: &Program) -> Result<Vec<
     Ok(statements)
 }
 
-pub fn lower_fact_to_ram(fact: &Fact) -> Result<Statement> {
+pub(crate) fn lower_fact_to_ram(fact: &Fact) -> Result<Statement> {
     let cols = fact.args().iter().map(|(k, v)| (*k, Term::Lit(v.clone())));
 
     Ok(Statement::Insert(Insert::new(
@@ -252,7 +243,7 @@ impl TermMetadata {
     }
 }
 
-pub fn lower_rule_to_ram(
+pub(crate) fn lower_rule_to_ram(
     rule: &Rule,
     _stratum: &Stratum,
     _program: &Program,
@@ -490,7 +481,7 @@ pub fn lower_rule_to_ram(
     Ok(statements)
 }
 
-pub fn stratify(program: &Program) -> Result<Vec<Stratum>> {
+pub(crate) fn stratify(program: &Program) -> Result<Vec<Stratum>> {
     let mut clauses_by_relation = im::HashMap::<RelationId, im::Vector<Clause>>::default();
 
     for clause in program.clauses() {

@@ -4,12 +4,12 @@ use pretty::RcDoc;
 use crate::pretty::Pretty;
 
 // pub mod get_link;
-pub mod project;
-pub mod search;
+pub(crate) mod project;
+pub(crate) mod search;
 
 // pub use get_link::*;
-pub use project::*;
-pub use search::*;
+pub(crate) use project::*;
+pub(crate) use search::*;
 
 #[derive(Clone, Debug, IsVariant)]
 pub enum Operation {

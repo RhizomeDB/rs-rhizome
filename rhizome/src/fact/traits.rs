@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     id::{ColId, LinkId, RelationId},
-    relation::{RelationSource, EDB, IDB},
+    relation::{Edb, Idb, RelationSource},
     storage::content_addressable::ContentAddressable,
     value::Val,
 };
@@ -18,7 +18,7 @@ pub trait Fact: Clone + Ord + PartialOrd + Display + Debug + Send + Sync {
     fn cols(&self) -> BTreeMap<ColId, Val>;
 }
 
-pub trait EDBFact: Fact<Marker = EDB> + ContentAddressable {
+pub trait EDBFact: Fact<Marker = Edb> + ContentAddressable {
     fn new(
         entity: impl Into<Val>,
         attr: impl Into<Val>,
@@ -33,7 +33,7 @@ pub trait EDBFact: Fact<Marker = EDB> + ContentAddressable {
         Val::Cid(ContentAddressable::cid(self))
     }
 }
-pub trait IDBFact: Fact<Marker = IDB> {
+pub trait IDBFact: Fact<Marker = Idb> {
     fn new<A: Into<ColId> + Ord, D: Into<Val>>(
         id: impl Into<RelationId>,
         attr: impl IntoIterator<Item = (A, D)>,

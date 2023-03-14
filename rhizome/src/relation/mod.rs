@@ -2,7 +2,7 @@ use crate::fact::traits::Fact;
 use im::OrdSet;
 use std::hash::Hash;
 
-pub type DefaultRelation<F> = ImmutableOrdSetRelation<F>;
+pub(crate) type DefaultRelation<F> = ImmutableOrdSetRelation<F>;
 
 pub trait RelationSource:
     Clone + Copy + Eq + PartialEq + Ord + PartialOrd + Hash + Default
@@ -10,12 +10,12 @@ pub trait RelationSource:
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
-pub struct EDB;
-impl RelationSource for EDB {}
+pub struct Edb;
+impl RelationSource for Edb {}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
-pub struct IDB;
-impl RelationSource for IDB {}
+pub struct Idb;
+impl RelationSource for Idb {}
 
 // TODO: Keep track of the timestamp a fact was derived at?
 pub trait Relation<F>:

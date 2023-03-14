@@ -1,14 +1,14 @@
 use crate::{
     id::RelationId,
-    relation::{RelationSource, EDB, IDB},
+    relation::{Edb, Idb, RelationSource},
     schema::Schema,
 };
 use std::{marker::PhantomData, sync::Arc};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Declaration {
-    Edb(InnerDeclaration<EDB>),
-    Idb(InnerDeclaration<IDB>),
+    Edb(InnerDeclaration<Edb>),
+    Idb(InnerDeclaration<Idb>),
 }
 
 impl Declaration {

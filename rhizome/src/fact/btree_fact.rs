@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     id::{ColId, RelationId},
-    relation::IDB,
+    relation::Idb,
     value::Val,
 };
 
@@ -38,7 +38,7 @@ impl IDBFact for BTreeFact {
 }
 
 impl Fact for BTreeFact {
-    type Marker = IDB;
+    type Marker = Idb;
 
     fn col(&self, id: &ColId) -> Option<Val> {
         self.cols.get(id).cloned()

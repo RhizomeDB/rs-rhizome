@@ -288,7 +288,7 @@ where
         BS: Blockstore,
     {
         match *search.relation() {
-            RelationRef::EDB(inner) => {
+            RelationRef::Edb(inner) => {
                 let id = inner.id();
                 let version = inner.version();
 
@@ -297,7 +297,7 @@ where
 
                 self.search_relation(search, blockstore, to_search, relation_binding, bindings);
             }
-            RelationRef::IDB(inner) => {
+            RelationRef::Idb(inner) => {
                 let id = inner.id();
                 let version = inner.version();
 
@@ -351,10 +351,10 @@ where
         }
 
         match *project.into() {
-            RelationRef::EDB(_) => {
+            RelationRef::Edb(_) => {
                 unreachable!();
             }
-            RelationRef::IDB(inner) => {
+            RelationRef::Idb(inner) => {
                 let fact = IF::new(inner.id(), bound);
 
                 self.idb = self.idb.alter(
@@ -370,7 +370,7 @@ where
 
     fn handle_merge(&mut self, merge: &Merge) {
         match (*merge.from(), *merge.into()) {
-            (RelationRef::EDB(from_inner), RelationRef::EDB(to_inner)) => {
+            (RelationRef::Edb(from_inner), RelationRef::Edb(to_inner)) => {
                 let from_relation = self
                     .edb
                     .get(&(from_inner.id(), from_inner.version()))
@@ -383,7 +383,7 @@ where
                     |old, new| old.merge(new),
                 );
             }
-            (RelationRef::IDB(from_inner), RelationRef::IDB(to_inner)) => {
+            (RelationRef::Idb(from_inner), RelationRef::Idb(to_inner)) => {
                 let from_relation = self
                     .idb
                     .get(&(from_inner.id(), from_inner.version()))
@@ -402,7 +402,7 @@ where
 
     fn handle_swap(&mut self, swap: &Swap) {
         match (*swap.left(), *swap.right()) {
-            (RelationRef::EDB(left_inner), RelationRef::EDB(right_inner)) => {
+            (RelationRef::Edb(left_inner), RelationRef::Edb(right_inner)) => {
                 let left_relation = self
                     .edb
                     .remove(&(left_inner.id(), left_inner.version()))
@@ -420,7 +420,7 @@ where
                     .update((right_inner.id(), right_inner.version()), left_relation);
             }
 
-            (RelationRef::IDB(left_inner), RelationRef::IDB(right_inner)) => {
+            (RelationRef::Idb(left_inner), RelationRef::Idb(right_inner)) => {
                 let left_relation = self
                     .idb
                     .remove(&(left_inner.id(), left_inner.version()))
@@ -443,12 +443,12 @@ where
 
     fn handle_purge(&mut self, purge: &Purge) {
         match *purge.relation() {
-            RelationRef::EDB(inner) => {
+            RelationRef::Edb(inner) => {
                 self.edb = self
                     .edb
                     .update((inner.id(), inner.version()), ER::default())
             }
-            RelationRef::IDB(inner) => {
+            RelationRef::Idb(inner) => {
                 self.idb = self
                     .idb
                     .update((inner.id(), inner.version()), IR::default())
@@ -458,11 +458,11 @@ where
 
     fn handle_exit(&mut self, exit: &Exit) {
         let is_done = exit.relations().iter().all(|r| match *r {
-            RelationRef::EDB(inner) => self
+            RelationRef::Edb(inner) => self
                 .edb
                 .get(&(inner.id(), inner.version()))
                 .map_or(false, ER::is_empty),
-            RelationRef::IDB(inner) => self
+            RelationRef::Idb(inner) => self
                 .idb
                 .get(&(inner.id(), inner.version()))
                 .map_or(false, IR::is_empty),
@@ -481,7 +481,7 @@ where
 
     fn handle_sinks(&mut self, sinks: &Sinks) -> Result<()> {
         for &relation_ref in sinks.relations() {
-            let RelationRef::IDB(inner) = relation_ref else {
+            let RelationRef::Idb(inner) = relation_ref else {
                 unreachable!();
             };
 
@@ -545,8 +545,8 @@ where
                 }
 
                 match *not_in.relation() {
-                    RelationRef::EDB(_) => unreachable!(),
-                    RelationRef::IDB(inner) => {
+                    RelationRef::Edb(_) => unreachable!(),
+                    RelationRef::Idb(inner) => {
                         let bound_fact = IF::new(inner.id(), bound);
 
                         !self
