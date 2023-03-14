@@ -1,5 +1,4 @@
-use std::fmt;
-use std::fmt::Debug;
+use std::{fmt, fmt::Debug};
 
 use futures::{channel::oneshot, Sink, Stream};
 use rhizome_runtime::MaybeSend;

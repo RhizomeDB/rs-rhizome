@@ -2,9 +2,10 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::{
+    col_val::ColVal,
     error::{error, Error},
     id::ColId,
-    logic::ast::{ColVal, Declaration, Fact},
+    logic::ast::{Declaration, Fact},
     value::Val,
 };
 
@@ -69,8 +70,8 @@ impl<'a> FactBuilder<'a> {
         }
 
         match self.relation {
-            Declaration::EDB(inner) => error(Error::ClauseHeadEDB(inner.id())),
-            Declaration::IDB(inner) => {
+            Declaration::Edb(inner) => error(Error::ClauseHeadEDB(inner.id())),
+            Declaration::Idb(inner) => {
                 let fact = Fact::new(inner.id(), cols);
 
                 Ok(fact)

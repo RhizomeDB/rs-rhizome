@@ -1,8 +1,4 @@
-use crate::{
-    id::ColId,
-    logic::ast::{ColVal, Var},
-    value::Val,
-};
+use crate::{col_val::ColVal, id::ColId, value::Val, var::Var};
 
 pub trait TransitiveInto<Via, To> {
     fn into_transitive(self) -> To;
