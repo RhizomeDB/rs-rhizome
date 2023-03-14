@@ -1,13 +1,23 @@
-pub mod program;
-pub use program::ProgramBuilder;
+use anyhow::Result;
+
+use self::program::ProgramBuilder;
+use super::ast::Program;
 
 mod atom_args;
 mod declaration;
 mod fact;
 mod negation;
 mod predicate;
+mod program;
 mod rule;
 mod rule_vars;
+
+pub fn build<F>(f: F) -> Result<Program>
+where
+    F: FnOnce(&mut ProgramBuilder) -> Result<()>,
+{
+    ProgramBuilder::build(f)
+}
 
 #[cfg(test)]
 mod tests {
@@ -15,10 +25,11 @@ mod tests {
 
     use crate::{
         assert_compile, assert_compile_err,
+        col_val::ColVal,
         error::Error,
-        logic::ast::{ColVal, Var},
         types::{Any, ColType, Type},
         value::Val,
+        var::Var,
     };
 
     #[test]

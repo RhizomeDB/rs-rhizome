@@ -4,8 +4,8 @@ use crate::id::RelationId;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Node {
-    EDB(RelationId),
-    IDB(RelationId),
+    Edb(RelationId),
+    Idb(RelationId),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -17,15 +17,15 @@ pub enum Edge {
 impl Edge {
     pub fn from(&self) -> Node {
         match *self {
-            Edge::FromEDB(from, _, _) => Node::EDB(from),
-            Edge::FromIDB(from, _, _) => Node::IDB(from),
+            Edge::FromEDB(from, _, _) => Node::Edb(from),
+            Edge::FromIDB(from, _, _) => Node::Idb(from),
         }
     }
 
     pub fn to(&self) -> Node {
         match *self {
-            Edge::FromEDB(_, to, _) => Node::IDB(to),
-            Edge::FromIDB(_, to, _) => Node::IDB(to),
+            Edge::FromEDB(_, to, _) => Node::Idb(to),
+            Edge::FromIDB(_, to, _) => Node::Idb(to),
         }
     }
 

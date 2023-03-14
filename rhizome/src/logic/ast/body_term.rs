@@ -5,9 +5,13 @@ use std::{
 
 use derive_more::{From, IsVariant, TryInto};
 
-use crate::id::{ColId, LinkId};
+use crate::{
+    id::{ColId, LinkId},
+    var::Var,
+};
 
-use super::{CidValue, ColVal, Declaration, Polarity, Var};
+use super::{CidValue, Declaration, Polarity};
+use crate::col_val::ColVal;
 
 #[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum BodyTerm {

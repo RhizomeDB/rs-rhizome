@@ -2,29 +2,21 @@ use anyhow::Result;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
+    col_val::ColVal,
     error::{error, Error},
     id::ColId,
-    logic::ast::{ColVal, Declaration, Predicate, Var},
-    types::Type,
+    logic::ast::{Declaration, Negation},
     value::Val,
+    var::Var,
 };
 
 #[derive(Debug, Default)]
-pub struct PredicateBuilder {
+pub struct NegationBuilder {
     pub(super) bindings: Vec<(ColId, ColVal)>,
 }
 
-impl PredicateBuilder {
-    pub fn new() -> Self {
-        Self {
-            bindings: Vec::default(),
-        }
-    }
-    pub fn finalize(
-        self,
-        relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<Var, Type>,
-    ) -> Result<Predicate> {
+impl NegationBuilder {
+    pub fn finalize(self, relation: Arc<Declaration>) -> Result<Negation> {
         let mut cols = HashMap::default();
 
         for (col_id, col_val) in self.bindings {
@@ -48,9 +40,7 @@ impl PredicateBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if let Some(downcasted) = col.col_type().downcast(&var.typ()) {
-                        bound_vars.insert(*var, downcasted);
-                    } else {
+                    if col.col_type().downcast(&var.typ()).is_none() {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
                             col_id,
@@ -64,9 +54,9 @@ impl PredicateBuilder {
             cols.insert(col_id, col_val);
         }
 
-        let predicate = Predicate::new(relation, cols);
+        let negation = Negation::new(relation, cols);
 
-        Ok(predicate)
+        Ok(negation)
     }
 
     pub fn bind<S>(mut self, col_id: S, var: &Var) -> Self

@@ -50,7 +50,7 @@ impl ProgramBuilder {
 
         let rel_id = RelationId::new(id);
         let relation = DeclarationBuilder::build(rel_id, f)?;
-        let relation = Declaration::EDB(Arc::new(relation));
+        let relation = Declaration::Edb(relation);
 
         self.relations.insert(id.to_owned(), Arc::new(relation));
 
@@ -67,7 +67,7 @@ impl ProgramBuilder {
 
         let rel_id = RelationId::new(id);
         let relation = DeclarationBuilder::build(rel_id, f)?;
-        let relation = Declaration::IDB(Arc::new(relation));
+        let relation = Declaration::Idb(relation);
 
         self.relations.insert(id.to_owned(), Arc::new(relation));
 
@@ -116,8 +116,8 @@ impl ProgramBuilder {
         let head = h.finalize(&bound_vars)?;
 
         match &**declaration {
-            Declaration::EDB(inner) => error(Error::ClauseHeadEDB(inner.id())),
-            Declaration::IDB(inner) => {
+            Declaration::Edb(inner) => error(Error::ClauseHeadEDB(inner.id())),
+            Declaration::Idb(inner) => {
                 let rule = Rule::new(inner.id(), head, body);
                 let clause = Clause::Rule(rule);
 

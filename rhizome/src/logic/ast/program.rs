@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use super::Clause;
-use super::Declaration;
+use super::{Clause, Declaration};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Program {

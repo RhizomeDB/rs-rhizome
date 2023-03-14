@@ -2,7 +2,6 @@ use anyhow::Result;
 use cid::Cid;
 use futures::{sink::unfold, StreamExt};
 use rhizome::{
-    builder::ProgramBuilder,
     fact::{evac_fact::EVACFact, traits::EDBFact},
     logic::lower_to_ram,
     runtime::client::Client,
@@ -12,7 +11,7 @@ use tokio::spawn;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let program = ProgramBuilder::build(|p| {
+    let program = rhizome::build(|p| {
         p.input("evac", |h| {
             h.column::<Cid>("cid")
                 .column::<Any>("entity")

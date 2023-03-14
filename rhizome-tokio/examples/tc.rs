@@ -1,14 +1,11 @@
 use anyhow::Result;
 use futures::{sink::unfold, StreamExt};
-use rhizome::{
-    builder::ProgramBuilder, fact::traits::EDBFact, logic::lower_to_ram, runtime::client::Client,
-    types::Any,
-};
+use rhizome::{fact::traits::EDBFact, logic::lower_to_ram, runtime::client::Client, types::Any};
 use tokio::spawn;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let program = ProgramBuilder::build(|p| {
+    let program = rhizome::build(|p| {
         p.input("evac", |h| {
             h.column::<Any>("entity")
                 .column::<Any>("attribute")

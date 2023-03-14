@@ -2,25 +2,21 @@ use std::sync::Arc;
 
 use pretty::RcDoc;
 
-use crate::{
-    logic::ast::declaration::InnerDeclaration,
-    pretty::Pretty,
-    relation::{EDB, IDB},
-};
+use crate::{pretty::Pretty, schema::Schema};
 
 use super::Statement;
 
 #[derive(Clone, Debug)]
 pub struct Program {
-    inputs: Vec<Arc<InnerDeclaration<EDB>>>,
-    outputs: Vec<Arc<InnerDeclaration<IDB>>>,
+    inputs: Vec<Arc<Schema>>,
+    outputs: Vec<Arc<Schema>>,
     statements: Vec<Statement>,
 }
 
 impl Program {
     pub fn new(
-        inputs: Vec<Arc<InnerDeclaration<EDB>>>,
-        outputs: Vec<Arc<InnerDeclaration<IDB>>>,
+        inputs: Vec<Arc<Schema>>,
+        outputs: Vec<Arc<Schema>>,
         statements: Vec<Statement>,
     ) -> Self {
         Self {
@@ -30,11 +26,11 @@ impl Program {
         }
     }
 
-    pub fn inputs(&self) -> &Vec<Arc<InnerDeclaration<EDB>>> {
+    pub fn inputs(&self) -> &Vec<Arc<Schema>> {
         &self.inputs
     }
 
-    pub fn outputs(&self) -> &Vec<Arc<InnerDeclaration<IDB>>> {
+    pub fn outputs(&self) -> &Vec<Arc<Schema>> {
         &self.outputs
     }
 

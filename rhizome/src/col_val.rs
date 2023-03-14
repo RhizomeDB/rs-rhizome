@@ -1,8 +1,6 @@
 use std::fmt::{self, Display};
 
-use crate::value::Val;
-
-use super::Var;
+use crate::{value::Val, var::Var};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ColVal {

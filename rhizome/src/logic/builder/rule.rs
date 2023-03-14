@@ -2,11 +2,13 @@ use anyhow::Result;
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
+    col_val::ColVal,
     error::{error, Error},
     id::{ColId, LinkId},
-    logic::ast::{BodyTerm, CidValue, ColVal, Declaration, GetLink, Var},
+    logic::ast::{BodyTerm, CidValue, Declaration, GetLink},
     types::Type,
     value::Val,
+    var::Var,
 };
 
 use super::{
