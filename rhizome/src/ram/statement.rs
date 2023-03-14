@@ -3,23 +3,23 @@ use pretty::RcDoc;
 
 use crate::pretty::Pretty;
 
-pub mod exit;
-pub mod insert;
-pub mod merge;
-pub mod purge;
-pub mod recursive;
-pub mod sinks;
-pub mod sources;
-pub mod swap;
+pub(crate) mod exit;
+pub(crate) mod insert;
+pub(crate) mod merge;
+pub(crate) mod purge;
+pub(crate) mod recursive;
+pub(crate) mod sinks;
+pub(crate) mod sources;
+pub(crate) mod swap;
 
-pub use exit::*;
-pub use insert::*;
-pub use merge::*;
-pub use purge::*;
-pub use recursive::*;
-pub use sinks::*;
-pub use sources::*;
-pub use swap::*;
+pub(crate) use exit::*;
+pub(crate) use insert::*;
+pub(crate) use merge::*;
+pub(crate) use purge::*;
+pub(crate) use recursive::*;
+pub(crate) use sinks::*;
+pub(crate) use sources::*;
+pub(crate) use swap::*;
 
 // TODO: Nested loops shouldn't be supported, so I should split the AST
 // to make them unrepresentable.

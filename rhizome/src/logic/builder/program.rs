@@ -5,7 +5,7 @@ use crate::{
     error::{error, Error},
     id::RelationId,
     logic::ast::{Clause, Declaration, Program, Rule},
-    relation::{EDB, IDB},
+    relation::{Edb, Idb},
 };
 
 use super::{
@@ -42,7 +42,7 @@ impl ProgramBuilder {
 
     pub fn input<F>(&mut self, id: &str, f: F) -> Result<()>
     where
-        F: FnOnce(DeclarationBuilder<EDB>) -> DeclarationBuilder<EDB>,
+        F: FnOnce(DeclarationBuilder<Edb>) -> DeclarationBuilder<Edb>,
     {
         if let Some(relation) = self.relations.get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));
@@ -59,7 +59,7 @@ impl ProgramBuilder {
 
     pub fn output<F>(&mut self, id: &str, f: F) -> Result<()>
     where
-        F: FnOnce(DeclarationBuilder<IDB>) -> DeclarationBuilder<IDB>,
+        F: FnOnce(DeclarationBuilder<Idb>) -> DeclarationBuilder<Idb>,
     {
         if let Some(relation) = self.relations.get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));

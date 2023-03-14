@@ -12,14 +12,14 @@ use string_interner::{DefaultSymbol, StringInterner};
 static INSTANCE: Lazy<Mutex<StringInterner>> = Lazy::new(|| Mutex::new(StringInterner::default()));
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Symbol(DefaultSymbol);
+pub(crate) struct Symbol(DefaultSymbol);
 
 impl Symbol {
-    pub fn get_or_intern(s: &str) -> Symbol {
+    pub(crate) fn get_or_intern(s: &str) -> Symbol {
         Self(INSTANCE.lock().unwrap().get_or_intern(s))
     }
 
-    pub fn resolve(&self) -> String {
+    pub(crate) fn resolve(&self) -> String {
         INSTANCE
             .lock()
             .unwrap()

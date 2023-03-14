@@ -40,7 +40,7 @@ macro_rules! new_id {
             #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
             pub enum [< $name Marker >] {}
 
-            pub type $name = Id<[< $name Marker >], ()>;
+            pub(crate) type $name = Id<[< $name Marker >], ()>;
         }
     };
 

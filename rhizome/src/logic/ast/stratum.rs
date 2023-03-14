@@ -5,14 +5,18 @@ use crate::id::RelationId;
 use super::{Clause, Fact, Rule};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Stratum {
+pub(crate) struct Stratum {
     relations: HashSet<RelationId>,
     clauses: Vec<Clause>,
     is_recursive: bool,
 }
 
 impl Stratum {
-    pub fn new(relations: HashSet<RelationId>, clauses: Vec<Clause>, is_recursive: bool) -> Self {
+    pub(crate) fn new(
+        relations: HashSet<RelationId>,
+        clauses: Vec<Clause>,
+        is_recursive: bool,
+    ) -> Self {
         Self {
             relations,
             clauses,
@@ -20,19 +24,19 @@ impl Stratum {
         }
     }
 
-    pub fn relations(&self) -> &HashSet<RelationId> {
+    pub(crate) fn relations(&self) -> &HashSet<RelationId> {
         &self.relations
     }
 
-    pub fn is_recursive(&self) -> bool {
+    pub(crate) fn is_recursive(&self) -> bool {
         self.is_recursive
     }
 
-    pub fn facts(&self) -> Vec<Fact> {
+    pub(crate) fn facts(&self) -> Vec<Fact> {
         self.clauses_of::<Fact>()
     }
 
-    pub fn rules(&self) -> Vec<Rule> {
+    pub(crate) fn rules(&self) -> Vec<Rule> {
         self.clauses_of::<Rule>()
     }
 
