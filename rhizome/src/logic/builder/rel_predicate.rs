@@ -5,18 +5,18 @@ use crate::{
     col_val::ColVal,
     error::{error, Error},
     id::ColId,
-    logic::ast::{Declaration, Predicate},
+    logic::ast::{Declaration, RelPredicate},
     types::Type,
     value::Val,
     var::Var,
 };
 
 #[derive(Debug, Default)]
-pub struct PredicateBuilder {
+pub struct RelPredicateBuilder {
     pub(super) bindings: Vec<(ColId, ColVal)>,
 }
 
-impl PredicateBuilder {
+impl RelPredicateBuilder {
     pub fn new() -> Self {
         Self {
             bindings: Vec::default(),
@@ -26,7 +26,7 @@ impl PredicateBuilder {
         self,
         relation: Arc<Declaration>,
         bound_vars: &mut HashMap<Var, Type>,
-    ) -> Result<Predicate> {
+    ) -> Result<RelPredicate> {
         let mut cols = HashMap::default();
 
         for (col_id, col_val) in self.bindings {
@@ -66,7 +66,7 @@ impl PredicateBuilder {
             cols.insert(col_id, col_val);
         }
 
-        let predicate = Predicate::new(relation, cols);
+        let predicate = RelPredicate::new(relation, cols);
 
         Ok(predicate)
     }

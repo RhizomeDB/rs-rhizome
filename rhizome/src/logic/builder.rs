@@ -10,8 +10,8 @@ mod atom_args;
 mod declaration;
 mod fact;
 mod negation;
-mod predicate;
 mod program;
+mod rel_predicate;
 mod rule;
 mod rule_vars;
 

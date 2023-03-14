@@ -15,7 +15,7 @@ use crate::col_val::ColVal;
 
 #[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
 pub enum BodyTerm {
-    Predicate(Predicate),
+    RelPredicate(RelPredicate),
     Negation(Negation),
     GetLink(GetLink),
 }
@@ -23,7 +23,7 @@ pub enum BodyTerm {
 impl BodyTerm {
     pub fn depends_on(&self) -> Vec<&Declaration> {
         match self {
-            BodyTerm::Predicate(inner) => vec![inner.relation()],
+            BodyTerm::RelPredicate(inner) => vec![inner.relation()],
             BodyTerm::Negation(inner) => vec![inner.relation()],
             BodyTerm::GetLink(_) => vec![],
         }
@@ -31,7 +31,7 @@ impl BodyTerm {
 
     pub fn polarity(&self) -> Option<Polarity> {
         match self {
-            BodyTerm::Predicate(_) => Some(Polarity::Positive),
+            BodyTerm::RelPredicate(_) => Some(Polarity::Positive),
             BodyTerm::Negation(_) => Some(Polarity::Negative),
             BodyTerm::GetLink(_) => Some(Polarity::Positive),
         }
@@ -39,12 +39,12 @@ impl BodyTerm {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Predicate {
+pub struct RelPredicate {
     relation: Arc<Declaration>,
     args: HashMap<ColId, ColVal>,
 }
 
-impl Predicate {
+impl RelPredicate {
     pub fn new(relation: Arc<Declaration>, args: HashMap<ColId, ColVal>) -> Self {
         Self { relation, args }
     }
