@@ -97,10 +97,12 @@ pub(crate) fn lower_stratum_to_ram(stratum: &Stratum, program: &Program) -> Resu
         // that change during this stratum
         let (dynamic_rules, static_rules): (Vec<Rule>, Vec<Rule>) =
             stratum.rules().into_iter().partition(|r| {
-                r.predicate_terms().iter().any(|p| match &**p.relation() {
-                    Declaration::Edb(_) => false,
-                    Declaration::Idb(inner) => stratum.relations().contains(&inner.id()),
-                })
+                r.rel_predicate_terms()
+                    .iter()
+                    .any(|p| match &**p.relation() {
+                        Declaration::Edb(_) => false,
+                        Declaration::Idb(inner) => stratum.relations().contains(&inner.id()),
+                    })
             });
 
         // Evaluate static rules out of the loop
@@ -255,7 +257,7 @@ pub(crate) fn lower_rule_to_ram(
 
     for body_term in rule.body() {
         match body_term {
-            BodyTerm::Predicate(predicate) => {
+            BodyTerm::RelPredicate(predicate) => {
                 let alias = next_alias.get(&predicate.relation().id()).copied();
 
                 next_alias = next_alias.update_with(
@@ -338,12 +340,12 @@ pub(crate) fn lower_rule_to_ram(
     let mut statements: Vec<Statement> = Vec::default();
 
     // We use a bitmask to represent all of the possible rewrites of the rule under
-    // semi-naive evaluation, i.e. those where at least one predicate searches
+    // semi-naive evaluation, i.e. those where at least one rel_predicate searches
     // against a delta relation, rather than total.
     let rewrite_count = (1 << term_metadata.len()) - 1;
 
     for offset in 0..rewrite_count {
-        // bitmask of dynamic predicate versions (1 => delta, 0 => total)
+        // bitmask of dynamic rel_predicate versions (1 => delta, 0 => total)
         let mask = (1 << term_metadata.len()) - 1 - offset;
 
         let mut negation_terms = rule.negation_terms().clone();
@@ -363,7 +365,7 @@ pub(crate) fn lower_rule_to_ram(
             }
 
             match body_term {
-                BodyTerm::Predicate(predicate) => {
+                BodyTerm::RelPredicate(predicate) => {
                     for (&col_id, col_val) in predicate.args() {
                         let binding = match &**predicate.relation() {
                             Declaration::Edb(inner) => {

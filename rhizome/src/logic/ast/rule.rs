@@ -5,7 +5,7 @@ use crate::{
     id::{ColId, RelationId},
 };
 
-use super::{BodyTerm, Declaration, Edge, GetLink, Negation, Predicate};
+use super::{BodyTerm, Declaration, Edge, GetLink, Negation, RelPredicate};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Rule {
@@ -31,8 +31,8 @@ impl Rule {
         &self.body
     }
 
-    pub fn predicate_terms(&self) -> Vec<Predicate> {
-        self.body_terms_of::<Predicate>()
+    pub fn rel_predicate_terms(&self) -> Vec<RelPredicate> {
+        self.body_terms_of::<RelPredicate>()
     }
 
     pub fn negation_terms(&self) -> Vec<Negation> {
