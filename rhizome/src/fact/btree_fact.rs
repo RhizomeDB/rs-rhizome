@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::{collections::BTreeMap, fmt::Display, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,7 @@ use super::traits::{Fact, IDBFact};
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct BTreeFact {
     id: RelationId,
-    cols: BTreeMap<ColId, Val>,
+    cols: BTreeMap<ColId, Arc<Val>>,
 }
 
 impl IDBFact for BTreeFact {
@@ -23,7 +23,7 @@ impl IDBFact for BTreeFact {
     ) -> Self {
         let cols = cols
             .into_iter()
-            .map(|(k, v)| (k.into(), v.into()))
+            .map(|(k, v)| (k.into(), Arc::new(v.into())))
             .collect();
 
         Self {
@@ -40,12 +40,12 @@ impl IDBFact for BTreeFact {
 impl Fact for BTreeFact {
     type Marker = Idb;
 
-    fn col(&self, id: &ColId) -> Option<Val> {
-        self.cols.get(id).cloned()
+    fn col(&self, id: &ColId) -> Option<Arc<Val>> {
+        self.cols.get(id).map(Arc::clone)
     }
 
-    fn cols(&self) -> BTreeMap<ColId, Val> {
-        self.cols.clone()
+    fn cols(&self) -> Vec<ColId> {
+        self.cols.keys().into_iter().copied().collect()
     }
 }
 

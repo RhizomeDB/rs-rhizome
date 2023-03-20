@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     id::{ColId, RelationId},
@@ -10,11 +10,11 @@ use super::Edge;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Fact {
     head: RelationId,
-    args: HashMap<ColId, Val>,
+    args: HashMap<ColId, Arc<Val>>,
 }
 
 impl Fact {
-    pub fn new(head: RelationId, args: HashMap<ColId, Val>) -> Self {
+    pub fn new(head: RelationId, args: HashMap<ColId, Arc<Val>>) -> Self {
         Self { head, args }
     }
 
@@ -22,7 +22,7 @@ impl Fact {
         self.head
     }
 
-    pub fn args(&self) -> &HashMap<ColId, Val> {
+    pub fn args(&self) -> &HashMap<ColId, Arc<Val>> {
         &self.args
     }
 

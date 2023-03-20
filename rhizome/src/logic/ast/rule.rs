@@ -5,9 +5,9 @@ use crate::{
     id::{ColId, RelationId},
 };
 
-use super::{BodyTerm, Declaration, Edge, GetLink, Negation, RelPredicate};
+use super::{BodyTerm, Declaration, Edge, GetLink, Negation, RelPredicate, VarPredicate};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug)]
 pub struct Rule {
     head: RelationId,
     args: HashMap<ColId, ColVal>,
@@ -27,20 +27,60 @@ impl Rule {
         &self.args
     }
 
-    pub fn body(&self) -> &Vec<BodyTerm> {
+    pub fn body(&self) -> &[BodyTerm] {
         &self.body
     }
 
-    pub fn rel_predicate_terms(&self) -> Vec<RelPredicate> {
-        self.body_terms_of::<RelPredicate>()
+    pub fn var_predicate_terms(&self) -> Vec<&VarPredicate> {
+        self.body
+            .iter()
+            .filter_map(|term| {
+                if let BodyTerm::VarPredicate(inner) = term {
+                    Some(inner)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
-    pub fn negation_terms(&self) -> Vec<Negation> {
-        self.body_terms_of::<Negation>()
+    pub fn rel_predicate_terms(&self) -> Vec<&RelPredicate> {
+        self.body
+            .iter()
+            .filter_map(|term| {
+                if let BodyTerm::RelPredicate(inner) = term {
+                    Some(inner)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
-    pub fn get_link_terms(&self) -> Vec<GetLink> {
-        self.body_terms_of::<GetLink>()
+    pub fn negation_terms(&self) -> Vec<&Negation> {
+        self.body
+            .iter()
+            .filter_map(|term| {
+                if let BodyTerm::Negation(inner) = term {
+                    Some(inner)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn get_link_terms(&self) -> Vec<&GetLink> {
+        self.body
+            .iter()
+            .filter_map(|term| {
+                if let BodyTerm::GetLink(inner) = term {
+                    Some(inner)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     pub fn depends_on(&self) -> Vec<Edge> {
@@ -49,7 +89,7 @@ impl Rule {
         for term in self.body() {
             if let Some(polarity) = term.polarity() {
                 for dependency in term.depends_on() {
-                    let edge = match dependency {
+                    let edge = match &*dependency {
                         Declaration::Edb(inner) => Edge::FromEDB(inner.id(), self.head, polarity),
                         Declaration::Idb(inner) => Edge::FromIDB(inner.id(), self.head, polarity),
                     };
@@ -60,15 +100,5 @@ impl Rule {
         }
 
         edges
-    }
-
-    fn body_terms_of<T>(&self) -> Vec<T>
-    where
-        T: TryFrom<BodyTerm>,
-    {
-        self.body
-            .iter()
-            .filter_map(|term| T::try_from(term.clone()).ok())
-            .collect()
     }
 }

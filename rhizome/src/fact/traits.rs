@@ -1,7 +1,9 @@
 use std::{
-    collections::BTreeMap,
     fmt::{Debug, Display},
+    sync::Arc,
 };
+
+use cid::Cid;
 
 use crate::{
     id::{ColId, LinkId, RelationId},
@@ -14,8 +16,8 @@ use crate::{
 pub trait Fact: Clone + Ord + PartialOrd + Display + Debug + Send + Sync {
     type Marker: RelationSource;
 
-    fn col(&self, id: &ColId) -> Option<Val>;
-    fn cols(&self) -> BTreeMap<ColId, Val>;
+    fn col(&self, id: &ColId) -> Option<Arc<Val>>;
+    fn cols(&self) -> Vec<ColId>;
 }
 
 pub trait EDBFact: Fact<Marker = Edb> + ContentAddressable {
@@ -23,15 +25,12 @@ pub trait EDBFact: Fact<Marker = Edb> + ContentAddressable {
         entity: impl Into<Val>,
         attr: impl Into<Val>,
         val: impl Into<Val>,
-        links: Vec<(&str, Val)>,
+        links: Vec<(&str, Cid)>,
     ) -> Self;
 
     fn id(&self) -> RelationId;
-    fn link(&self, id: LinkId) -> Option<&Val>;
-
-    fn cid(&self) -> Val {
-        Val::Cid(ContentAddressable::cid(self))
-    }
+    fn cid(&self) -> Cid;
+    fn link(&self, id: LinkId) -> Option<Arc<Val>>;
 }
 pub trait IDBFact: Fact<Marker = Idb> {
     fn new<A: Into<ColId> + Ord, D: Into<Val>>(

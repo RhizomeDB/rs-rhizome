@@ -19,7 +19,7 @@ impl Declaration {
         }
     }
 
-    pub fn schema(&self) -> &Arc<Schema> {
+    pub fn schema(&self) -> Arc<Schema> {
         match self {
             Declaration::Edb(inner) => inner.schema(),
             Declaration::Idb(inner) => inner.schema(),
@@ -50,7 +50,7 @@ where
         self.id
     }
 
-    pub fn schema(&self) -> &Arc<Schema> {
-        &self.schema
+    pub fn schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.schema)
     }
 }

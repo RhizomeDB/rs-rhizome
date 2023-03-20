@@ -23,7 +23,7 @@ pub(crate) use swap::*;
 
 // TODO: Nested loops shouldn't be supported, so I should split the AST
 // to make them unrepresentable.
-#[derive(Clone, Debug, IsVariant)]
+#[derive(Debug, IsVariant)]
 pub enum Statement {
     Insert(Insert),
     Merge(Merge),

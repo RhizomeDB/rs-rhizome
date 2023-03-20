@@ -33,6 +33,6 @@ impl Var {
 
 impl Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("{} : {}", self.id, self.typ))
+        f.write_fmt(format_args!("({} : {})", self.id, self.typ))
     }
 }

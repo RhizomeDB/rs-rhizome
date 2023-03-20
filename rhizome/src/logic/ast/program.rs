@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::{Clause, Declaration};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug)]
 pub struct Program {
     declarations: Vec<Arc<Declaration>>,
     clauses: Vec<Clause>,
@@ -16,11 +16,11 @@ impl Program {
         }
     }
 
-    pub fn declarations(&self) -> &Vec<Arc<Declaration>> {
+    pub fn declarations(&self) -> &[Arc<Declaration>] {
         &self.declarations
     }
 
-    pub fn clauses(&self) -> &Vec<Clause> {
+    pub fn clauses(&self) -> &[Clause] {
         &self.clauses
     }
 }
