@@ -6,6 +6,8 @@ pub trait Pretty {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use im::hashmap;
     use pretty_assertions::assert_eq;
 
@@ -32,16 +34,16 @@ mod tests {
                 ColId::new("name"),
                 RelationBinding::edb(RelationId::new("person"), Some(AliasId::new().next())),
             ),
-            Term::Lit(Val::String("Quinn".into())),
+            Term::Lit(Arc::new(Val::String("Quinn".into()))),
         );
 
         let formula2 = Formula::not_in(
-            [("age", Term::Lit(Val::U32(29)))],
+            [("age", Term::Lit(Arc::new(Val::U32(29))))],
             RelationRef::edb(RelationId::new("person"), RelationVersion::Total),
         );
 
         let project = Operation::Project(Project::new(
-            hashmap! {"age" => Term::Lit(Val::S32(29))},
+            hashmap! {"age" => Term::Lit(Arc::new(Val::S32(29)))},
             RelationRef::edb(RelationId::new("person"), RelationVersion::Total),
         ));
 

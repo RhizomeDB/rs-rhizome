@@ -1,5 +1,5 @@
 use core::fmt::Debug;
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 use anyhow::Result;
 
@@ -28,7 +28,7 @@ use crate::{
     value::Val,
 };
 
-type Bindings = im::HashMap<BindingKey, Val>;
+type Bindings = im::HashMap<BindingKey, Arc<Val>>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum BindingKey {
@@ -117,14 +117,13 @@ where
         &self.timestamp
     }
 
-    pub fn relation<S>(&self, id: S) -> IR
+    pub fn relation<S>(&self, id: S) -> &IR
     where
         S: AsRef<str>,
     {
         self.idb
             .get(&(RelationId::new(id), RelationVersion::Total))
-            .cloned()
-            .unwrap_or_default()
+            .unwrap()
     }
 
     pub fn push(&mut self, fact: EF) -> Result<()> {
@@ -183,7 +182,7 @@ where
     where
         BS: Blockstore,
     {
-        match self.load_statement().clone() {
+        match &*self.load_statement() {
             Statement::Insert(insert) => self.handle_insert(&insert, blockstore),
             Statement::Merge(merge) => self.handle_merge(&merge),
             Statement::Swap(swap) => self.handle_swap(&swap),
@@ -214,17 +213,19 @@ where
     fn step_pc(&self) -> (usize, Option<usize>) {
         match self.pc {
             (outer, None) => {
-                if let Some(Statement::Loop(Loop { .. })) =
-                    self.program.statements().get(self.pc.0 + 1)
-                {
-                    ((outer + 1) % self.program.statements().len(), Some(0))
+                if let Some(statement) = self.program.statements().get(self.pc.0 + 1) {
+                    if let Statement::Loop(Loop { .. }) = &**statement {
+                        ((outer + 1) % self.program.statements().len(), Some(0))
+                    } else {
+                        ((outer + 1) % self.program.statements().len(), None)
+                    }
                 } else {
                     ((outer + 1) % self.program.statements().len(), None)
                 }
             }
             (outer, Some(inner)) => {
-                if let Some(Statement::Loop(loop_statement)) =
-                    self.program.statements().get(self.pc.0)
+                if let Statement::Loop(loop_statement) =
+                    &**self.program.statements().get(self.pc.0).unwrap()
                 {
                     (outer, Some((inner + 1) % loop_statement.body().len()))
                 } else {
@@ -234,17 +235,17 @@ where
         }
     }
 
-    fn load_statement(&self) -> &Statement {
-        match self.program.statements().get(self.pc.0).unwrap() {
+    fn load_statement(&self) -> Arc<Statement> {
+        match &**self.program.statements().get(self.pc.0).unwrap() {
             Statement::Loop(loop_statement) => {
                 assert!(self.pc.1.is_some());
 
-                loop_statement.body().get(self.pc.1.unwrap()).unwrap()
+                Arc::clone(loop_statement.body().get(self.pc.1.unwrap()).unwrap())
             }
-            s => {
+            _ => {
                 assert!(self.pc.1.is_none());
 
-                s
+                Arc::clone(self.program.statements().get(self.pc.0).unwrap())
             }
         }
     }
@@ -324,8 +325,12 @@ where
         for fact in &mut to_search.into_iter() {
             let mut next_bindings = bindings.clone();
 
-            for (k, v) in fact.cols() {
-                next_bindings.insert(BindingKey::Relation(relation_binding, k), v);
+            for k in fact.cols() {
+                if let Some(v) = fact.col(&k) {
+                    next_bindings.insert(BindingKey::Relation(relation_binding, k), v.clone());
+                } else {
+                    panic!("expected column missing: {}", k);
+                }
             }
 
             if !self.is_formulae_satisfied(search.when(), blockstore, &next_bindings) {
@@ -344,7 +349,7 @@ where
 
         for (id, term) in project.cols() {
             if let Some(val) = Self::resolve_term(term, blockstore, bindings) {
-                bound.push((*id, val));
+                bound.push((*id, <Val>::clone(&val)));
             } else {
                 return;
             }
@@ -495,26 +500,30 @@ where
         Ok(())
     }
 
-    fn resolve_term<BS>(term: &Term, blockstore: &BS, bindings: &Bindings) -> Option<Val>
+    fn resolve_term<BS>(term: &Term, blockstore: &BS, bindings: &Bindings) -> Option<Arc<Val>>
     where
         BS: Blockstore,
     {
         match term {
             Term::Link(link_id, cid_term) => {
-                let Some(Val::Cid(cid)) = Self::resolve_term(cid_term, blockstore, bindings) else {
-                        panic!();
-                    };
+                let Some(cid_val) = Self::resolve_term(cid_term, blockstore, bindings) else {
+                    panic!();
+                };
+
+                let Val::Cid(cid) = &*cid_val else {
+                    panic!();
+                };
 
                 let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(&cid) else {
                         return None;
                     };
 
-                fact.link(*link_id).cloned()
+                fact.link(*link_id)
             }
             Term::Col(col, col_binding) => bindings
                 .get(&BindingKey::Relation(*col_binding, *col))
-                .cloned(),
-            Term::Lit(val) => Some(val.clone()),
+                .map(Arc::clone),
+            Term::Lit(val) => Some(val).map(Arc::clone),
         }
     }
 
@@ -540,7 +549,7 @@ where
 
                 for (id, term) in not_in.cols() {
                     if let Some(val) = Self::resolve_term(term, blockstore, bindings) {
-                        bound.push((*id, val));
+                        bound.push((*id, <Val>::clone(&val)));
                     }
                 }
 
@@ -556,6 +565,15 @@ where
                             .unwrap()
                     }
                 }
+            }
+            Formula::Predicate(predicate) => {
+                let args = predicate
+                    .args()
+                    .iter()
+                    .map(|t| Self::resolve_term(t, blockstore, bindings).unwrap())
+                    .collect::<Vec<_>>();
+
+                predicate.is_satisfied(args.as_slice())
             }
         })
     }

@@ -4,7 +4,7 @@ use crate::id::RelationId;
 
 use super::{Edge, Fact, Rule};
 
-#[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
+#[derive(Debug, From, IsVariant, TryInto)]
 pub enum Clause {
     Fact(Fact),
     Rule(Rule),

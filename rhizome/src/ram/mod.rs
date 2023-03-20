@@ -3,6 +3,7 @@ pub(crate) mod equality;
 pub(crate) mod formula;
 pub(crate) mod not_in;
 pub(crate) mod operation;
+pub(crate) mod predicate;
 pub(crate) mod program;
 pub(crate) mod relation_binding;
 pub(crate) mod relation_ref;

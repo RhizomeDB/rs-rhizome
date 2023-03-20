@@ -33,12 +33,13 @@ impl<'a> FactBuilder<'a> {
     }
 
     pub fn finalize(self) -> Result<Fact> {
+        let schema = self.relation.schema();
         let mut cols = HashMap::default();
 
         for (col_id, col_val) in self.bindings {
             match col_val {
                 ColVal::Lit(val) => {
-                    let Some(col) = self.relation.schema().get_col(&col_id) else {
+                    let Some(col) = schema.get_col(&col_id) else {
                         return error(Error::UnrecognizedColumnBinding(self.relation.id(), col_id));
                     };
 

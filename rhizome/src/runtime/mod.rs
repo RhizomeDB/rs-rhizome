@@ -211,8 +211,8 @@ mod tests {
             (
                 "root",
                 vec![
-                    BTreeFact::new("root", [("tree", Val::S32(0)), ("id", f00.cid())]),
-                    BTreeFact::new("root", [("tree", Val::S32(1)), ("id", f10.cid())]),
+                    BTreeFact::new("root", [("tree", Val::S32(0)), ("id", Val::Cid(f00.cid()))]),
+                    BTreeFact::new("root", [("tree", Val::S32(1)), ("id", Val::Cid(f10.cid()))]),
                 ],
             ),
             (
@@ -222,48 +222,48 @@ mod tests {
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", f00.cid()),
-                            ("child", f01.cid()),
+                            ("parent", Val::Cid(f00.cid())),
+                            ("child", Val::Cid(f01.cid())),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", f01.cid()),
-                            ("child", f02.cid()),
+                            ("parent", Val::Cid(f01.cid())),
+                            ("child", Val::Cid(f02.cid())),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", f02.cid()),
-                            ("child", f03.cid()),
+                            ("parent", Val::Cid(f02.cid())),
+                            ("child", Val::Cid(f03.cid())),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", f02.cid()),
-                            ("child", f04.cid()),
+                            ("parent", Val::Cid(f02.cid())),
+                            ("child", Val::Cid(f04.cid())),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(1)),
-                            ("parent", f10.cid()),
-                            ("child", f11.cid()),
+                            ("parent", Val::Cid(f10.cid())),
+                            ("child", Val::Cid(f11.cid())),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(1)),
-                            ("parent", f11.cid()),
-                            ("child", f12.cid()),
+                            ("parent", Val::Cid(f11.cid())),
+                            ("child", Val::Cid(f12.cid())),
                         ],
                     ),
                 ],
@@ -306,6 +306,63 @@ mod tests {
             },
             [f00, f01, f02, f03, f04, f10, f11, f12,],
             idb
+        );
+    }
+
+    #[test]
+    fn test_user_defined_predicate() {
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("triangle", |h| {
+                    h.column::<i32>("a").column::<i32>("b").column::<i32>("c")
+                })?;
+
+                p.rule::<(i32, i32, i32)>("triangle", &|h, b, (x, y, z)| {
+                    (
+                        h.bind((("a", x), ("b", y), ("c", z))),
+                        b.search("evac", (("value", x),))
+                            .search("evac", (("value", y),))
+                            .search("evac", (("value", z),))
+                            // TODO: Figure out how to infer these types automatically
+                            .predicate((*x, *y, *z), |(x, y, z)| {
+                                let Val::S32(x) = *x else { panic!() };
+                                let Val::S32(y) = *y else { panic!() };
+                                let Val::S32(z) = *z else { panic!() };
+
+                                x + y < z
+                            }),
+                    )
+                })
+            },
+            [
+                EVACFact::new(0, "n", 1, vec![]),
+                EVACFact::new(0, "n", 2, vec![]),
+                EVACFact::new(0, "n", 3, vec![]),
+                EVACFact::new(0, "n", 4, vec![]),
+                EVACFact::new(0, "n", 5, vec![]),
+            ],
+            [(
+                "triangle",
+                [
+                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 3)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 4)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 4)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 3), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 4)],),
+                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 2), ("b", 2), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 3), ("b", 1), ("c", 5)],),
+                ]
+            )]
         );
     }
 }

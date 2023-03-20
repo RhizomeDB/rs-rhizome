@@ -5,7 +5,10 @@ use crate::{
     col_val::ColVal,
     error::{error, Error},
     id::{ColId, LinkId},
-    logic::ast::{BodyTerm, CidValue, Declaration, GetLink},
+    logic::{
+        ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
+        VarClosure,
+    },
     types::Type,
     value::Val,
     var::Var,
@@ -13,6 +16,7 @@ use crate::{
 
 use super::{
     atom_args::{AtomArg, AtomArgs},
+    into_tuple_args::IntoTupleArgs,
     negation::NegationBuilder,
     rel_predicate::RelPredicateBuilder,
 };
@@ -20,7 +24,7 @@ use super::{
 #[derive(Debug)]
 pub struct RuleHeadBuilder<'a> {
     relation: &'a Declaration,
-    pub(super) bindings: Vec<(ColId, ColVal)>,
+    bindings: Vec<(ColId, ColVal)>,
 }
 
 impl<'a> RuleHeadBuilder<'a> {
@@ -32,10 +36,11 @@ impl<'a> RuleHeadBuilder<'a> {
     }
 
     pub fn finalize(self, bound_vars: &HashMap<Var, Type>) -> Result<HashMap<ColId, ColVal>> {
+        let schema = self.relation.schema();
         let mut cols = HashMap::default();
 
         for (col_id, col_val) in self.bindings {
-            let Some(col) = self.relation.schema().get_col(&col_id) else {
+            let Some(col) = schema.get_col(&col_id) else {
                 return error(Error::UnrecognizedColumnBinding(self.relation.id(), col_id));
             };
 
@@ -92,7 +97,7 @@ impl<'a> RuleHeadBuilder<'a> {
         T: Into<Val>,
     {
         let id = ColId::new(id);
-        let value = value.into();
+        let value = Arc::new(value.into());
 
         self.bindings.push((id, ColVal::Lit(value)));
 
@@ -126,6 +131,7 @@ pub struct RuleBodyBuilder<'a> {
     rel_predicates: Vec<(String, RelPredicateBuilder)>,
     negations: Vec<(String, NegationBuilder)>,
     get_links: Vec<(CidValue, LinkId, CidValue)>,
+    var_predicates: Vec<(Vec<Var>, Arc<dyn VarClosure>)>,
     relations: &'a HashMap<String, Arc<Declaration>>,
 }
 
@@ -141,6 +147,7 @@ impl<'a> RuleBodyBuilder<'a> {
             rel_predicates: Vec::default(),
             negations: Vec::default(),
             get_links: Vec::default(),
+            var_predicates: Vec::default(),
             relations,
         }
     }
@@ -187,6 +194,18 @@ impl<'a> RuleBodyBuilder<'a> {
             }
 
             let term = BodyTerm::GetLink(GetLink::new(cid, vec![(link_id, value)]));
+
+            body_terms.push(term);
+        }
+
+        for (vars, f) in self.var_predicates {
+            for var in &vars {
+                if !bound_vars.contains_key(var) {
+                    return error(Error::ClauseNotDomainIndependent(var.id()));
+                }
+            }
+
+            let term = BodyTerm::VarPredicate(VarPredicate::new(vars, f.into()));
 
             body_terms.push(term);
         }
@@ -277,6 +296,24 @@ impl<'a> RuleBodyBuilder<'a> {
         let value = value.into();
 
         self.get_links.push((cid, link_id, value));
+
+        self
+    }
+
+    pub fn predicate<Vars, F>(mut self, vars: Vars, f: F) -> Self
+    where
+        Vars: IntoTupleArgs<Var, Arc<Val>> + Send + Sync + 'static,
+        F: Fn(Vars::Output) -> bool + Send + Sync + 'static,
+    {
+        let vars_vec = vars.into_vec();
+
+        let f: Arc<dyn VarClosure> = Arc::new(move |bindings| {
+            let args = vars.into_tuple_args(&bindings);
+
+            f(args)
+        });
+
+        self.var_predicates.push((vars_vec, f));
 
         self
     }

@@ -1,22 +1,24 @@
+use std::sync::Arc;
+
 use pretty::RcDoc;
 
 use crate::pretty::Pretty;
 
 use super::Statement;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Loop {
-    body: Vec<Statement>,
+    body: Vec<Arc<Statement>>,
 }
 
 impl Loop {
-    pub fn new(body: impl IntoIterator<Item = Statement>) -> Self {
+    pub fn new(body: impl IntoIterator<Item = Arc<Statement>>) -> Self {
         let body = body.into_iter().collect();
 
         Self { body }
     }
 
-    pub fn body(&self) -> &Vec<Statement> {
+    pub fn body(&self) -> &[Arc<Statement>] {
         &self.body
     }
 }

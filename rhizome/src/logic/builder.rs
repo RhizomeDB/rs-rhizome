@@ -9,6 +9,7 @@ use super::lower_to_ram;
 mod atom_args;
 mod declaration;
 mod fact;
+mod into_tuple_args;
 mod negation;
 mod program;
 mod rel_predicate;
@@ -27,6 +28,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use cid::Cid;
 
     use crate::{
@@ -483,7 +486,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Val::S8(5)),
+                ColVal::Lit(Arc::new(Val::S8(5))),
                 ColType::Type(Type::S32)
             ),
             |p| {
@@ -497,7 +500,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Val::String("foo".to_string().into_boxed_str())),
+                ColVal::Lit(Arc::new("foo".into())),
                 ColType::Type(Type::Cid)
             ),
             |p| {
@@ -511,7 +514,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Val::Char('f')),
+                ColVal::Lit(Arc::new(Val::Char('f'))),
                 ColType::Type(Type::String)
             ),
             |p| {
@@ -528,7 +531,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Val::U16(8)),
+                ColVal::Lit(Arc::new(Val::U16(8))),
                 ColType::Type(Type::Bool)
             ),
             |p| {
@@ -542,7 +545,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Val::Bool(true)),
+                ColVal::Lit(Arc::new(Val::Bool(true))),
                 ColType::Type(Type::U32)
             ),
             |p| {
@@ -556,7 +559,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Val::String("b".to_string().into_boxed_str())),
+                ColVal::Lit(Arc::new("b".into())),
                 ColType::Type(Type::Char)
             ),
             |p| {
@@ -573,7 +576,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColVal::Lit(Val::U16(8)),
+                ColVal::Lit(Arc::new(Val::U16(8))),
                 ColType::Type(Type::Bool)
             ),
             |p| {
@@ -590,7 +593,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColVal::Lit(Val::Bool(true)),
+                ColVal::Lit(Arc::new(Val::Bool(true))),
                 ColType::Type(Type::U32)
             ),
             |p| {
@@ -607,7 +610,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColVal::Lit(Val::String("b".to_string().into_boxed_str())),
+                ColVal::Lit(Arc::new("b".into())),
                 ColType::Type(Type::Char)
             ),
             |p| {
@@ -919,6 +922,33 @@ mod tests {
 
             p.rule::<(u32,)>("p", &|h, b, (x,)| {
                 (h.bind((("x", x),)), b.search("q", (("x", x),)))
+            })
+        });
+    }
+
+    #[test]
+    fn test_predicate() {
+        assert_compile!(|p| {
+            p.input("num", |h| h.column::<i32>("n"))?;
+            p.output("triangle", |h| {
+                h.column::<i32>("a").column::<i32>("b").column::<i32>("c")
+            })?;
+
+            p.rule::<(i32, i32, i32)>("triangle", &|h, b, (x, y, z)| {
+                (
+                    h.bind((("a", x), ("b", y), ("c", z))),
+                    b.search("num", (("n", x),))
+                        .search("num", (("n", y),))
+                        .search("num", (("n", z),))
+                        // TODO: Figure out how to infer these types automatically
+                        .predicate((*x, *y, *z), |(x, y, z)| {
+                            let Val::S32(x) = *x else { panic!() };
+                            let Val::S32(y) = *y else { panic!() };
+                            let Val::S32(z) = *z else { panic!() };
+
+                            x + y < z
+                        }),
+                )
             })
         });
     }

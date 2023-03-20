@@ -1,14 +1,17 @@
+use std::sync::Arc;
+
 use derive_more::{From, IsVariant, TryInto};
 use pretty::RcDoc;
 
-use crate::{id::ColId, pretty::Pretty};
+use crate::{id::ColId, logic::VarClosure, pretty::Pretty};
 
-use super::{Equality, NotIn, RelationRef, Term};
+use super::{predicate::Predicate, Equality, NotIn, RelationRef, Term};
 
-#[derive(Clone, Debug, IsVariant, From, TryInto)]
+#[derive(Debug, IsVariant, From, TryInto)]
 pub enum Formula {
     Equality(Equality),
     NotIn(NotIn),
+    Predicate(Predicate),
 }
 
 impl Formula {
@@ -23,6 +26,10 @@ impl Formula {
     {
         Self::NotIn(NotIn::new(cols, relation))
     }
+
+    pub fn predicate(terms: Vec<Term>, f: Arc<dyn VarClosure>) -> Self {
+        Self::Predicate(Predicate::new(terms, f))
+    }
 }
 
 impl Pretty for Formula {
@@ -30,6 +37,7 @@ impl Pretty for Formula {
         match self {
             Formula::Equality(inner) => inner.to_doc(),
             Formula::NotIn(inner) => inner.to_doc(),
+            Formula::Predicate(inner) => inner.to_doc(),
         }
     }
 }

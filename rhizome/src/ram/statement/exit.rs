@@ -14,7 +14,7 @@ impl Exit {
         Self { relations }
     }
 
-    pub fn relations(&self) -> &Vec<RelationRef> {
+    pub fn relations(&self) -> &[RelationRef] {
         &self.relations
     }
 }
