@@ -7,7 +7,7 @@ use crate::{
 
 use super::Operation;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Search {
     relation: RelationRef,
     alias: Option<AliasId>,
@@ -40,7 +40,7 @@ impl Search {
         &self.alias
     }
 
-    pub fn when(&self) -> &Vec<Formula> {
+    pub fn when(&self) -> &[Formula] {
         &self.when
     }
 

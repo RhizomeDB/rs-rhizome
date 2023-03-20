@@ -30,7 +30,9 @@ impl RelPredicateBuilder {
         let mut cols = HashMap::default();
 
         for (col_id, col_val) in self.bindings {
-            let Some(col) = relation.schema().get_col(&col_id) else {
+            let schema = relation.schema();
+
+            let Some(col) = schema.get_col(&col_id) else {
                 return error(Error::UnrecognizedColumnBinding(relation.id(), col_id));
             };
 
@@ -88,7 +90,7 @@ impl RelPredicateBuilder {
         T: Into<Val>,
     {
         let col_id = ColId::new(col_id);
-        let val = val.into();
+        let val = Arc::new(val.into());
 
         self.bindings.push((col_id, ColVal::Lit(val)));
 

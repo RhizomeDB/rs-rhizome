@@ -11,7 +11,7 @@ pub(crate) mod search;
 pub(crate) use project::*;
 pub(crate) use search::*;
 
-#[derive(Clone, Debug, IsVariant)]
+#[derive(Debug, IsVariant)]
 pub enum Operation {
     Search(Search),
     Project(Project),

@@ -1,31 +1,35 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::{self, Debug},
     sync::Arc,
 };
 
-use derive_more::{From, IsVariant, TryInto};
+use derive_more::{From, IsVariant};
 
 use crate::{
     id::{ColId, LinkId},
+    logic::VarClosure,
     var::Var,
 };
 
 use super::{CidValue, Declaration, Polarity};
 use crate::col_val::ColVal;
 
-#[derive(Debug, Clone, Eq, From, PartialEq, IsVariant, TryInto)]
+#[derive(Debug, From, IsVariant)]
 pub enum BodyTerm {
+    VarPredicate(VarPredicate),
     RelPredicate(RelPredicate),
     Negation(Negation),
     GetLink(GetLink),
 }
 
 impl BodyTerm {
-    pub fn depends_on(&self) -> Vec<&Declaration> {
+    pub fn depends_on(&self) -> Vec<Arc<Declaration>> {
         match self {
             BodyTerm::RelPredicate(inner) => vec![inner.relation()],
             BodyTerm::Negation(inner) => vec![inner.relation()],
             BodyTerm::GetLink(_) => vec![],
+            BodyTerm::VarPredicate(_) => vec![],
         }
     }
 
@@ -33,7 +37,8 @@ impl BodyTerm {
         match self {
             BodyTerm::RelPredicate(_) => Some(Polarity::Positive),
             BodyTerm::Negation(_) => Some(Polarity::Negative),
-            BodyTerm::GetLink(_) => Some(Polarity::Positive),
+            BodyTerm::GetLink(_) => None,
+            BodyTerm::VarPredicate(_) => None,
         }
     }
 }
@@ -49,8 +54,8 @@ impl RelPredicate {
         Self { relation, args }
     }
 
-    pub fn relation(&self) -> &Arc<Declaration> {
-        &self.relation
+    pub fn relation(&self) -> Arc<Declaration> {
+        Arc::clone(&self.relation)
     }
 
     pub fn args(&self) -> &HashMap<ColId, ColVal> {
@@ -79,12 +84,16 @@ impl Negation {
         Self { relation, args }
     }
 
-    pub fn relation(&self) -> &Arc<Declaration> {
-        &self.relation
+    pub fn relation(&self) -> Arc<Declaration> {
+        Arc::clone(&self.relation)
     }
 
     pub fn args(&self) -> &HashMap<ColId, ColVal> {
         &self.args
+    }
+
+    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<Var, T>) -> bool {
+        self.vars().iter().all(|var| bindings.contains_key(var))
     }
 
     pub fn vars(&self) -> HashSet<&Var> {
@@ -133,19 +142,35 @@ impl GetLink {
     pub fn link_value(&self) -> CidValue {
         self.link_value
     }
+}
 
-    // TODO: If we allowed link_id to be unbound we will need to add it here
-    pub fn vars(&self) -> HashSet<&Var> {
-        let mut vars = HashSet::default();
+pub struct VarPredicate {
+    vars: Vec<Var>,
+    f: Arc<dyn VarClosure>,
+}
 
-        if let CidValue::Var(var) = &self.cid {
-            vars.insert(var);
-        }
+impl VarPredicate {
+    pub fn new(vars: Vec<Var>, f: Arc<dyn VarClosure>) -> Self {
+        Self { vars, f }
+    }
 
-        if let CidValue::Var(var) = &self.link_value {
-            vars.insert(var);
-        }
+    pub fn vars(&self) -> &Vec<Var> {
+        &self.vars
+    }
 
-        vars
+    pub fn f(&self) -> Arc<dyn VarClosure> {
+        Arc::clone(&self.f)
+    }
+
+    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<Var, T>) -> bool {
+        self.vars.iter().all(|var| bindings.contains_key(var))
+    }
+}
+
+impl Debug for VarPredicate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VarPredicate")
+            .field("vars", &self.vars)
+            .finish()
     }
 }

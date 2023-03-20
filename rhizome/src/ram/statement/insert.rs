@@ -2,7 +2,7 @@ use pretty::RcDoc;
 
 use crate::{pretty::Pretty, ram::operation::Operation};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Insert {
     operation: Operation,
     // Whether the insertion is for a ground atom with all constant columns.

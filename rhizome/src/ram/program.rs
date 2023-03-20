@@ -6,18 +6,18 @@ use crate::{pretty::Pretty, schema::Schema};
 
 use super::Statement;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Program {
     inputs: Vec<Arc<Schema>>,
     outputs: Vec<Arc<Schema>>,
-    statements: Vec<Statement>,
+    statements: Vec<Arc<Statement>>,
 }
 
 impl Program {
     pub fn new(
         inputs: Vec<Arc<Schema>>,
         outputs: Vec<Arc<Schema>>,
-        statements: Vec<Statement>,
+        statements: Vec<Arc<Statement>>,
     ) -> Self {
         Self {
             inputs,
@@ -26,15 +26,15 @@ impl Program {
         }
     }
 
-    pub fn inputs(&self) -> &Vec<Arc<Schema>> {
+    pub fn inputs(&self) -> &[Arc<Schema>] {
         &self.inputs
     }
 
-    pub fn outputs(&self) -> &Vec<Arc<Schema>> {
+    pub fn outputs(&self) -> &[Arc<Schema>] {
         &self.outputs
     }
 
-    pub fn statements(&self) -> &Vec<Statement> {
+    pub fn statements(&self) -> &[Arc<Statement>] {
         &self.statements
     }
 }

@@ -4,17 +4,17 @@ use crate::id::RelationId;
 
 use super::{Clause, Fact, Rule};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub(crate) struct Stratum {
+#[derive(Debug)]
+pub(crate) struct Stratum<'a> {
     relations: HashSet<RelationId>,
-    clauses: Vec<Clause>,
+    clauses: Vec<&'a Clause>,
     is_recursive: bool,
 }
 
-impl Stratum {
+impl<'a> Stratum<'a> {
     pub(crate) fn new(
         relations: HashSet<RelationId>,
-        clauses: Vec<Clause>,
+        clauses: Vec<&'a Clause>,
         is_recursive: bool,
     ) -> Self {
         Self {
@@ -32,21 +32,29 @@ impl Stratum {
         self.is_recursive
     }
 
-    pub(crate) fn facts(&self) -> Vec<Fact> {
-        self.clauses_of::<Fact>()
-    }
-
-    pub(crate) fn rules(&self) -> Vec<Rule> {
-        self.clauses_of::<Rule>()
-    }
-
-    fn clauses_of<T>(&self) -> Vec<T>
-    where
-        T: TryFrom<Clause>,
-    {
+    pub(crate) fn facts(&self) -> Vec<&Fact> {
         self.clauses
             .iter()
-            .filter_map(|clause| T::try_from(clause.clone()).ok())
+            .filter_map(|term| {
+                if let Clause::Fact(inner) = term {
+                    Some(inner)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub(crate) fn rules(&self) -> Vec<&Rule> {
+        self.clauses
+            .iter()
+            .filter_map(|term| {
+                if let Clause::Rule(inner) = term {
+                    Some(inner)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 }

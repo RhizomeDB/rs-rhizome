@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use derive_more::{From, IsVariant, TryInto};
 use pretty::RcDoc;
 
@@ -13,7 +15,7 @@ use super::RelationBinding;
 pub enum Term {
     Link(LinkId, Box<Term>),
     Col(ColId, RelationBinding),
-    Lit(Val),
+    Lit(Arc<Val>),
 }
 
 impl Pretty for Term {

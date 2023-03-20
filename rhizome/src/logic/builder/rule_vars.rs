@@ -3,8 +3,6 @@ use crate::{
     var::Var,
 };
 
-// TODO: Implement this with macros
-
 pub trait RuleVars {
     type Vars;
 

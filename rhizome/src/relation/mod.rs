@@ -68,7 +68,7 @@ where
         // only allow negation over the complete set of columns for a relation.
         self.inner
             .iter()
-            .any(|f| fact.cols().iter().all(|(k, v)| f.cols().get(k) == Some(v)))
+            .any(|f| fact.cols().iter().all(|k| f.col(k) == fact.col(k)))
     }
 
     fn insert(self, fact: F) -> Self {
