@@ -1,11 +1,12 @@
 use std::fmt::{self, Display};
 
 use cid::Cid;
+use derive_more::TryInto;
 use serde::{Deserialize, Serialize};
 
 use crate::types::Type;
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, TryInto)]
 pub enum Val {
     Bool(bool),
     S8(i8),

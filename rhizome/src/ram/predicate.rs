@@ -22,7 +22,7 @@ impl Predicate {
         &self.args
     }
 
-    pub fn is_satisfied(&self, args: &[Arc<Val>]) -> bool {
+    pub fn is_satisfied(&self, args: Vec<Val>) -> bool {
         (self.f)(args)
     }
 }
