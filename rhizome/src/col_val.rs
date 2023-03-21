@@ -3,7 +3,11 @@ use std::{
     sync::Arc,
 };
 
-use crate::{value::Val, var::Var};
+use crate::{
+    types::{FromType, Type},
+    value::Val,
+    var::{TypedVar, Var},
+};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ColVal {
@@ -17,6 +21,12 @@ impl From<Val> for ColVal {
     }
 }
 
+impl From<&Val> for ColVal {
+    fn from(value: &Val) -> Self {
+        Self::Lit(Arc::new(value.clone()))
+    }
+}
+
 impl From<Var> for ColVal {
     fn from(value: Var) -> Self {
         Self::Binding(value)
@@ -26,6 +36,25 @@ impl From<Var> for ColVal {
 impl From<&Var> for ColVal {
     fn from(value: &Var) -> Self {
         Self::Binding(*value)
+    }
+}
+
+impl<T> From<TypedVar<T>> for ColVal
+where
+    Type: FromType<T>,
+{
+    fn from(value: TypedVar<T>) -> Self {
+        Self::Binding(value.into())
+    }
+}
+
+impl<T> From<&TypedVar<T>> for ColVal
+where
+    Type: FromType<T>,
+    T: Copy,
+{
+    fn from(value: &TypedVar<T>) -> Self {
+        Self::Binding((*value).into())
     }
 }
 

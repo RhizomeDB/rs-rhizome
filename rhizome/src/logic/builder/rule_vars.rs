@@ -1,6 +1,6 @@
 use crate::{
     types::{FromType, Type},
-    var::Var,
+    var::TypedVar,
 };
 
 pub trait RuleVars {
@@ -19,10 +19,10 @@ impl<V0> RuleVars for (V0,)
 where
     Type: FromType<V0>,
 {
-    type Vars = (Var,);
+    type Vars = (TypedVar<V0>,);
 
     fn into_vars() -> Self::Vars {
-        (Var::new::<V0>("x0"),)
+        (TypedVar::<V0>::new("x0"),)
     }
 }
 
@@ -31,10 +31,10 @@ where
     Type: FromType<V0>,
     Type: FromType<V1>,
 {
-    type Vars = (Var, Var);
+    type Vars = (TypedVar<V0>, TypedVar<V1>);
 
     fn into_vars() -> Self::Vars {
-        (Var::new::<V0>("x0"), Var::new::<V1>("x1"))
+        (TypedVar::<V0>::new("x0"), TypedVar::<V1>::new("x1"))
     }
 }
 
@@ -44,13 +44,13 @@ where
     Type: FromType<V1>,
     Type: FromType<V2>,
 {
-    type Vars = (Var, Var, Var);
+    type Vars = (TypedVar<V0>, TypedVar<V1>, TypedVar<V2>);
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
         )
     }
 }
@@ -62,14 +62,14 @@ where
     Type: FromType<V2>,
     Type: FromType<V3>,
 {
-    type Vars = (Var, Var, Var, Var);
+    type Vars = (TypedVar<V0>, TypedVar<V1>, TypedVar<V2>, TypedVar<V3>);
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
-            Var::new::<V3>("x3"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
+            TypedVar::<V3>::new("x3"),
         )
     }
 }
@@ -82,15 +82,21 @@ where
     Type: FromType<V3>,
     Type: FromType<V4>,
 {
-    type Vars = (Var, Var, Var, Var, Var);
+    type Vars = (
+        TypedVar<V0>,
+        TypedVar<V1>,
+        TypedVar<V2>,
+        TypedVar<V3>,
+        TypedVar<V4>,
+    );
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
-            Var::new::<V3>("x3"),
-            Var::new::<V4>("x4"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
+            TypedVar::<V3>::new("x3"),
+            TypedVar::<V4>::new("x4"),
         )
     }
 }
@@ -104,16 +110,23 @@ where
     Type: FromType<V4>,
     Type: FromType<V5>,
 {
-    type Vars = (Var, Var, Var, Var, Var, Var);
+    type Vars = (
+        TypedVar<V0>,
+        TypedVar<V1>,
+        TypedVar<V2>,
+        TypedVar<V3>,
+        TypedVar<V4>,
+        TypedVar<V5>,
+    );
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
-            Var::new::<V3>("x3"),
-            Var::new::<V4>("x4"),
-            Var::new::<V5>("x5"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
+            TypedVar::<V3>::new("x3"),
+            TypedVar::<V4>::new("x4"),
+            TypedVar::<V5>::new("x5"),
         )
     }
 }
@@ -128,17 +141,25 @@ where
     Type: FromType<V5>,
     Type: FromType<V6>,
 {
-    type Vars = (Var, Var, Var, Var, Var, Var, Var);
+    type Vars = (
+        TypedVar<V0>,
+        TypedVar<V1>,
+        TypedVar<V2>,
+        TypedVar<V3>,
+        TypedVar<V4>,
+        TypedVar<V5>,
+        TypedVar<V6>,
+    );
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
-            Var::new::<V3>("x3"),
-            Var::new::<V4>("x4"),
-            Var::new::<V5>("x5"),
-            Var::new::<V6>("x6"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
+            TypedVar::<V3>::new("x3"),
+            TypedVar::<V4>::new("x4"),
+            TypedVar::<V5>::new("x5"),
+            TypedVar::<V6>::new("x6"),
         )
     }
 }
@@ -154,18 +175,27 @@ where
     Type: FromType<V6>,
     Type: FromType<V7>,
 {
-    type Vars = (Var, Var, Var, Var, Var, Var, Var, Var);
+    type Vars = (
+        TypedVar<V0>,
+        TypedVar<V1>,
+        TypedVar<V2>,
+        TypedVar<V3>,
+        TypedVar<V4>,
+        TypedVar<V5>,
+        TypedVar<V6>,
+        TypedVar<V7>,
+    );
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
-            Var::new::<V3>("x3"),
-            Var::new::<V4>("x4"),
-            Var::new::<V5>("x5"),
-            Var::new::<V6>("x6"),
-            Var::new::<V7>("x7"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
+            TypedVar::<V3>::new("x3"),
+            TypedVar::<V4>::new("x4"),
+            TypedVar::<V5>::new("x5"),
+            TypedVar::<V6>::new("x6"),
+            TypedVar::<V7>::new("x7"),
         )
     }
 }
@@ -182,19 +212,29 @@ where
     Type: FromType<V7>,
     Type: FromType<V8>,
 {
-    type Vars = (Var, Var, Var, Var, Var, Var, Var, Var, Var);
+    type Vars = (
+        TypedVar<V0>,
+        TypedVar<V1>,
+        TypedVar<V2>,
+        TypedVar<V3>,
+        TypedVar<V4>,
+        TypedVar<V5>,
+        TypedVar<V6>,
+        TypedVar<V7>,
+        TypedVar<V8>,
+    );
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
-            Var::new::<V3>("x3"),
-            Var::new::<V4>("x4"),
-            Var::new::<V5>("x5"),
-            Var::new::<V6>("x6"),
-            Var::new::<V7>("x7"),
-            Var::new::<V8>("x8"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
+            TypedVar::<V3>::new("x3"),
+            TypedVar::<V4>::new("x4"),
+            TypedVar::<V5>::new("x5"),
+            TypedVar::<V6>::new("x6"),
+            TypedVar::<V7>::new("x7"),
+            TypedVar::<V8>::new("x8"),
         )
     }
 }
@@ -212,20 +252,31 @@ where
     Type: FromType<V8>,
     Type: FromType<V9>,
 {
-    type Vars = (Var, Var, Var, Var, Var, Var, Var, Var, Var, Var);
+    type Vars = (
+        TypedVar<V0>,
+        TypedVar<V1>,
+        TypedVar<V2>,
+        TypedVar<V3>,
+        TypedVar<V4>,
+        TypedVar<V5>,
+        TypedVar<V6>,
+        TypedVar<V7>,
+        TypedVar<V8>,
+        TypedVar<V9>,
+    );
 
     fn into_vars() -> Self::Vars {
         (
-            Var::new::<V0>("x0"),
-            Var::new::<V1>("x1"),
-            Var::new::<V2>("x2"),
-            Var::new::<V3>("x3"),
-            Var::new::<V4>("x4"),
-            Var::new::<V5>("x5"),
-            Var::new::<V6>("x6"),
-            Var::new::<V7>("x7"),
-            Var::new::<V8>("x8"),
-            Var::new::<V9>("x9"),
+            TypedVar::<V0>::new("x0"),
+            TypedVar::<V1>::new("x1"),
+            TypedVar::<V2>::new("x2"),
+            TypedVar::<V3>::new("x3"),
+            TypedVar::<V4>::new("x4"),
+            TypedVar::<V5>::new("x5"),
+            TypedVar::<V6>::new("x6"),
+            TypedVar::<V7>::new("x7"),
+            TypedVar::<V8>::new("x8"),
+            TypedVar::<V9>::new("x9"),
         )
     }
 }
