@@ -90,7 +90,7 @@ pub(crate) fn lower_stratum_to_ram(
     if stratum.is_recursive() {
         // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(&fact)?;
+            let lowered = lower_fact_to_ram(fact)?;
 
             statements.push(lowered);
         }
@@ -190,14 +190,14 @@ pub(crate) fn lower_stratum_to_ram(
     } else {
         // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(&fact)?;
+            let lowered = lower_fact_to_ram(fact)?;
 
             statements.push(lowered);
         }
 
         // Evaluate all rules, inserting into Delta
         for rule in stratum.rules() {
-            let mut lowered = lower_rule_to_ram(&rule, stratum, program, RelationVersion::Delta)?;
+            let mut lowered = lower_rule_to_ram(rule, stratum, program, RelationVersion::Delta)?;
 
             statements.append(&mut lowered);
         }
@@ -276,7 +276,7 @@ pub(crate) fn lower_rule_to_ram(
                 for (col_id, col_val) in predicate.args() {
                     match col_val {
                         ColVal::Lit(_) => continue,
-                        ColVal::Binding(var) if !bindings.contains_key(&var) => {
+                        ColVal::Binding(var) if !bindings.contains_key(var) => {
                             let col_binding = match &*predicate.relation() {
                                 Declaration::Edb(inner) => RelationBinding::edb(inner.id(), alias),
                                 Declaration::Idb(inner) => RelationBinding::idb(inner.id(), alias),
@@ -475,7 +475,7 @@ pub(crate) fn lower_rule_to_ram(
                         let var_terms = term
                             .vars()
                             .iter()
-                            .map(|var| metadata.bindings.get(&var).unwrap().clone())
+                            .map(|var| metadata.bindings.get(var).unwrap().clone())
                             .collect();
 
                         formulae.push(Formula::predicate(var_terms, term.f()));

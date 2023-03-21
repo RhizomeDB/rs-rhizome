@@ -183,17 +183,17 @@ where
         BS: Blockstore,
     {
         match &*self.load_statement() {
-            Statement::Insert(insert) => self.handle_insert(&insert, blockstore),
-            Statement::Merge(merge) => self.handle_merge(&merge),
-            Statement::Swap(swap) => self.handle_swap(&swap),
-            Statement::Purge(purge) => self.handle_purge(&purge),
+            Statement::Insert(insert) => self.handle_insert(insert, blockstore),
+            Statement::Merge(merge) => self.handle_merge(merge),
+            Statement::Swap(swap) => self.handle_swap(swap),
+            Statement::Purge(purge) => self.handle_purge(purge),
             Statement::Exit(exit) => {
                 assert!(self.pc.1.is_some());
 
-                self.handle_exit(&exit);
+                self.handle_exit(exit);
             }
-            Statement::Sources(sources) => self.handle_sources(&sources)?,
-            Statement::Sinks(sinks) => self.handle_sinks(&sinks)?,
+            Statement::Sources(sources) => self.handle_sources(sources)?,
+            Statement::Sinks(sinks) => self.handle_sinks(sinks)?,
             Statement::Loop(Loop { .. }) => {
                 unreachable!("load_statement follows loops in the root block")
             }
@@ -329,7 +329,7 @@ where
                 if let Some(v) = fact.col(&k) {
                     next_bindings.insert(BindingKey::Relation(relation_binding, k), v.clone());
                 } else {
-                    panic!("expected column missing: {}", k);
+                    panic!("expected column missing: {k}");
                 }
             }
 
@@ -514,7 +514,7 @@ where
                     panic!();
                 };
 
-                let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(&cid) else {
+                let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(cid) else {
                         return None;
                     };
 
@@ -571,9 +571,10 @@ where
                     .args()
                     .iter()
                     .map(|t| Self::resolve_term(t, blockstore, bindings).unwrap())
+                    .map(|v| Arc::try_unwrap(v).unwrap_or_else(|arc| (*arc).clone()))
                     .collect::<Vec<_>>();
 
-                predicate.is_satisfied(args.as_slice())
+                predicate.is_satisfied(args)
             }
         })
     }

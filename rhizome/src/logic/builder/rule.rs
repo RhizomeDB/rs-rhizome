@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     atom_args::{AtomArg, AtomArgs},
-    into_tuple_args::IntoTupleArgs,
+    into_tuple_args::{IntoTupleArgs, VarRefTuple},
     negation::NegationBuilder,
     rel_predicate::RelPredicateBuilder,
 };
@@ -205,7 +205,7 @@ impl<'a> RuleBodyBuilder<'a> {
                 }
             }
 
-            let term = BodyTerm::VarPredicate(VarPredicate::new(vars, f.into()));
+            let term = BodyTerm::VarPredicate(VarPredicate::new(vars, f));
 
             body_terms.push(term);
         }
@@ -300,15 +300,17 @@ impl<'a> RuleBodyBuilder<'a> {
         self
     }
 
-    pub fn predicate<Vars, F>(mut self, vars: Vars, f: F) -> Self
+    pub fn predicate<VarsRef, VarArgs, F>(mut self, vars: VarsRef, f: F) -> Self
     where
-        Vars: IntoTupleArgs<Var, Arc<Val>> + Send + Sync + 'static,
-        F: Fn(Vars::Output) -> bool + Send + Sync + 'static,
+        VarsRef: VarRefTuple<Val, Target = VarArgs>,
+        VarArgs: IntoTupleArgs<Val> + Send + Sync + 'static,
+        F: Fn(VarArgs::Output) -> bool + Send + Sync + 'static,
     {
-        let vars_vec = vars.into_vec();
+        let owned = vars.deref();
+        let vars_vec = owned.into_vars();
 
         let f: Arc<dyn VarClosure> = Arc::new(move |bindings| {
-            let args = vars.into_tuple_args(&bindings);
+            let args = owned.into_tuple_args(bindings);
 
             f(args)
         });

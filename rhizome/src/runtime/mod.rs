@@ -330,14 +330,7 @@ mod tests {
                         b.search("evac", (("value", x),))
                             .search("evac", (("value", y),))
                             .search("evac", (("value", z),))
-                            // TODO: Figure out how to infer these types automatically
-                            .predicate((*x, *y, *z), |(x, y, z)| {
-                                let Val::S32(x) = *x else { panic!() };
-                                let Val::S32(y) = *y else { panic!() };
-                                let Val::S32(z) = *z else { panic!() };
-
-                                x + y < z
-                            }),
+                            .predicate((x, y, z), |(x, y, z)| x + y < z),
                     )
                 })
             },

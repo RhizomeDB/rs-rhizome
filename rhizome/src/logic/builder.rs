@@ -38,7 +38,7 @@ mod tests {
         error::Error,
         types::{Any, ColType, Type},
         value::Val,
-        var::Var,
+        var::{TypedVar, Var},
     };
 
     #[test]
@@ -391,7 +391,7 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", &Var::new::<i32>("foo")),)))
+                p.fact("p", |f| f.bind((("x", &TypedVar::<i32>::new("foo")),)))
             }
         );
 
@@ -400,7 +400,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-                p.fact("p", |f| f.bind((("x", 1), ("y", &Var::new::<i32>("foo")))))
+                p.fact("p", |f| {
+                    f.bind((("x", 1), ("y", &TypedVar::<i32>::new("foo"))))
+                })
             }
         );
     }
@@ -940,14 +942,7 @@ mod tests {
                     b.search("num", (("n", x),))
                         .search("num", (("n", y),))
                         .search("num", (("n", z),))
-                        // TODO: Figure out how to infer these types automatically
-                        .predicate((*x, *y, *z), |(x, y, z)| {
-                            let Val::S32(x) = *x else { panic!() };
-                            let Val::S32(y) = *y else { panic!() };
-                            let Val::S32(z) = *z else { panic!() };
-
-                            x + y < z
-                        }),
+                        .predicate((x, y, z), |(x, y, z)| x + y < z),
                 )
             })
         });

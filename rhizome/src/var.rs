@@ -1,4 +1,7 @@
-use std::fmt::{self, Display};
+use std::{
+    fmt::{self, Display},
+    marker::PhantomData,
+};
 
 use crate::{
     id::VarId,
@@ -31,7 +34,49 @@ impl Var {
     }
 }
 
+impl<T> From<TypedVar<T>> for Var
+where
+    Type: FromType<T>,
+{
+    fn from(value: TypedVar<T>) -> Self {
+        Self::new::<T>(value.id().to_string().as_ref())
+    }
+}
+
 impl Display for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("({} : {})", self.id, self.typ))
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct TypedVar<T> {
+    id: VarId,
+    typ: Type,
+    _marker: PhantomData<T>,
+}
+
+impl<T> TypedVar<T>
+where
+    Type: FromType<T>,
+{
+    pub fn new(id: &str) -> Self {
+        let id = VarId::new(id);
+        let typ = FromType::<T>::from_type();
+
+        Self {
+            id,
+            typ,
+            _marker: PhantomData::default(),
+        }
+    }
+
+    pub fn id(&self) -> VarId {
+        self.id
+    }
+}
+
+impl<T> Display for TypedVar<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("({} : {})", self.id, self.typ))
     }
