@@ -15,6 +15,13 @@ use super::{
     rule_vars::RuleVars,
 };
 
+type RuleBuilderClosure<'a, T> = dyn Fn(
+        RuleHeadBuilder<'a>,
+        RuleBodyBuilder<'a>,
+        &'_ T,
+    ) -> (RuleHeadBuilder<'a>, RuleBodyBuilder<'a>)
+    + 'a;
+
 #[derive(Debug, Default)]
 pub struct ProgramBuilder {
     relations: HashMap<String, Arc<Declaration>>,
@@ -90,15 +97,7 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    pub fn rule<'a, 'b, T>(
-        &'a mut self,
-        id: &str,
-        f: &'b dyn Fn(
-            RuleHeadBuilder<'a>,
-            RuleBodyBuilder<'a>,
-            &T::Vars,
-        ) -> (RuleHeadBuilder<'a>, RuleBodyBuilder<'a>),
-    ) -> Result<()>
+    pub fn rule<'a, T>(&'a mut self, id: &str, f: &RuleBuilderClosure<'a, T::Vars>) -> Result<()>
     where
         T: RuleVars,
     {

@@ -22,6 +22,7 @@ macro_rules! impl_var_ref_tuple {
             {
                 type Target = ($(TypedVar<[< V $Ts >]>,)*);
 
+                #[allow(clippy::unused_unit)]
                 fn deref(&self) -> Self::Target {
                     ($(*self.$Ts,)*)
                 }
@@ -30,17 +31,17 @@ macro_rules! impl_var_ref_tuple {
     };
 }
 
-pub trait IntoTupleArgs<O> {
+pub trait TypedVarsTuple<O> {
     type Output;
 
-    fn into_vars(&self) -> Vec<Var>;
-    fn into_tuple_args(&self, bindings: Vec<O>) -> Self::Output;
+    fn vars(&self) -> Vec<Var>;
+    fn args(&self, bindings: Vec<O>) -> Self::Output;
 }
 
-macro_rules! impl_into_tuple_args {
+macro_rules! impl_typed_vars_tuple {
     ($($Ts:expr),*) => {
         paste::item! {
-            impl<O, $([< V $Ts >],)*> IntoTupleArgs<O> for ($(TypedVar<[< V $Ts >]>,)*)
+            impl<O, $([< V $Ts >],)*> TypedVarsTuple<O> for ($(TypedVar<[< V $Ts >]>,)*)
             where
                 O: Clone,
                 $(
@@ -50,12 +51,13 @@ macro_rules! impl_into_tuple_args {
             {
                 type Output = ($([< V $Ts >],)*);
 
-                fn into_vars(&self) -> Vec<Var> {
+                fn vars(&self) -> Vec<Var> {
                      vec![$(self.$Ts.into(),)*]
                 }
 
                 #[allow(unused_variables)]
-                fn into_tuple_args(&self, bindings: Vec<O>) -> Self::Output {
+                #[allow(clippy::unused_unit)]
+                fn args(&self, bindings: Vec<O>) -> Self::Output {
                     (
                         $(
                            [< V $Ts >]::try_from(bindings[$Ts].clone()).unwrap(),
@@ -67,15 +69,15 @@ macro_rules! impl_into_tuple_args {
     };
 }
 
-impl_into_tuple_args!();
-impl_into_tuple_args!(0);
-impl_into_tuple_args!(0, 1);
-impl_into_tuple_args!(0, 1, 2);
-impl_into_tuple_args!(0, 1, 2, 3);
-impl_into_tuple_args!(0, 1, 2, 3, 4);
-impl_into_tuple_args!(0, 1, 2, 3, 4, 5);
-impl_into_tuple_args!(0, 1, 2, 3, 4, 5, 6);
-impl_into_tuple_args!(0, 1, 2, 3, 4, 5, 6, 7);
+impl_typed_vars_tuple!();
+impl_typed_vars_tuple!(0);
+impl_typed_vars_tuple!(0, 1);
+impl_typed_vars_tuple!(0, 1, 2);
+impl_typed_vars_tuple!(0, 1, 2, 3);
+impl_typed_vars_tuple!(0, 1, 2, 3, 4);
+impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5);
+impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5, 6);
+impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5, 6, 7);
 
 impl_var_ref_tuple!();
 impl_var_ref_tuple!(0);

@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
+    aggregation_function::AggregationFunction,
     col_val::ColVal,
     error::{error, Error},
     id::{ColId, LinkId},
@@ -9,16 +10,17 @@ use crate::{
         ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
         VarClosure,
     },
-    types::Type,
+    types::{FromType, Type},
     value::Val,
-    var::Var,
+    var::{TypedVar, Var},
 };
 
 use super::{
+    aggregation::AggregationBuilder,
     atom_args::{AtomArg, AtomArgs},
-    into_tuple_args::{IntoTupleArgs, VarRefTuple},
     negation::NegationBuilder,
     rel_predicate::RelPredicateBuilder,
+    typed_vars_tuple::{TypedVarsTuple, VarRefTuple},
 };
 
 #[derive(Debug)]
@@ -132,6 +134,7 @@ pub struct RuleBodyBuilder<'a> {
     negations: Vec<(String, NegationBuilder)>,
     get_links: Vec<(CidValue, LinkId, CidValue)>,
     var_predicates: Vec<(Vec<Var>, Arc<dyn VarClosure>)>,
+    aggregations: Vec<(String, AggregationBuilder)>,
     relations: &'a HashMap<String, Arc<Declaration>>,
 }
 
@@ -148,6 +151,7 @@ impl<'a> RuleBodyBuilder<'a> {
             negations: Vec::default(),
             get_links: Vec::default(),
             var_predicates: Vec::default(),
+            aggregations: Vec::default(),
             relations,
         }
     }
@@ -228,6 +232,17 @@ impl<'a> RuleBodyBuilder<'a> {
             body_terms.push(term);
         }
 
+        for (id, builder) in self.aggregations {
+            let Some(declaration) = self.relations.get(&id) else {
+                    return error(Error::UnrecognizedRelation(id));
+                };
+
+            let aggregation = builder.finalize(Arc::clone(declaration), bound_vars)?;
+            let term = BodyTerm::Aggregation(aggregation);
+
+            body_terms.push(term);
+        }
+
         Ok(body_terms)
     }
 
@@ -303,19 +318,50 @@ impl<'a> RuleBodyBuilder<'a> {
     pub fn predicate<VarsRef, VarArgs, F>(mut self, vars: VarsRef, f: F) -> Self
     where
         VarsRef: VarRefTuple<Val, Target = VarArgs>,
-        VarArgs: IntoTupleArgs<Val> + Send + Sync + 'static,
+        VarArgs: TypedVarsTuple<Val> + Send + Sync + 'static,
         F: Fn(VarArgs::Output) -> bool + Send + Sync + 'static,
     {
         let owned = vars.deref();
-        let vars_vec = owned.into_vars();
+        let vars_vec = owned.vars();
 
         let f: Arc<dyn VarClosure> = Arc::new(move |bindings| {
-            let args = owned.into_tuple_args(bindings);
+            let args = owned.args(bindings);
 
             f(args)
         });
 
         self.var_predicates.push((vars_vec, f));
+
+        self
+    }
+
+    pub fn aggregate<T, Args, Arg>(
+        mut self,
+        agg: &str,
+        target: &TypedVar<T>,
+        id: &str,
+        args: Args,
+    ) -> Self
+    where
+        T: Clone,
+        Type: FromType<T>,
+        Args: AtomArgs<Arg>,
+    {
+        let agg_fn = match agg {
+            "count" => AggregationFunction::count(),
+            "sum" => AggregationFunction::sum(),
+            "min" => AggregationFunction::min(),
+            "max" => AggregationFunction::max(),
+            _ => panic!(),
+        };
+
+        let mut builder = AggregationBuilder::new(agg_fn, (*target).clone().into());
+
+        for (col_id, col_val) in Args::into_cols(args) {
+            builder.bindings.push((col_id, col_val));
+        }
+
+        self.aggregations.push((id.to_string(), builder));
 
         self
     }
