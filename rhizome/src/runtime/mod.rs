@@ -358,4 +358,69 @@ mod tests {
             )]
         );
     }
+
+    #[test]
+    fn test_aggregate() {
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("count", |h| h.column::<i32>("n"))?;
+                p.output("sum", |h| h.column::<i32>("n"))?;
+                p.output("min", |h| h.column::<i32>("n"))?;
+                p.output("max", |h| h.column::<i32>("n"))?;
+
+                p.rule::<(i32,)>("num", &|h, b, (x,)| {
+                    (h.bind((("n", x),)), b.search("evac", (("value", x),)))
+                })?;
+
+                p.rule::<(i32,)>("count", &|h, b, (x,)| {
+                    (
+                        h.bind((("n", x),)),
+                        b.aggregate("count", x, "num", (("n", x),)),
+                    )
+                })?;
+
+                p.rule::<(i32,)>("sum", &|h, b, (x,)| {
+                    (
+                        h.bind((("n", x),)),
+                        b.aggregate("sum", x, "num", (("n", x),)),
+                    )
+                })?;
+
+                p.rule::<(i32,)>("min", &|h, b, (x,)| {
+                    (
+                        h.bind((("n", x),)),
+                        b.aggregate("min", x, "num", (("n", x),)),
+                    )
+                })?;
+
+                p.rule::<(i32,)>("max", &|h, b, (x,)| {
+                    (
+                        h.bind((("n", x),)),
+                        b.aggregate("max", x, "num", (("n", x),)),
+                    )
+                })
+            },
+            [
+                EVACFact::new(0, "n", 1, vec![]),
+                EVACFact::new(0, "n", 2, vec![]),
+                EVACFact::new(0, "n", 3, vec![]),
+                EVACFact::new(0, "n", 4, vec![]),
+                EVACFact::new(0, "n", 5, vec![]),
+            ],
+            [
+                ("count", [BTreeFact::new("count", [("n", 5),],),]),
+                ("sum", [BTreeFact::new("sum", [("n", 15),],),]),
+                ("min", [BTreeFact::new("min", [("n", 1),],),]),
+                ("max", [BTreeFact::new("max", [("n", 5),],),]),
+            ]
+        );
+    }
 }

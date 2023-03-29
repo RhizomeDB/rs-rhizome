@@ -55,7 +55,7 @@ impl AtomArgs<()> for () {
     }
 }
 
-impl<'a, A0> AtomArgs<(Val,)> for (A0,)
+impl<A0> AtomArgs<(Val,)> for (A0,)
 where
     A0: AtomArg<Val>,
 {
@@ -74,7 +74,7 @@ where
     }
 }
 
-impl<'a, A0, A1> AtomArgs<(Val, Val)> for (A0, A1)
+impl<A0, A1> AtomArgs<(Val, Val)> for (A0, A1)
 where
     A0: AtomArg<Val>,
     A1: AtomArg<Val>,
@@ -118,7 +118,7 @@ where
     }
 }
 
-impl<'a, A0, A1, A2> AtomArgs<(Val, Val, Val)> for (A0, A1, A2)
+impl<A0, A1, A2> AtomArgs<(Val, Val, Val)> for (A0, A1, A2)
 where
     A0: AtomArg<Val>,
     A1: AtomArg<Val>,
@@ -217,7 +217,7 @@ where
     }
 }
 
-impl<'a, A0, A1, A2, A3> AtomArgs<(Val, Val, Val, Val)> for (A0, A1, A2, A3)
+impl<A0, A1, A2, A3> AtomArgs<(Val, Val, Val, Val)> for (A0, A1, A2, A3)
 where
     A0: AtomArg<Val>,
     A1: AtomArg<Val>,
