@@ -6,15 +6,16 @@ use self::program::ProgramBuilder;
 
 use super::lower_to_ram;
 
+mod aggregation;
 mod atom_args;
 mod declaration;
 mod fact;
-mod into_tuple_args;
 mod negation;
 mod program;
 mod rel_predicate;
 mod rule;
 mod rule_vars;
+mod typed_vars_tuple;
 
 pub fn build<F>(f: F) -> Result<Program>
 where
@@ -943,6 +944,21 @@ mod tests {
                         .search("num", (("n", y),))
                         .search("num", (("n", z),))
                         .predicate((x, y, z), |(x, y, z)| x + y < z),
+                )
+            })
+        });
+    }
+
+    #[test]
+    fn test_aggregation() {
+        assert_compile!(|p| {
+            p.input("num", |h| h.column::<i32>("n"))?;
+            p.output("sum", |h| h.column::<i32>("n"))?;
+
+            p.rule::<(i32,)>("sum", &|h, b, (x,)| {
+                (
+                    h.bind((("n", x),)),
+                    b.aggregate("sum", x, "num", (("n", x),)),
                 )
             })
         });

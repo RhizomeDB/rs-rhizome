@@ -7,6 +7,7 @@ use std::{
 use derive_more::{From, IsVariant};
 
 use crate::{
+    aggregation_function::AggregationFunction,
     id::{ColId, LinkId},
     logic::VarClosure,
     var::Var,
@@ -21,6 +22,7 @@ pub enum BodyTerm {
     RelPredicate(RelPredicate),
     Negation(Negation),
     GetLink(GetLink),
+    Aggregation(Aggregation),
 }
 
 impl BodyTerm {
@@ -30,6 +32,7 @@ impl BodyTerm {
             BodyTerm::Negation(inner) => vec![inner.relation()],
             BodyTerm::GetLink(_) => vec![],
             BodyTerm::VarPredicate(_) => vec![],
+            BodyTerm::Aggregation(inner) => vec![inner.relation()],
         }
     }
 
@@ -39,6 +42,7 @@ impl BodyTerm {
             BodyTerm::Negation(_) => Some(Polarity::Negative),
             BodyTerm::GetLink(_) => None,
             BodyTerm::VarPredicate(_) => None,
+            BodyTerm::Aggregation(_) => Some(Polarity::Negative),
         }
     }
 }
@@ -172,5 +176,45 @@ impl Debug for VarPredicate {
         f.debug_struct("VarPredicate")
             .field("vars", &self.vars)
             .finish()
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Aggregation {
+    function: AggregationFunction,
+    relation: Arc<Declaration>,
+    group_by_cols: HashMap<ColId, ColVal>,
+    target_var: Var,
+}
+
+impl Aggregation {
+    pub fn new(
+        function: AggregationFunction,
+        relation: Arc<Declaration>,
+        target_var: Var,
+        group_by_cols: HashMap<ColId, ColVal>,
+    ) -> Self {
+        Self {
+            function,
+            relation,
+            target_var,
+            group_by_cols,
+        }
+    }
+
+    pub fn function(&self) -> AggregationFunction {
+        self.function
+    }
+
+    pub fn relation(&self) -> Arc<Declaration> {
+        Arc::clone(&self.relation)
+    }
+
+    pub fn group_by_cols(&self) -> &HashMap<ColId, ColVal> {
+        &self.group_by_cols
+    }
+
+    pub fn target_var(&self) -> &Var {
+        &self.target_var
     }
 }

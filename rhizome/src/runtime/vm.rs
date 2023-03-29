@@ -1,5 +1,8 @@
 use core::fmt::Debug;
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 
 use anyhow::Result;
 
@@ -21,6 +24,7 @@ use crate::{
             sources::Sources, swap::Swap, Statement,
         },
         term::Term,
+        Aggregate,
     },
     relation::{DefaultRelation, Relation},
     storage::{blockstore::Blockstore, DefaultCodec},
@@ -30,9 +34,12 @@ use crate::{
 
 type Bindings = im::HashMap<BindingKey, Arc<Val>>;
 
+// TODO: Put Links in here as they're resolved,
+// so that we can memoize their resolution
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum BindingKey {
     Relation(RelationBinding, ColId),
+    Agg(RelationBinding, ColId),
 }
 
 pub struct VM<
@@ -281,6 +288,7 @@ where
         match operation {
             Operation::Search(inner) => self.handle_search(inner, blockstore, bindings),
             Operation::Project(inner) => self.handle_project(inner, blockstore, bindings),
+            Operation::Aggregate(inner) => self.handle_aggregate(inner, blockstore, bindings),
         }
     }
 
@@ -369,6 +377,97 @@ where
                     },
                     (inner.id(), inner.version()),
                 )
+            }
+        }
+    }
+
+    fn handle_aggregate<BS>(&mut self, agg: &Aggregate, blockstore: &BS, bindings: &Bindings)
+    where
+        BS: Blockstore,
+    {
+        match *agg.relation() {
+            RelationRef::Edb(inner) => {
+                let to_search = self
+                    .edb
+                    .get(&(inner.id(), RelationVersion::Total))
+                    .cloned()
+                    .unwrap();
+
+                self.do_handle_aggregate(agg, blockstore, bindings, to_search);
+            }
+            RelationRef::Idb(inner) => {
+                let to_search = self
+                    .idb
+                    .get(&(inner.id(), RelationVersion::Total))
+                    .cloned()
+                    .unwrap();
+
+                self.do_handle_aggregate(agg, blockstore, bindings, to_search);
+            }
+        };
+    }
+
+    fn do_handle_aggregate<BS, R, F>(
+        &mut self,
+        agg: &Aggregate,
+        blockstore: &BS,
+        bindings: &Bindings,
+        to_search: R,
+    ) where
+        BS: Blockstore,
+        R: Relation<F>,
+        F: Fact,
+    {
+        let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
+        for (col_id, col_term) in agg.group_by_cols() {
+            let Some(col_val) = Self::resolve_term(col_term, blockstore, bindings) else {
+                    panic!();
+                };
+
+            group_by_vals.insert(*col_id, col_val);
+        }
+
+        // TODO: This is extremely slow. We need indices over the required group_by_cols
+        let mut matching: Vec<F> = Vec::default();
+        for fact in to_search.into_iter() {
+            let mut matches = true;
+            for (col_id, col_val) in &group_by_vals {
+                if *col_val != fact.col(col_id).unwrap() {
+                    matches = false;
+
+                    break;
+                }
+            }
+
+            if matches {
+                matching.push(fact);
+            }
+        }
+
+        if let Some(first) = matching.first() {
+            let mut next_bindings = bindings.clone();
+
+            let init = agg
+                .function()
+                .start(first.col(&agg.target_col()).unwrap().type_of());
+
+            let result = matching.iter().fold(init, |acc, f| {
+                let new = f.col(&agg.target_col()).unwrap();
+
+                agg.function().apply(acc, new)
+            });
+
+            if let Some(result) = result {
+                let relation_binding = match agg.relation() {
+                    RelationRef::Edb(inner) => RelationBinding::edb(inner.id(), *agg.alias()),
+                    RelationRef::Idb(inner) => RelationBinding::idb(inner.id(), *agg.alias()),
+                };
+
+                next_bindings.insert(BindingKey::Agg(relation_binding, agg.target_col()), result);
+
+                self.do_handle_operation(agg.operation(), blockstore, &next_bindings);
+            } else {
+                panic!();
             }
         }
     }
@@ -524,6 +623,9 @@ where
                 .get(&BindingKey::Relation(*col_binding, *col))
                 .map(Arc::clone),
             Term::Lit(val) => Some(val).map(Arc::clone),
+            Term::Agg(col, _, col_binding) => bindings
+                .get(&BindingKey::Agg(*col_binding, *col))
+                .map(Arc::clone),
         }
     }
 

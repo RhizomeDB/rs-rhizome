@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use anyhow::Result;
 use petgraph::{
@@ -12,7 +15,7 @@ use crate::{
     error::{error, Error},
     id::{ColId, RelationId},
     ram::{
-        self, AliasId, Exit, Formula, Insert, Loop, Merge, Operation, Project, Purge,
+        self, Aggregate, AliasId, Exit, Formula, Insert, Loop, Merge, Operation, Project, Purge,
         RelationBinding, RelationRef, RelationVersion, Search, Sinks, Sources, Statement, Swap,
         Term,
     },
@@ -319,6 +322,46 @@ pub(crate) fn lower_rule_to_ram(
                 }
             }
             BodyTerm::VarPredicate(_) => continue,
+            BodyTerm::Aggregation(inner) => {
+                if bindings.get(inner.target_var()).is_none() {
+                    let alias = next_alias.get(&inner.relation().id()).copied();
+
+                    next_alias = next_alias.update_with(
+                        inner.relation().id(),
+                        AliasId::default(),
+                        |old, _| old.next(),
+                    );
+
+                    let rel_binding = match &*inner.relation() {
+                        Declaration::Edb(inner) => RelationBinding::edb(inner.id(), alias),
+                        Declaration::Idb(inner) => RelationBinding::idb(inner.id(), alias),
+                    };
+
+                    let mut target_col = None;
+                    for (col_id, col_val) in inner.group_by_cols() {
+                        if let ColVal::Binding(var) = col_val {
+                            if var == inner.target_var() {
+                                target_col = Some(col_id);
+
+                                break;
+                            }
+                        }
+                    }
+
+                    if let Some(target_col) = target_col {
+                        bindings.insert(
+                            *inner.target_var(),
+                            Term::Agg(*target_col, inner.function(), rel_binding),
+                        );
+                    } else {
+                        return error(Error::ClauseNotDomainIndependent(inner.target_var().id()));
+                    }
+
+                    term_metadata.push((body_term, TermMetadata::new(alias, bindings.clone())));
+                } else {
+                    panic!();
+                }
+            }
         }
     }
 
@@ -502,6 +545,122 @@ pub(crate) fn lower_rule_to_ram(
                 BodyTerm::GetLink(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::VarPredicate(_) => unreachable!("Only iterating through positive terms"),
+                BodyTerm::Aggregation(agg) => {
+                    let mut target_col = None;
+                    let mut group_by_cols = HashMap::default();
+                    for (col_id, col_val) in agg.group_by_cols() {
+                        let term = match col_val {
+                            ColVal::Lit(lit) => Term::Lit(Arc::clone(lit)),
+                            ColVal::Binding(var) => {
+                                if var == agg.target_var() {
+                                    target_col = Some(col_id);
+
+                                    continue;
+                                }
+
+                                if let Some(term) = bindings.get(var) {
+                                    term.clone()
+                                } else {
+                                    return error(Error::ClauseNotDomainIndependent(var.id()));
+                                }
+                            }
+                        };
+
+                        group_by_cols.insert(*col_id, term);
+                    }
+
+                    let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = negation_terms
+                        .into_iter()
+                        .partition(|n| n.is_vars_bound(&bindings));
+
+                    negation_terms = unsatisfied;
+
+                    for negation in satisfied {
+                        let cols = negation.args().iter().map(|(k, v)| match v {
+                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(val))),
+                            ColVal::Binding(var) => {
+                                (*k, metadata.bindings.get(var).unwrap().clone())
+                            }
+                        });
+
+                        let relation_ref = match &*negation.relation() {
+                            Declaration::Edb(inner) => {
+                                RelationRef::edb(inner.id(), RelationVersion::Total)
+                            }
+                            Declaration::Idb(inner) => {
+                                RelationRef::idb(inner.id(), RelationVersion::Total)
+                            }
+                        };
+
+                        formulae.push(Formula::not_in(cols, relation_ref))
+                    }
+
+                    let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = get_link_terms
+                        .into_iter()
+                        .partition(|term| match term.cid() {
+                            CidValue::Cid(_) => true,
+                            CidValue::Var(var) => bindings.contains_key(&var),
+                        });
+
+                    get_link_terms = unsatisfied;
+
+                    for term in satisfied {
+                        let cid_term = match term.cid() {
+                            CidValue::Cid(cid) => Term::Lit(Arc::new(Val::Cid(cid))),
+                            CidValue::Var(var) => Term::Link(
+                                term.link_id(),
+                                Box::new(metadata.bindings.get(&var).unwrap().clone()),
+                            ),
+                        };
+
+                        let val_term = match term.link_value() {
+                            CidValue::Cid(cid) => Term::Link(
+                                term.link_id(),
+                                Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
+                            ),
+                            CidValue::Var(var) => metadata.bindings.get(&var).unwrap().clone(),
+                        };
+
+                        formulae.push(Formula::equality(cid_term, val_term));
+                    }
+
+                    let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = var_predicate_terms
+                        .into_iter()
+                        .partition(|n| n.is_vars_bound(&bindings));
+
+                    var_predicate_terms = unsatisfied;
+
+                    for term in satisfied {
+                        let var_terms = term
+                            .vars()
+                            .iter()
+                            .map(|var| metadata.bindings.get(var).unwrap().clone())
+                            .collect();
+
+                        formulae.push(Formula::predicate(var_terms, term.f()));
+                    }
+
+                    let version = if mask & (1 << i) != 0 {
+                        RelationVersion::Delta
+                    } else {
+                        RelationVersion::Total
+                    };
+
+                    let relation_ref = match &*agg.relation() {
+                        Declaration::Edb(inner) => RelationRef::edb(inner.id(), version),
+                        Declaration::Idb(inner) => RelationRef::idb(inner.id(), version),
+                    };
+
+                    previous = Operation::Aggregate(Aggregate::new(
+                        agg.function(),
+                        *target_col.unwrap(),
+                        group_by_cols,
+                        relation_ref,
+                        metadata.alias,
+                        formulae,
+                        previous,
+                    ));
+                }
             };
         }
 
