@@ -6,12 +6,12 @@ use self::program::ProgramBuilder;
 
 use super::lower_to_ram;
 
-mod aggregation;
 mod atom_args;
 mod declaration;
 mod fact;
 mod negation;
 mod program;
+mod reduce;
 mod rel_predicate;
 mod rule;
 mod rule_vars;
@@ -29,7 +29,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{cmp, sync::Arc};
 
     use cid::Cid;
 
@@ -950,15 +950,164 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregation() {
+    fn test_reduce() {
         assert_compile!(|p| {
             p.input("num", |h| h.column::<i32>("n"))?;
             p.output("sum", |h| h.column::<i32>("n"))?;
 
-            p.rule::<(i32,)>("sum", &|h, b, (x,)| {
+            p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
                 (
-                    h.bind((("n", x),)),
-                    b.aggregate("sum", x, "num", (("n", x),)),
+                    h.bind((("n", sum),)),
+                    b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x),
+                )
+            })
+        });
+    }
+
+    #[test]
+    fn test_variadic_reduce() {
+        assert_compile!(|p| {
+            p.input("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
+            p.output("minSum", |h| h.column::<i32>("n"))?;
+
+            p.rule::<(i32, i32, i32)>("minSum", &|h, b, (sum, x, y)| {
+                (
+                    h.bind((("n", sum),)),
+                    b.reduce(
+                        sum,
+                        (x, y),
+                        "pair",
+                        (("x", x), ("y", y)),
+                        0,
+                        |acc, (x, y)| acc + cmp::min(x, y),
+                    ),
+                )
+            })
+        });
+    }
+
+    #[test]
+    fn test_group_by_reduce() {
+        assert_compile!(|p| {
+            p.input("product", |h| {
+                h.column::<i32>("id")
+                    .column::<i32>("category")
+                    .column::<i32>("stock")
+            })?;
+
+            p.output("categoryStock", |h| {
+                h.column::<i32>("category").column::<i32>("stock")
+            })?;
+
+            p.rule::<(i32, i32, i32)>("categoryStock", &|h,
+                                                         b,
+                                                         (
+                category,
+                category_stock,
+                product_stock,
+            )| {
+                (
+                    h.bind((("category", category), ("stock", category_stock))),
+                    b.search("product", (("category", category),)).reduce(
+                        category_stock,
+                        (product_stock,),
+                        "product",
+                        (("category", category), ("stock", product_stock)),
+                        0,
+                        |acc, (x,)| acc + x,
+                    ),
+                )
+            })
+        });
+    }
+
+    #[test]
+    fn test_capture_group_by_reduce() {
+        assert_compile!(|p| {
+            p.input("product", |h| {
+                h.column::<i32>("id")
+                    .column::<i32>("category")
+                    .column::<i32>("stock")
+            })?;
+
+            p.output("categoryStock", |h| {
+                h.column::<i32>("category").column::<i32>("stock")
+            })?;
+
+            p.rule::<(i32, i32, i32)>("categoryStock", &|h,
+                                                         b,
+                                                         (
+                category,
+                category_stock,
+                product_stock,
+            )| {
+                (
+                    h.bind((("category", category), ("stock", category_stock))),
+                    b.search("product", (("category", category),)).reduce(
+                        category_stock,
+                        (product_stock,),
+                        "product",
+                        (("category", category), ("stock", product_stock)),
+                        0,
+                        |acc, (x,)| acc + x,
+                    ),
+                )
+            })
+        });
+    }
+
+    #[test]
+    fn test_reduce_unbound_group_by() {
+        assert_compile_err!(
+            &Error::ReduceUnboundGroupBy("x1".into(), "x".into(), "pair".into(),),
+            |p| {
+                p.input("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
+                p.output("ySum", |h| h.column::<i32>("x").column::<i32>("y"))?;
+
+                p.rule::<(i32, i32, i32)>("ySum", &|h, b, (sum, x, y)| {
+                    (
+                        h.bind((("x", x), ("y", sum))),
+                        b.reduce(sum, (y,), "pair", (("x", x), ("y", y)), 0, |acc, (y,)| {
+                            acc + y
+                        }),
+                    )
+                })
+            }
+        );
+    }
+
+    #[test]
+    fn test_reduce_bound_target() {
+        assert_compile_err!(&Error::ReduceBoundTarget("x0".into()), |p| {
+            p.input("num", |h| h.column::<i32>("n"))?;
+            p.output("sum", |h| h.column::<i32>("n"))?;
+
+            p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
+                (
+                    h.bind((("n", sum),)),
+                    b.search("num", (("n", sum),)).reduce(
+                        sum,
+                        (n,),
+                        "num",
+                        (("n", n),),
+                        0,
+                        |acc, (x,)| acc + x,
+                    ),
+                )
+            })
+        });
+    }
+
+    #[test]
+    fn test_reduce_group_by_target() {
+        assert_compile_err!(&Error::ReduceGroupByTarget("x0".into()), |p| {
+            p.input("num", |h| h.column::<i32>("n"))?;
+            p.output("sum", |h| h.column::<i32>("n"))?;
+
+            p.rule::<(i32,)>("sum", &|h, b, (n,)| {
+                (
+                    h.bind((("n", n),)),
+                    b.reduce(n, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x),
                 )
             })
         });
