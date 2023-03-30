@@ -37,7 +37,7 @@ impl ReduceBuilder {
         relation: Arc<Declaration>,
         bound_vars: &mut HashMap<Var, Type>,
     ) -> Result<Reduce> {
-        if let Some(_) = bound_vars.insert(self.target, self.target.typ()) {
+        if bound_vars.insert(self.target, self.target.typ()).is_some() {
             return error(Error::ReduceBoundTarget(self.target.id()));
         }
 

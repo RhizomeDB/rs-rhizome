@@ -543,14 +543,12 @@ pub(crate) fn lower_rule_to_ram(
                                     }
 
                                     Some(term.clone())
-                                } else {
-                                    if agg.vars().contains(var) {
-                                        args.push(Term::Col(*col_id, rel_binding));
+                                } else if agg.vars().contains(var) {
+                                    args.push(Term::Col(*col_id, rel_binding));
 
-                                        None
-                                    } else {
-                                        return error(Error::ClauseNotDomainIndependent(var.id()));
-                                    }
+                                    None
+                                } else {
+                                    return error(Error::ClauseNotDomainIndependent(var.id()));
                                 }
                             }
                         } {
