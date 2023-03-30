@@ -13,7 +13,8 @@ mod negation;
 mod program;
 mod reduce;
 mod rel_predicate;
-mod rule;
+mod rule_body;
+mod rule_head;
 mod rule_vars;
 mod typed_vars_tuple;
 
