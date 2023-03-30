@@ -426,7 +426,7 @@ where
 
         let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
         for (col_id, col_term) in agg.group_by_cols() {
-            if let Some(col_val) = Self::resolve_term(&col_term, blockstore, bindings) {
+            if let Some(col_val) = Self::resolve_term(col_term, blockstore, bindings) {
                 group_by_vals.insert(*col_id, col_val);
             } else {
                 panic!();
