@@ -41,6 +41,12 @@ pub enum Error {
     ColumnValueTypeConflict(RelationId, ColId, ColVal, ColType),
     #[error("Facts must be ground: attempted to bind {1} to variable {2} of relation {0}")]
     NonGroundFact(RelationId, ColId, VarId),
+    #[error("Attempted to group by unbound variable {0} for column {1} of relation {2}")]
+    ReduceUnboundGroupBy(VarId, ColId, RelationId),
+    #[error("Attempted to bind reduce to already bound variable {0}")]
+    ReduceBoundTarget(VarId),
+    #[error("Attempted to group by the target var {0}")]
+    ReduceGroupByTarget(VarId),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

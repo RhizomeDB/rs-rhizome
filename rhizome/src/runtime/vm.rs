@@ -24,12 +24,13 @@ use crate::{
             sources::Sources, swap::Swap, Statement,
         },
         term::Term,
-        Aggregate,
+        Reduce,
     },
     relation::{DefaultRelation, Relation},
     storage::{blockstore::Blockstore, DefaultCodec},
     timestamp::{DefaultTimestamp, Timestamp},
     value::Val,
+    var::Var,
 };
 
 type Bindings = im::HashMap<BindingKey, Arc<Val>>;
@@ -39,7 +40,7 @@ type Bindings = im::HashMap<BindingKey, Arc<Val>>;
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum BindingKey {
     Relation(RelationBinding, ColId),
-    Agg(RelationBinding, ColId),
+    Agg(RelationBinding, Var),
 }
 
 pub struct VM<
@@ -288,7 +289,7 @@ where
         match operation {
             Operation::Search(inner) => self.handle_search(inner, blockstore, bindings),
             Operation::Project(inner) => self.handle_project(inner, blockstore, bindings),
-            Operation::Aggregate(inner) => self.handle_aggregate(inner, blockstore, bindings),
+            Operation::Reduce(inner) => self.handle_reduce(inner, blockstore, bindings),
         }
     }
 
@@ -381,7 +382,7 @@ where
         }
     }
 
-    fn handle_aggregate<BS>(&mut self, agg: &Aggregate, blockstore: &BS, bindings: &Bindings)
+    fn handle_reduce<BS>(&mut self, agg: &Reduce, blockstore: &BS, bindings: &Bindings)
     where
         BS: Blockstore,
     {
@@ -393,7 +394,7 @@ where
                     .cloned()
                     .unwrap();
 
-                self.do_handle_aggregate(agg, blockstore, bindings, to_search);
+                self.do_handle_reduce(agg, blockstore, bindings, to_search);
             }
             RelationRef::Idb(inner) => {
                 let to_search = self
@@ -402,14 +403,14 @@ where
                     .cloned()
                     .unwrap();
 
-                self.do_handle_aggregate(agg, blockstore, bindings, to_search);
+                self.do_handle_reduce(agg, blockstore, bindings, to_search);
             }
         };
     }
 
-    fn do_handle_aggregate<BS, R, F>(
+    fn do_handle_reduce<BS, R, F>(
         &mut self,
-        agg: &Aggregate,
+        agg: &Reduce,
         blockstore: &BS,
         bindings: &Bindings,
         to_search: R,
@@ -418,13 +419,18 @@ where
         R: Relation<F>,
         F: Fact,
     {
+        let relation_binding = match agg.relation() {
+            RelationRef::Edb(inner) => RelationBinding::edb(inner.id(), *agg.alias()),
+            RelationRef::Idb(inner) => RelationBinding::idb(inner.id(), *agg.alias()),
+        };
+
         let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
         for (col_id, col_term) in agg.group_by_cols() {
-            let Some(col_val) = Self::resolve_term(col_term, blockstore, bindings) else {
-                    panic!();
-                };
-
-            group_by_vals.insert(*col_id, col_val);
+            if let Some(col_val) = Self::resolve_term(&col_term, blockstore, bindings) {
+                group_by_vals.insert(*col_id, col_val);
+            } else {
+                panic!();
+            };
         }
 
         // TODO: This is extremely slow. We need indices over the required group_by_cols
@@ -444,32 +450,38 @@ where
             }
         }
 
-        if let Some(first) = matching.first() {
-            let mut next_bindings = bindings.clone();
-
-            let init = agg
-                .function()
-                .start(first.col(&agg.target_col()).unwrap().type_of());
-
-            let result = matching.iter().fold(init, |acc, f| {
-                let new = f.col(&agg.target_col()).unwrap();
-
-                agg.function().apply(acc, new)
-            });
-
-            if let Some(result) = result {
-                let relation_binding = match agg.relation() {
-                    RelationRef::Edb(inner) => RelationBinding::edb(inner.id(), *agg.alias()),
-                    RelationRef::Idb(inner) => RelationBinding::idb(inner.id(), *agg.alias()),
-                };
-
-                next_bindings.insert(BindingKey::Agg(relation_binding, agg.target_col()), result);
-
-                self.do_handle_operation(agg.operation(), blockstore, &next_bindings);
-            } else {
-                panic!();
-            }
+        if matching.is_empty() {
+            return;
         }
+
+        let result = matching.iter().fold(agg.init().clone(), |acc, f| {
+            let mut match_bindings = bindings.clone();
+
+            for k in f.cols() {
+                if let Some(v) = f.col(&k) {
+                    match_bindings.insert(BindingKey::Relation(relation_binding, k), v.clone());
+                } else {
+                    panic!("expected column missing: {k}");
+                }
+            }
+
+            let args = agg
+                .args()
+                .iter()
+                .map(|t| Self::resolve_term(t, blockstore, &match_bindings).unwrap())
+                .map(|v| Arc::try_unwrap(v).unwrap_or_else(|arc| (*arc).clone()))
+                .collect::<Vec<_>>();
+
+            agg.apply(acc, args)
+        });
+
+        let mut next_bindings = bindings.clone();
+        next_bindings.insert(
+            BindingKey::Agg(relation_binding, agg.target()),
+            Arc::new(result),
+        );
+
+        self.do_handle_operation(agg.operation(), blockstore, &next_bindings);
     }
 
     fn handle_merge(&mut self, merge: &Merge) {
@@ -623,7 +635,7 @@ where
                 .get(&BindingKey::Relation(*col_binding, *col))
                 .map(Arc::clone),
             Term::Lit(val) => Some(val).map(Arc::clone),
-            Term::Agg(col, _, col_binding) => bindings
+            Term::Agg(col, col_binding) => bindings
                 .get(&BindingKey::Agg(*col_binding, *col))
                 .map(Arc::clone),
         }

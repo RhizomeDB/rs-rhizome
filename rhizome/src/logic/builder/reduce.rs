@@ -1,28 +1,34 @@
 use anyhow::Result;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
-    aggregation_function::AggregationFunction,
     col_val::ColVal,
     error::{error, Error},
     id::ColId,
-    logic::ast::{Aggregation, Declaration},
+    logic::{
+        ast::{Declaration, Reduce},
+        ReduceClosure,
+    },
     types::Type,
+    value::Val,
     var::Var,
 };
 
-#[derive(Debug)]
-pub(crate) struct AggregationBuilder {
-    pub(super) f: AggregationFunction,
+pub(crate) struct ReduceBuilder {
+    pub(super) init: Val,
     pub(super) target: Var,
+    pub(super) vars: Vec<Var>,
     pub(super) bindings: Vec<(ColId, ColVal)>,
+    pub(super) f: Arc<dyn ReduceClosure>,
 }
 
-impl AggregationBuilder {
-    pub(crate) fn new(f: AggregationFunction, target: Var) -> Self {
+impl ReduceBuilder {
+    pub(crate) fn new(init: Val, target: Var, f: Arc<dyn ReduceClosure>) -> Self {
         Self {
-            f,
+            init,
             target,
+            f,
+            vars: Vec::default(),
             bindings: Vec::default(),
         }
     }
@@ -30,7 +36,11 @@ impl AggregationBuilder {
         self,
         relation: Arc<Declaration>,
         bound_vars: &mut HashMap<Var, Type>,
-    ) -> Result<Aggregation> {
+    ) -> Result<Reduce> {
+        if let Some(_) = bound_vars.insert(self.target, self.target.typ()) {
+            return error(Error::ReduceBoundTarget(self.target.id()));
+        }
+
         let mut cols = HashMap::default();
 
         for (col_id, col_val) in self.bindings {
@@ -56,9 +66,15 @@ impl AggregationBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if let Some(downcasted) = col.col_type().downcast(&var.typ()) {
-                        bound_vars.insert(*var, downcasted);
-                    } else {
+                    if *var == self.target {
+                        return error(Error::ReduceGroupByTarget(var.id()));
+                    }
+
+                    if !bound_vars.contains_key(var) && !self.vars.contains(var) {
+                        return error(Error::ReduceUnboundGroupBy(var.id(), col_id, relation.id()));
+                    }
+
+                    if col.col_type().downcast(&var.typ()).is_none() {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
                             col_id,
@@ -72,8 +88,18 @@ impl AggregationBuilder {
             cols.insert(col_id, col_val);
         }
 
-        let aggregation = Aggregation::new(self.f, relation, self.target, cols);
+        let reduce = Reduce::new(self.target, self.vars, self.init, relation, cols, self.f);
 
-        Ok(aggregation)
+        Ok(reduce)
+    }
+}
+
+impl Debug for ReduceBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AggregationBuilder")
+            .field("target", &self.target)
+            .field("vars", &self.vars)
+            .field("bindings", &self.bindings)
+            .finish()
     }
 }

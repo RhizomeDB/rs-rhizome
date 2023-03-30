@@ -17,7 +17,6 @@ pub(crate) mod timestamp;
 pub(crate) mod value;
 pub(crate) mod var;
 
-pub mod aggregation_function;
 pub mod error;
 pub mod fact;
 pub mod pretty;
