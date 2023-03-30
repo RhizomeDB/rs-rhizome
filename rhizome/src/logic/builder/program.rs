@@ -9,10 +9,8 @@ use crate::{
 };
 
 use super::{
-    declaration::DeclarationBuilder,
-    fact::FactBuilder,
-    rule::{RuleBodyBuilder, RuleHeadBuilder},
-    rule_vars::RuleVars,
+    declaration::DeclarationBuilder, fact::FactBuilder, rule_body::RuleBodyBuilder,
+    rule_head::RuleHeadBuilder, rule_vars::RuleVars,
 };
 
 type RuleBuilderClosure<'a, T> = dyn Fn(
