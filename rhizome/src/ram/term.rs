@@ -4,10 +4,10 @@ use derive_more::{From, IsVariant, TryInto};
 use pretty::RcDoc;
 
 use crate::{
-    aggregation_function::AggregationFunction,
     id::{ColId, LinkId},
     pretty::Pretty,
     value::Val,
+    var::Var,
 };
 
 use super::RelationBinding;
@@ -17,7 +17,7 @@ pub enum Term {
     Link(LinkId, Box<Term>),
     Col(ColId, RelationBinding),
     Lit(Arc<Val>),
-    Agg(ColId, AggregationFunction, RelationBinding),
+    Agg(Var, RelationBinding),
 }
 
 impl Pretty for Term {
@@ -31,12 +31,11 @@ impl Pretty for Term {
                 RcDoc::text("."),
                 RcDoc::as_string(col_id),
             ]),
-            Term::Agg(col_id, agg, relation_binding) => RcDoc::concat([
-                RcDoc::as_string(agg),
+            Term::Agg(var, relation_binding) => RcDoc::concat([
                 RcDoc::text("("),
                 relation_binding.to_doc(),
                 RcDoc::text("."),
-                RcDoc::as_string(col_id),
+                RcDoc::as_string(var),
                 RcDoc::text(")"),
             ]),
             Term::Lit(value) => RcDoc::as_string(value),

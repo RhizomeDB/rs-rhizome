@@ -15,7 +15,7 @@ use crate::{
     error::{error, Error},
     id::{ColId, RelationId},
     ram::{
-        self, Aggregate, AliasId, Exit, Formula, Insert, Loop, Merge, Operation, Project, Purge,
+        self, AliasId, Exit, Formula, Insert, Loop, Merge, Operation, Project, Purge, Reduce,
         RelationBinding, RelationRef, RelationVersion, Search, Sinks, Sources, Statement, Swap,
         Term,
     },
@@ -322,8 +322,8 @@ pub(crate) fn lower_rule_to_ram(
                 }
             }
             BodyTerm::VarPredicate(_) => continue,
-            BodyTerm::Aggregation(inner) => {
-                if bindings.get(inner.target_var()).is_none() {
+            BodyTerm::Reduce(inner) => {
+                if !bindings.contains_key(inner.target()) {
                     let alias = next_alias.get(&inner.relation().id()).copied();
 
                     next_alias = next_alias.update_with(
@@ -337,29 +337,9 @@ pub(crate) fn lower_rule_to_ram(
                         Declaration::Idb(inner) => RelationBinding::idb(inner.id(), alias),
                     };
 
-                    let mut target_col = None;
-                    for (col_id, col_val) in inner.group_by_cols() {
-                        if let ColVal::Binding(var) = col_val {
-                            if var == inner.target_var() {
-                                target_col = Some(col_id);
-
-                                break;
-                            }
-                        }
-                    }
-
-                    if let Some(target_col) = target_col {
-                        bindings.insert(
-                            *inner.target_var(),
-                            Term::Agg(*target_col, inner.function(), rel_binding),
-                        );
-                    } else {
-                        return error(Error::ClauseNotDomainIndependent(inner.target_var().id()));
-                    }
+                    bindings.insert(*inner.target(), Term::Agg(*inner.target(), rel_binding));
 
                     term_metadata.push((body_term, TermMetadata::new(alias, bindings.clone())));
-                } else {
-                    panic!();
                 }
             }
         }
@@ -545,28 +525,37 @@ pub(crate) fn lower_rule_to_ram(
                 BodyTerm::GetLink(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::VarPredicate(_) => unreachable!("Only iterating through positive terms"),
-                BodyTerm::Aggregation(agg) => {
-                    let mut target_col = None;
+                BodyTerm::Reduce(agg) => {
+                    let rel_binding = match &*agg.relation() {
+                        Declaration::Edb(inner) => RelationBinding::edb(inner.id(), metadata.alias),
+                        Declaration::Idb(inner) => RelationBinding::idb(inner.id(), metadata.alias),
+                    };
+
+                    let mut args = Vec::default();
                     let mut group_by_cols = HashMap::default();
                     for (col_id, col_val) in agg.group_by_cols() {
-                        let term = match col_val {
-                            ColVal::Lit(lit) => Term::Lit(Arc::clone(lit)),
+                        if let Some(term) = match col_val {
+                            ColVal::Lit(lit) => Some(Term::Lit(Arc::clone(lit))),
                             ColVal::Binding(var) => {
-                                if var == agg.target_var() {
-                                    target_col = Some(col_id);
-
-                                    continue;
-                                }
-
                                 if let Some(term) = bindings.get(var) {
-                                    term.clone()
+                                    if agg.vars().contains(var) {
+                                        args.push(term.clone());
+                                    }
+
+                                    Some(term.clone())
                                 } else {
-                                    return error(Error::ClauseNotDomainIndependent(var.id()));
+                                    if agg.vars().contains(var) {
+                                        args.push(Term::Col(*col_id, rel_binding));
+
+                                        None
+                                    } else {
+                                        return error(Error::ClauseNotDomainIndependent(var.id()));
+                                    }
                                 }
                             }
-                        };
-
-                        group_by_cols.insert(*col_id, term);
+                        } {
+                            group_by_cols.insert(*col_id, term);
+                        }
                     }
 
                     let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = negation_terms
@@ -651,9 +640,11 @@ pub(crate) fn lower_rule_to_ram(
                         Declaration::Idb(inner) => RelationRef::idb(inner.id(), version),
                     };
 
-                    previous = Operation::Aggregate(Aggregate::new(
-                        agg.function(),
-                        *target_col.unwrap(),
+                    previous = Operation::Reduce(Reduce::new(
+                        args,
+                        agg.init().clone(),
+                        agg.f(),
+                        *agg.target(),
                         group_by_cols,
                         relation_ref,
                         metadata.alias,

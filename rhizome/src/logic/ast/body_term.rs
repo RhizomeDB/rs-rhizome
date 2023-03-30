@@ -7,9 +7,9 @@ use std::{
 use derive_more::{From, IsVariant};
 
 use crate::{
-    aggregation_function::AggregationFunction,
     id::{ColId, LinkId},
-    logic::VarClosure,
+    logic::{ReduceClosure, VarClosure},
+    value::Val,
     var::Var,
 };
 
@@ -22,7 +22,7 @@ pub enum BodyTerm {
     RelPredicate(RelPredicate),
     Negation(Negation),
     GetLink(GetLink),
-    Aggregation(Aggregation),
+    Reduce(Reduce),
 }
 
 impl BodyTerm {
@@ -32,7 +32,7 @@ impl BodyTerm {
             BodyTerm::Negation(inner) => vec![inner.relation()],
             BodyTerm::GetLink(_) => vec![],
             BodyTerm::VarPredicate(_) => vec![],
-            BodyTerm::Aggregation(inner) => vec![inner.relation()],
+            BodyTerm::Reduce(_) => vec![],
         }
     }
 
@@ -42,7 +42,7 @@ impl BodyTerm {
             BodyTerm::Negation(_) => Some(Polarity::Negative),
             BodyTerm::GetLink(_) => None,
             BodyTerm::VarPredicate(_) => None,
-            BodyTerm::Aggregation(_) => Some(Polarity::Negative),
+            BodyTerm::Reduce(_) => Some(Polarity::Negative),
         }
     }
 }
@@ -179,31 +179,44 @@ impl Debug for VarPredicate {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Aggregation {
-    function: AggregationFunction,
+pub struct Reduce {
+    target: Var,
+    vars: Vec<Var>,
+    init: Val,
     relation: Arc<Declaration>,
     group_by_cols: HashMap<ColId, ColVal>,
-    target_var: Var,
+    f: Arc<dyn ReduceClosure>,
 }
 
-impl Aggregation {
+impl Reduce {
     pub fn new(
-        function: AggregationFunction,
+        target: Var,
+        vars: Vec<Var>,
+        init: Val,
         relation: Arc<Declaration>,
-        target_var: Var,
         group_by_cols: HashMap<ColId, ColVal>,
+        f: Arc<dyn ReduceClosure>,
     ) -> Self {
         Self {
-            function,
+            target,
+            vars,
+            init,
             relation,
-            target_var,
             group_by_cols,
+            f,
         }
     }
 
-    pub fn function(&self) -> AggregationFunction {
-        self.function
+    pub fn target(&self) -> &Var {
+        &self.target
+    }
+
+    pub fn vars(&self) -> &Vec<Var> {
+        &self.vars
+    }
+
+    pub fn init(&self) -> &Val {
+        &self.init
     }
 
     pub fn relation(&self) -> Arc<Declaration> {
@@ -214,7 +227,22 @@ impl Aggregation {
         &self.group_by_cols
     }
 
-    pub fn target_var(&self) -> &Var {
-        &self.target_var
+    pub fn f(&self) -> Arc<dyn ReduceClosure> {
+        Arc::clone(&self.f)
+    }
+
+    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<Var, T>) -> bool {
+        self.vars.iter().all(|var| bindings.contains_key(var))
+    }
+}
+
+impl Debug for Reduce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Reduce")
+            .field("target", &self.target)
+            .field("vars", &self.vars)
+            .field("relation", &self.relation)
+            .field("group_by_cols", &self.group_by_cols)
+            .finish()
     }
 }

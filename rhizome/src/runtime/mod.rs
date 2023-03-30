@@ -83,6 +83,8 @@ where
 #[cfg(test)]
 mod tests {
 
+    use std::cmp;
+
     use cid::Cid;
 
     use crate::{
@@ -360,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregate() {
+    fn test_reduce() {
         assert_derives!(
             |p| {
                 p.input("evac", |h| {
@@ -371,40 +373,48 @@ mod tests {
                 })?;
 
                 p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
+
                 p.output("count", |h| h.column::<i32>("n"))?;
                 p.output("sum", |h| h.column::<i32>("n"))?;
                 p.output("min", |h| h.column::<i32>("n"))?;
                 p.output("max", |h| h.column::<i32>("n"))?;
 
+                p.output("product", |h| h.column::<i32>("z"))?;
+
                 p.rule::<(i32,)>("num", &|h, b, (x,)| {
                     (h.bind((("n", x),)), b.search("evac", (("value", x),)))
                 })?;
 
-                p.rule::<(i32,)>("count", &|h, b, (x,)| {
+                p.rule::<(i32, i32)>("count", &|h, b, (count, n)| {
                     (
-                        h.bind((("n", x),)),
-                        b.aggregate("count", x, "num", (("n", x),)),
+                        h.bind((("n", count),)),
+                        b.reduce(count, (n,), "num", (("n", n),), 0, |acc, (_,)| acc + 1),
                     )
                 })?;
 
-                p.rule::<(i32,)>("sum", &|h, b, (x,)| {
+                p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
                     (
-                        h.bind((("n", x),)),
-                        b.aggregate("sum", x, "num", (("n", x),)),
+                        h.bind((("n", sum),)),
+                        b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x),
                     )
                 })?;
 
-                p.rule::<(i32,)>("min", &|h, b, (x,)| {
+                p.rule::<(i32, i32)>("min", &|h, b, (min, n)| {
                     (
-                        h.bind((("n", x),)),
-                        b.aggregate("min", x, "num", (("n", x),)),
+                        h.bind((("n", min),)),
+                        b.reduce(min, (n,), "num", (("n", n),), i32::MAX, |acc, (x,)| {
+                            cmp::min(acc, x)
+                        }),
                     )
                 })?;
 
-                p.rule::<(i32,)>("max", &|h, b, (x,)| {
+                p.rule::<(i32, i32)>("max", &|h, b, (max, n)| {
                     (
-                        h.bind((("n", x),)),
-                        b.aggregate("max", x, "num", (("n", x),)),
+                        h.bind((("n", max),)),
+                        b.reduce(max, (n,), "num", (("n", n),), i32::MIN, |acc, (x,)| {
+                            cmp::max(acc, x)
+                        }),
                     )
                 })
             },
@@ -421,6 +431,110 @@ mod tests {
                 ("min", [BTreeFact::new("min", [("n", 1),],),]),
                 ("max", [BTreeFact::new("max", [("n", 5),],),]),
             ]
+        );
+    }
+
+    #[test]
+    fn test_multi_arity_reduce() {
+        assert_derives!(
+            |p| {
+                p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
+                p.output("product", |h| h.column::<i32>("z"))?;
+
+                p.fact("num", |f| f.bind((("n", 1),)))?;
+                p.fact("num", |f| f.bind((("n", 2),)))?;
+                p.fact("num", |f| f.bind((("n", 3),)))?;
+                p.fact("num", |f| f.bind((("n", 4),)))?;
+                p.fact("num", |f| f.bind((("n", 5),)))?;
+
+                p.rule::<(i32, i32)>("pair", &|h, b, (x, y)| {
+                    (
+                        h.bind((("x", x), ("y", y))),
+                        b.search("num", (("n", x),)).search("num", (("n", y),)),
+                    )
+                })?;
+
+                p.rule::<(i32, i32, i32)>("product", &|h, b, (x, y, z)| {
+                    (
+                        h.bind((("z", z),)),
+                        b.reduce(z, (x, y), "pair", (("x", x), ("y", y)), 0, |acc, (x, y)| {
+                            acc + x * y
+                        }),
+                    )
+                })
+            },
+            [("product", [BTreeFact::new("product", [("z", 225),],),]),]
+        );
+    }
+
+    #[test]
+    fn test_group_by_reduce() {
+        assert_derives!(
+            |p| {
+                p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
+                p.output("product", |h| {
+                    h.column::<i32>("x").column::<i32>("y").column::<i32>("z")
+                })?;
+
+                p.fact("num", |f| f.bind((("n", 1),)))?;
+                p.fact("num", |f| f.bind((("n", 2),)))?;
+                p.fact("num", |f| f.bind((("n", 3),)))?;
+                p.fact("num", |f| f.bind((("n", 4),)))?;
+                p.fact("num", |f| f.bind((("n", 5),)))?;
+
+                p.rule::<(i32, i32)>("pair", &|h, b, (x, y)| {
+                    (
+                        h.bind((("x", x), ("y", y))),
+                        b.search("num", (("n", x),)).search("num", (("n", y),)),
+                    )
+                })?;
+
+                p.rule::<(i32, i32, i32)>("product", &|h, b, (x, y, z)| {
+                    (
+                        h.bind((("x", x), ("y", y), ("z", z))),
+                        b.search("pair", (("x", x), ("y", y))).reduce(
+                            z,
+                            (x, y),
+                            "pair",
+                            (("x", x), ("y", y)),
+                            0,
+                            |_, (x, y)| x * y,
+                        ),
+                    )
+                })
+            },
+            [(
+                "product",
+                [
+                    BTreeFact::new("product", [("x", 1), ("y", 1), ("z", 1),],),
+                    BTreeFact::new("product", [("x", 1), ("y", 2), ("z", 2),],),
+                    BTreeFact::new("product", [("x", 1), ("y", 3), ("z", 3),],),
+                    BTreeFact::new("product", [("x", 1), ("y", 4), ("z", 4),],),
+                    BTreeFact::new("product", [("x", 1), ("y", 5), ("z", 5),],),
+                    BTreeFact::new("product", [("x", 2), ("y", 1), ("z", 2),],),
+                    BTreeFact::new("product", [("x", 2), ("y", 2), ("z", 4),],),
+                    BTreeFact::new("product", [("x", 2), ("y", 3), ("z", 6),],),
+                    BTreeFact::new("product", [("x", 2), ("y", 4), ("z", 8),],),
+                    BTreeFact::new("product", [("x", 2), ("y", 5), ("z", 10),],),
+                    BTreeFact::new("product", [("x", 3), ("y", 1), ("z", 3),],),
+                    BTreeFact::new("product", [("x", 3), ("y", 2), ("z", 6),],),
+                    BTreeFact::new("product", [("x", 3), ("y", 3), ("z", 9),],),
+                    BTreeFact::new("product", [("x", 3), ("y", 4), ("z", 12),],),
+                    BTreeFact::new("product", [("x", 3), ("y", 5), ("z", 15),],),
+                    BTreeFact::new("product", [("x", 4), ("y", 1), ("z", 4),],),
+                    BTreeFact::new("product", [("x", 4), ("y", 2), ("z", 8),],),
+                    BTreeFact::new("product", [("x", 4), ("y", 3), ("z", 12),],),
+                    BTreeFact::new("product", [("x", 4), ("y", 4), ("z", 16),],),
+                    BTreeFact::new("product", [("x", 4), ("y", 5), ("z", 20),],),
+                    BTreeFact::new("product", [("x", 5), ("y", 1), ("z", 5),],),
+                    BTreeFact::new("product", [("x", 5), ("y", 2), ("z", 10),],),
+                    BTreeFact::new("product", [("x", 5), ("y", 3), ("z", 15),],),
+                    BTreeFact::new("product", [("x", 5), ("y", 4), ("z", 20),],),
+                    BTreeFact::new("product", [("x", 5), ("y", 5), ("z", 25),],),
+                ]
+            ),]
         );
     }
 }

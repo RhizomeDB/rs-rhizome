@@ -3,19 +3,19 @@ use pretty::RcDoc;
 
 use crate::pretty::Pretty;
 
-pub(crate) mod aggregate;
 pub(crate) mod project;
+pub(crate) mod reduce;
 pub(crate) mod search;
 
-pub(crate) use aggregate::*;
 pub(crate) use project::*;
+pub(crate) use reduce::*;
 pub(crate) use search::*;
 
 #[derive(Debug, IsVariant)]
 pub enum Operation {
     Search(Search),
     Project(Project),
-    Aggregate(Aggregate),
+    Reduce(Reduce),
 }
 
 impl Pretty for Operation {
@@ -23,7 +23,7 @@ impl Pretty for Operation {
         match self {
             Operation::Search(inner) => inner.to_doc(),
             Operation::Project(inner) => inner.to_doc(),
-            Operation::Aggregate(inner) => inner.to_doc(),
+            Operation::Reduce(inner) => inner.to_doc(),
         }
     }
 }
