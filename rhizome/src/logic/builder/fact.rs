@@ -6,6 +6,7 @@ use crate::{
     error::{error, Error},
     id::ColId,
     logic::ast::{Declaration, Fact},
+    relation::Source,
     value::Val,
 };
 
@@ -70,10 +71,10 @@ impl<'a> FactBuilder<'a> {
             }
         }
 
-        match self.relation {
-            Declaration::Edb(inner) => error(Error::ClauseHeadEDB(inner.id())),
-            Declaration::Idb(inner) => {
-                let fact = Fact::new(inner.id(), cols);
+        match self.relation.source() {
+            Source::Edb => error(Error::ClauseHeadEDB(self.relation.id())),
+            Source::Idb => {
+                let fact = Fact::new(self.relation.id(), cols);
 
                 Ok(fact)
             }
