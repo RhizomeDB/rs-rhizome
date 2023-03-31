@@ -1,58 +1,22 @@
-use std::marker::PhantomData;
-
 use pretty::RcDoc;
 
-use crate::{
-    id::RelationId,
-    pretty::Pretty,
-    relation::{Edb, Idb},
-};
+use crate::{id::RelationId, pretty::Pretty, relation::Source};
 
 use super::RelationVersion;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum RelationRef {
-    Edb(InnerRelationRef<Edb>),
-    Idb(InnerRelationRef<Idb>),
+pub struct RelationRef {
+    id: RelationId,
+    version: RelationVersion,
+    source: Source,
 }
 
 impl RelationRef {
-    pub fn edb(id: RelationId, version: RelationVersion) -> Self {
-        Self::Edb(InnerRelationRef::new(id, version))
-    }
-
-    pub fn idb(id: RelationId, version: RelationVersion) -> Self {
-        Self::Idb(InnerRelationRef::new(id, version))
-    }
-
-    pub fn id(&self) -> RelationId {
-        match self {
-            RelationRef::Edb(inner) => inner.id(),
-            RelationRef::Idb(inner) => inner.id(),
-        }
-    }
-
-    pub fn version(&self) -> RelationVersion {
-        match self {
-            RelationRef::Edb(inner) => inner.version(),
-            RelationRef::Idb(inner) => inner.version(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct InnerRelationRef<T> {
-    id: RelationId,
-    version: RelationVersion,
-    _marker: PhantomData<T>,
-}
-
-impl<T> InnerRelationRef<T> {
-    pub fn new(id: RelationId, version: RelationVersion) -> Self {
+    pub fn new(id: RelationId, version: RelationVersion, source: Source) -> Self {
         Self {
             id,
             version,
-            _marker: PhantomData::default(),
+            source,
         }
     }
 
@@ -62,6 +26,10 @@ impl<T> InnerRelationRef<T> {
 
     pub fn version(&self) -> RelationVersion {
         self.version
+    }
+
+    pub fn source(&self) -> Source {
+        self.source
     }
 }
 

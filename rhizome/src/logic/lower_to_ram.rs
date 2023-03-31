@@ -19,7 +19,7 @@ use crate::{
         RelationBinding, RelationRef, RelationVersion, Search, Sinks, Sources, Statement, Swap,
         Term,
     },
-    relation::{Edb, Idb},
+    relation::Source,
     value::Val,
     var::Var,
 };
@@ -28,7 +28,7 @@ use super::ast::{
     body_term::BodyTerm,
     cid_value::CidValue,
     clause::Clause,
-    declaration::{Declaration, InnerDeclaration},
+    declaration::Declaration,
     dependency::{Node, Polarity},
     fact::Fact,
     program::Program,
@@ -37,17 +37,17 @@ use super::ast::{
 };
 
 pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
-    let mut inputs: Vec<&InnerDeclaration<Edb>> = Vec::default();
-    let mut outputs: Vec<&InnerDeclaration<Idb>> = Vec::default();
+    let mut inputs: Vec<&Declaration> = Vec::default();
+    let mut outputs: Vec<&Declaration> = Vec::default();
     let mut statements: Vec<Statement> = Vec::default();
 
     for declaration in program.declarations() {
-        match &**declaration {
-            Declaration::Edb(inner) => {
-                inputs.push(inner);
+        match declaration.source() {
+            Source::Edb => {
+                inputs.push(declaration);
             }
-            Declaration::Idb(inner) => {
-                outputs.push(inner);
+            Source::Idb => {
+                outputs.push(declaration);
             }
         }
     }
@@ -67,7 +67,7 @@ pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
 
     // Purge all newly received input facts
     for relation in &inputs {
-        let relation_ref = RelationRef::edb(relation.id(), RelationVersion::Delta);
+        let relation_ref = RelationRef::new(relation.id(), RelationVersion::Delta, Source::Edb);
 
         statements.push(Statement::Purge(Purge::new(relation_ref)));
     }
@@ -104,9 +104,9 @@ pub(crate) fn lower_stratum_to_ram(
             stratum.rules().iter().partition(|r| {
                 r.rel_predicate_terms()
                     .iter()
-                    .any(|p| match &*p.relation() {
-                        Declaration::Edb(_) => false,
-                        Declaration::Idb(inner) => stratum.relations().contains(&inner.id()),
+                    .any(|p| match p.relation().source() {
+                        Source::Edb => false,
+                        Source::Idb => stratum.relations().contains(&p.relation().id()),
                     })
             });
 
@@ -120,8 +120,8 @@ pub(crate) fn lower_stratum_to_ram(
         // Merge the output of the static rules into total
         for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| r.head())) {
             statements.push(Statement::Merge(Merge::new(
-                RelationRef::idb(relation, RelationVersion::Delta),
-                RelationRef::idb(relation, RelationVersion::Total),
+                RelationRef::new(relation, RelationVersion::Delta, Source::Idb),
+                RelationRef::new(relation, RelationVersion::Total, Source::Idb),
             )));
         }
 
@@ -129,9 +129,10 @@ pub(crate) fn lower_stratum_to_ram(
 
         // Purge new, computed during the last loop iteration
         for relation in stratum.relations() {
-            loop_body.push(Statement::Purge(Purge::new(RelationRef::idb(
+            loop_body.push(Statement::Purge(Purge::new(RelationRef::new(
                 *relation,
                 RelationVersion::New,
+                Source::Idb,
             ))));
         }
 
@@ -147,7 +148,7 @@ pub(crate) fn lower_stratum_to_ram(
             stratum
                 .relations()
                 .iter()
-                .map(|&relation| RelationRef::idb(relation, RelationVersion::Delta)),
+                .map(|&relation| RelationRef::new(relation, RelationVersion::Delta, Source::Idb)),
         )));
 
         // Exit the loop if all of the dynamic relations have reached a fixed point
@@ -155,19 +156,19 @@ pub(crate) fn lower_stratum_to_ram(
             stratum
                 .relations()
                 .iter()
-                .map(|&id| RelationRef::idb(id, RelationVersion::New)),
+                .map(|&id| RelationRef::new(id, RelationVersion::New, Source::Idb)),
         )));
 
         // Merge new into total, then swap new and delta
         for &relation in stratum.relations() {
             loop_body.push(Statement::Merge(Merge::new(
-                RelationRef::idb(relation, RelationVersion::New),
-                RelationRef::idb(relation, RelationVersion::Total),
+                RelationRef::new(relation, RelationVersion::New, Source::Idb),
+                RelationRef::new(relation, RelationVersion::Total, Source::Idb),
             )));
 
             loop_body.push(Statement::Swap(Swap::new(
-                RelationRef::idb(relation, RelationVersion::New),
-                RelationRef::idb(relation, RelationVersion::Delta),
+                RelationRef::new(relation, RelationVersion::New, Source::Idb),
+                RelationRef::new(relation, RelationVersion::Delta, Source::Idb),
             )));
         }
 
@@ -180,8 +181,8 @@ pub(crate) fn lower_stratum_to_ram(
         // use the lattice based timestamps to resolve that.
         for &relation in stratum.relations() {
             statements.push(Statement::Merge(Merge::new(
-                RelationRef::idb(relation, RelationVersion::Total),
-                RelationRef::idb(relation, RelationVersion::Delta),
+                RelationRef::new(relation, RelationVersion::Total, Source::Idb),
+                RelationRef::new(relation, RelationVersion::Delta, Source::Idb),
             )));
 
             // statements.push(Statement::Purge(Purge::new(RelationRef::new(
@@ -208,8 +209,8 @@ pub(crate) fn lower_stratum_to_ram(
         // Merge rules from Delta into Total
         for relation in stratum.relations() {
             statements.push(Statement::Merge(Merge::new(
-                RelationRef::idb(*relation, RelationVersion::Delta),
-                RelationRef::idb(*relation, RelationVersion::Total),
+                RelationRef::new(*relation, RelationVersion::Delta, Source::Idb),
+                RelationRef::new(*relation, RelationVersion::Total, Source::Idb),
             )));
         }
 
@@ -218,7 +219,7 @@ pub(crate) fn lower_stratum_to_ram(
             stratum
                 .relations()
                 .iter()
-                .map(|relation| RelationRef::idb(*relation, RelationVersion::Delta)),
+                .map(|relation| RelationRef::new(*relation, RelationVersion::Delta, Source::Idb)),
         )));
     };
 
@@ -234,7 +235,7 @@ pub(crate) fn lower_fact_to_ram(fact: &Fact) -> Result<Statement> {
     Ok(Statement::Insert(Insert::new(
         Operation::Project(Project::new(
             cols,
-            RelationRef::idb(fact.head(), RelationVersion::Delta),
+            RelationRef::new(fact.head(), RelationVersion::Delta, Source::Idb),
         )),
         true,
     )))
@@ -280,10 +281,11 @@ pub(crate) fn lower_rule_to_ram(
                     match col_val {
                         ColVal::Lit(_) => continue,
                         ColVal::Binding(var) if !bindings.contains_key(var) => {
-                            let col_binding = match &*predicate.relation() {
-                                Declaration::Edb(inner) => RelationBinding::edb(inner.id(), alias),
-                                Declaration::Idb(inner) => RelationBinding::idb(inner.id(), alias),
-                            };
+                            let col_binding = RelationBinding::new(
+                                predicate.relation().id(),
+                                alias,
+                                predicate.relation().source(),
+                            );
 
                             bindings.insert(*var, Term::Col(*col_id, col_binding))
                         }
@@ -332,10 +334,11 @@ pub(crate) fn lower_rule_to_ram(
                         |old, _| old.next(),
                     );
 
-                    let rel_binding = match &*inner.relation() {
-                        Declaration::Edb(inner) => RelationBinding::edb(inner.id(), alias),
-                        Declaration::Idb(inner) => RelationBinding::idb(inner.id(), alias),
-                    };
+                    let rel_binding = RelationBinding::new(
+                        inner.relation().id(),
+                        alias,
+                        inner.relation().source(),
+                    );
 
                     bindings.insert(*inner.target(), Term::Agg(*inner.target(), rel_binding));
 
@@ -380,7 +383,7 @@ pub(crate) fn lower_rule_to_ram(
 
         let mut previous = Operation::Project(Project::new(
             projection_cols.clone(),
-            RelationRef::idb(rule.head(), version),
+            RelationRef::new(rule.head(), version, Source::Idb),
         ));
 
         for (i, (body_term, metadata)) in term_metadata.iter().rev().enumerate() {
@@ -390,21 +393,18 @@ pub(crate) fn lower_rule_to_ram(
             if projection_vars.iter().all(|&v| metadata.is_bound(&v)) {
                 formulae.push(Formula::not_in(
                     Vec::from_iter(projection_cols.clone()),
-                    RelationRef::idb(rule.head(), RelationVersion::Total),
+                    RelationRef::new(rule.head(), RelationVersion::Total, Source::Idb),
                 ))
             }
 
             match body_term {
                 BodyTerm::RelPredicate(predicate) => {
                     for (&col_id, col_val) in predicate.args() {
-                        let binding = match &*predicate.relation() {
-                            Declaration::Edb(inner) => {
-                                RelationBinding::edb(inner.id(), metadata.alias)
-                            }
-                            Declaration::Idb(inner) => {
-                                RelationBinding::idb(inner.id(), metadata.alias)
-                            }
-                        };
+                        let binding = RelationBinding::new(
+                            predicate.relation().id(),
+                            metadata.alias,
+                            predicate.relation().source(),
+                        );
 
                         match col_val {
                             ColVal::Lit(val) => {
@@ -447,13 +447,17 @@ pub(crate) fn lower_rule_to_ram(
                             }
                         });
 
-                        let relation_ref = match &*negation.relation() {
-                            Declaration::Edb(inner) => {
-                                RelationRef::edb(inner.id(), RelationVersion::Total)
-                            }
-                            Declaration::Idb(inner) => {
-                                RelationRef::idb(inner.id(), RelationVersion::Total)
-                            }
+                        let relation_ref = match negation.relation().source() {
+                            Source::Edb => RelationRef::new(
+                                negation.relation().id(),
+                                RelationVersion::Total,
+                                Source::Edb,
+                            ),
+                            Source::Idb => RelationRef::new(
+                                negation.relation().id(),
+                                RelationVersion::Total,
+                                Source::Idb,
+                            ),
                         };
 
                         formulae.push(Formula::not_in(cols, relation_ref))
@@ -510,10 +514,11 @@ pub(crate) fn lower_rule_to_ram(
                         RelationVersion::Total
                     };
 
-                    let relation_ref = match &*predicate.relation() {
-                        Declaration::Edb(inner) => RelationRef::edb(inner.id(), version),
-                        Declaration::Idb(inner) => RelationRef::idb(inner.id(), version),
-                    };
+                    let relation_ref = RelationRef::new(
+                        predicate.relation().id(),
+                        version,
+                        predicate.relation().source(),
+                    );
 
                     previous = Operation::Search(Search::new(
                         relation_ref,
@@ -526,10 +531,11 @@ pub(crate) fn lower_rule_to_ram(
                 BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::VarPredicate(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::Reduce(agg) => {
-                    let rel_binding = match &*agg.relation() {
-                        Declaration::Edb(inner) => RelationBinding::edb(inner.id(), metadata.alias),
-                        Declaration::Idb(inner) => RelationBinding::idb(inner.id(), metadata.alias),
-                    };
+                    let rel_binding = RelationBinding::new(
+                        agg.relation().id(),
+                        metadata.alias,
+                        agg.relation().source(),
+                    );
 
                     let mut args = Vec::default();
                     let mut group_by_cols = HashMap::default();
@@ -570,14 +576,11 @@ pub(crate) fn lower_rule_to_ram(
                             }
                         });
 
-                        let relation_ref = match &*negation.relation() {
-                            Declaration::Edb(inner) => {
-                                RelationRef::edb(inner.id(), RelationVersion::Total)
-                            }
-                            Declaration::Idb(inner) => {
-                                RelationRef::idb(inner.id(), RelationVersion::Total)
-                            }
-                        };
+                        let relation_ref = RelationRef::new(
+                            negation.relation().id(),
+                            RelationVersion::Total,
+                            negation.relation().source(),
+                        );
 
                         formulae.push(Formula::not_in(cols, relation_ref))
                     }
@@ -633,10 +636,8 @@ pub(crate) fn lower_rule_to_ram(
                         RelationVersion::Total
                     };
 
-                    let relation_ref = match &*agg.relation() {
-                        Declaration::Edb(inner) => RelationRef::edb(inner.id(), version),
-                        Declaration::Idb(inner) => RelationRef::idb(inner.id(), version),
-                    };
+                    let relation_ref =
+                        RelationRef::new(agg.relation().id(), version, agg.relation().source());
 
                     previous = Operation::Reduce(Reduce::new(
                         args,

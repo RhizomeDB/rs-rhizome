@@ -1,36 +1,33 @@
 use anyhow::Result;
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     col::Col,
     error::{error, Error},
     id::{ColId, RelationId},
-    logic::ast::InnerDeclaration,
-    relation::RelationSource,
+    logic::ast::Declaration,
+    relation::Source,
     schema::Schema,
     types::{ColType, FromType},
 };
 
 #[derive(Debug)]
-pub struct DeclarationBuilder<T> {
+pub struct DeclarationBuilder {
     id: RelationId,
     cols: Vec<(ColId, Col)>,
-    _marker: PhantomData<T>,
+    source: Source,
 }
 
-impl<T> DeclarationBuilder<T>
-where
-    T: RelationSource,
-{
-    fn new(id: RelationId) -> Self {
+impl DeclarationBuilder {
+    fn new(id: RelationId, source: Source) -> Self {
         Self {
             id,
             cols: Vec::default(),
-            _marker: PhantomData::default(),
+            source,
         }
     }
 
-    fn finalize(self) -> Result<InnerDeclaration<T>> {
+    fn finalize(self) -> Result<Declaration> {
         let mut cols = HashMap::default();
 
         for (col_id, col) in self.cols {
@@ -42,16 +39,16 @@ where
         }
 
         let schema = Schema::new(self.id, cols);
-        let declaration = InnerDeclaration::new(self.id, Arc::new(schema));
+        let declaration = Declaration::new(self.id, Arc::new(schema), self.source);
 
         Ok(declaration)
     }
 
-    pub fn build<F>(id: RelationId, f: F) -> Result<InnerDeclaration<T>>
+    pub fn build<F>(id: RelationId, source: Source, f: F) -> Result<Declaration>
     where
         F: FnOnce(Self) -> Self,
     {
-        f(Self::new(id)).finalize()
+        f(Self::new(id, source)).finalize()
     }
 
     pub fn column<C>(mut self, id: &str) -> Self

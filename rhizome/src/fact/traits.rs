@@ -7,20 +7,20 @@ use cid::Cid;
 
 use crate::{
     id::{ColId, LinkId, RelationId},
-    relation::{Edb, Idb, RelationSource},
+    relation::{EdbMarker, IdbMarker},
     storage::content_addressable::ContentAddressable,
     value::Val,
 };
 
 // TODO: These traits are kind of a mess.
 pub trait Fact: Clone + Ord + PartialOrd + Display + Debug + Send + Sync {
-    type Marker: RelationSource;
+    type Marker;
 
     fn col(&self, id: &ColId) -> Option<Arc<Val>>;
     fn cols(&self) -> Vec<ColId>;
 }
 
-pub trait EDBFact: Fact<Marker = Edb> + ContentAddressable {
+pub trait EDBFact: Fact<Marker = EdbMarker> + ContentAddressable {
     fn new(
         entity: impl Into<Val>,
         attr: impl Into<Val>,
@@ -32,7 +32,7 @@ pub trait EDBFact: Fact<Marker = Edb> + ContentAddressable {
     fn cid(&self) -> Cid;
     fn link(&self, id: LinkId) -> Option<Arc<Val>>;
 }
-pub trait IDBFact: Fact<Marker = Idb> {
+pub trait IDBFact: Fact<Marker = IdbMarker> {
     fn new<A: Into<ColId> + Ord, D: Into<Val>>(
         id: impl Into<RelationId>,
         attr: impl IntoIterator<Item = (A, D)>,
