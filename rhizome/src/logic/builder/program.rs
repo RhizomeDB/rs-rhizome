@@ -5,7 +5,7 @@ use crate::{
     error::{error, Error},
     id::RelationId,
     logic::ast::{Clause, Declaration, Program, Rule},
-    relation::{Edb, Idb},
+    relation::Source,
 };
 
 use super::{
@@ -47,15 +47,14 @@ impl ProgramBuilder {
 
     pub fn input<F>(&mut self, id: &str, f: F) -> Result<()>
     where
-        F: FnOnce(DeclarationBuilder<Edb>) -> DeclarationBuilder<Edb>,
+        F: FnOnce(DeclarationBuilder) -> DeclarationBuilder,
     {
         if let Some(relation) = self.relations.get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));
         }
 
         let rel_id = RelationId::new(id);
-        let relation = DeclarationBuilder::build(rel_id, f)?;
-        let relation = Declaration::Edb(relation);
+        let relation = DeclarationBuilder::build(rel_id, Source::Edb, f)?;
 
         self.relations.insert(id.to_owned(), Arc::new(relation));
 
@@ -64,15 +63,14 @@ impl ProgramBuilder {
 
     pub fn output<F>(&mut self, id: &str, f: F) -> Result<()>
     where
-        F: FnOnce(DeclarationBuilder<Idb>) -> DeclarationBuilder<Idb>,
+        F: FnOnce(DeclarationBuilder) -> DeclarationBuilder,
     {
         if let Some(relation) = self.relations.get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));
         }
 
         let rel_id = RelationId::new(id);
-        let relation = DeclarationBuilder::build(rel_id, f)?;
-        let relation = Declaration::Idb(relation);
+        let relation = DeclarationBuilder::build(rel_id, Source::Idb, f)?;
 
         self.relations.insert(id.to_owned(), Arc::new(relation));
 
@@ -112,10 +110,10 @@ impl ProgramBuilder {
         let body = b.finalize(&mut bound_vars)?;
         let head = h.finalize(&bound_vars)?;
 
-        match &**declaration {
-            Declaration::Edb(inner) => error(Error::ClauseHeadEDB(inner.id())),
-            Declaration::Idb(inner) => {
-                let rule = Rule::new(inner.id(), head, body);
+        match declaration.source() {
+            Source::Edb => error(Error::ClauseHeadEDB(declaration.id())),
+            Source::Idb => {
+                let rule = Rule::new(declaration.id(), head, body);
                 let clause = Clause::Rule(rule);
 
                 self.clauses.push(clause);

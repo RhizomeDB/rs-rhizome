@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use crate::{
     col_val::ColVal,
     id::{ColId, RelationId},
+    relation::Source,
 };
 
-use super::{BodyTerm, Declaration, Edge, GetLink, Negation, RelPredicate, VarPredicate};
+use super::{BodyTerm, Edge, GetLink, Negation, RelPredicate, VarPredicate};
 
 #[derive(Debug)]
 pub struct Rule {
@@ -89,9 +90,9 @@ impl Rule {
         for term in self.body() {
             if let Some(polarity) = term.polarity() {
                 for dependency in term.depends_on() {
-                    let edge = match &*dependency {
-                        Declaration::Edb(inner) => Edge::FromEDB(inner.id(), self.head, polarity),
-                        Declaration::Idb(inner) => Edge::FromIDB(inner.id(), self.head, polarity),
+                    let edge = match dependency.source() {
+                        Source::Edb => Edge::FromEDB(dependency.id(), self.head, polarity),
+                        Source::Idb => Edge::FromIDB(dependency.id(), self.head, polarity),
                     };
 
                     edges.push(edge);

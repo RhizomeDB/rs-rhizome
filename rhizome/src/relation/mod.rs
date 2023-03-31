@@ -4,18 +4,17 @@ use std::hash::Hash;
 
 pub(crate) type DefaultRelation<F> = ImmutableOrdSetRelation<F>;
 
-pub trait RelationSource:
-    Clone + Copy + Eq + PartialEq + Ord + PartialOrd + Hash + Default
-{
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Source {
+    Edb,
+    Idb,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
-pub struct Edb;
-impl RelationSource for Edb {}
+pub struct EdbMarker;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
-pub struct Idb;
-impl RelationSource for Idb {}
+pub struct IdbMarker;
 
 // TODO: Keep track of the timestamp a fact was derived at?
 pub trait Relation<F>:

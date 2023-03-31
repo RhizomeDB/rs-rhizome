@@ -17,7 +17,6 @@ use crate::{
         operation::{project::Project, search::Search, Operation},
         program::Program,
         relation_binding::RelationBinding,
-        relation_ref::RelationRef,
         relation_version::RelationVersion,
         statement::{
             exit::Exit, insert::Insert, merge::Merge, purge::Purge, recursive::Loop, sinks::Sinks,
@@ -26,7 +25,7 @@ use crate::{
         term::Term,
         Reduce,
     },
-    relation::{DefaultRelation, Relation},
+    relation::{DefaultRelation, Relation, Source},
     storage::{blockstore::Blockstore, DefaultCodec},
     timestamp::{DefaultTimestamp, Timestamp},
     value::Val,
@@ -297,22 +296,22 @@ where
     where
         BS: Blockstore,
     {
-        match *search.relation() {
-            RelationRef::Edb(inner) => {
-                let id = inner.id();
-                let version = inner.version();
+        match search.relation().source() {
+            Source::Edb => {
+                let id = search.relation().id();
+                let version = search.relation().version();
 
                 let to_search = self.edb.get(&(id, version)).cloned().unwrap();
-                let relation_binding = RelationBinding::edb(id, *search.alias());
+                let relation_binding = RelationBinding::new(id, *search.alias(), Source::Edb);
 
                 self.search_relation(search, blockstore, to_search, relation_binding, bindings);
             }
-            RelationRef::Idb(inner) => {
-                let id = inner.id();
-                let version = inner.version();
+            Source::Idb => {
+                let id = search.relation().id();
+                let version = search.relation().version();
 
                 let to_search = self.idb.get(&(id, version)).cloned().unwrap();
-                let relation_binding = RelationBinding::idb(id, *search.alias());
+                let relation_binding = RelationBinding::new(id, *search.alias(), Source::Idb);
 
                 self.search_relation(search, blockstore, to_search, relation_binding, bindings);
             }
@@ -354,6 +353,8 @@ where
     where
         BS: Blockstore,
     {
+        assert!(project.into().source() == Source::Idb);
+
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in project.cols() {
@@ -364,42 +365,35 @@ where
             }
         }
 
-        match *project.into() {
-            RelationRef::Edb(_) => {
-                unreachable!();
-            }
-            RelationRef::Idb(inner) => {
-                let fact = IF::new(inner.id(), bound);
+        let fact = IF::new(project.into().id(), bound);
 
-                self.idb = self.idb.alter(
-                    |old| match old {
-                        Some(facts) => Some(facts.insert(fact)),
-                        None => Some(IR::default().insert(fact)),
-                    },
-                    (inner.id(), inner.version()),
-                )
-            }
-        }
+        self.idb = self.idb.alter(
+            |old| match old {
+                Some(facts) => Some(facts.insert(fact)),
+                None => Some(IR::default().insert(fact)),
+            },
+            (project.into().id(), project.into().version()),
+        )
     }
 
     fn handle_reduce<BS>(&mut self, agg: &Reduce, blockstore: &BS, bindings: &Bindings)
     where
         BS: Blockstore,
     {
-        match *agg.relation() {
-            RelationRef::Edb(inner) => {
+        match agg.relation().source() {
+            Source::Edb => {
                 let to_search = self
                     .edb
-                    .get(&(inner.id(), RelationVersion::Total))
+                    .get(&(agg.relation().id(), RelationVersion::Total))
                     .cloned()
                     .unwrap();
 
                 self.do_handle_reduce(agg, blockstore, bindings, to_search);
             }
-            RelationRef::Idb(inner) => {
+            Source::Idb => {
                 let to_search = self
                     .idb
-                    .get(&(inner.id(), RelationVersion::Total))
+                    .get(&(agg.relation().id(), RelationVersion::Total))
                     .cloned()
                     .unwrap();
 
@@ -419,10 +413,8 @@ where
         R: Relation<F>,
         F: Fact,
     {
-        let relation_binding = match agg.relation() {
-            RelationRef::Edb(inner) => RelationBinding::edb(inner.id(), *agg.alias()),
-            RelationRef::Idb(inner) => RelationBinding::idb(inner.id(), *agg.alias()),
-        };
+        let relation_binding =
+            RelationBinding::new(agg.relation().id(), *agg.alias(), agg.relation().source());
 
         let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
         for (col_id, col_term) in agg.group_by_cols() {
@@ -485,102 +477,97 @@ where
     }
 
     fn handle_merge(&mut self, merge: &Merge) {
-        match (*merge.from(), *merge.into()) {
-            (RelationRef::Edb(from_inner), RelationRef::Edb(to_inner)) => {
-                let from_relation = self
-                    .edb
-                    .get(&(from_inner.id(), from_inner.version()))
-                    .cloned()
-                    .unwrap();
+        assert!(merge.from().source() == merge.into().source());
 
-                self.edb = self.edb.update_with(
-                    (to_inner.id(), to_inner.version()),
-                    from_relation,
-                    |old, new| old.merge(new),
-                );
-            }
-            (RelationRef::Idb(from_inner), RelationRef::Idb(to_inner)) => {
-                let from_relation = self
-                    .idb
-                    .get(&(from_inner.id(), from_inner.version()))
-                    .cloned()
-                    .unwrap();
+        if merge.from().source() == Source::Edb {
+            let from_relation = self
+                .edb
+                .get(&(merge.from().id(), merge.from().version()))
+                .cloned()
+                .unwrap();
 
-                self.idb = self.idb.update_with(
-                    (to_inner.id(), to_inner.version()),
-                    from_relation,
-                    |old, new| old.merge(new),
-                )
-            }
-            _ => unreachable!(),
+            self.edb = self.edb.update_with(
+                (merge.into().id(), merge.into().version()),
+                from_relation,
+                |old, new| old.merge(new),
+            );
+        } else {
+            let from_relation = self
+                .idb
+                .get(&(merge.from().id(), merge.from().version()))
+                .cloned()
+                .unwrap();
+
+            self.idb = self.idb.update_with(
+                (merge.into().id(), merge.into().version()),
+                from_relation,
+                |old, new| old.merge(new),
+            )
         }
     }
 
     fn handle_swap(&mut self, swap: &Swap) {
-        match (*swap.left(), *swap.right()) {
-            (RelationRef::Edb(left_inner), RelationRef::Edb(right_inner)) => {
-                let left_relation = self
-                    .edb
-                    .remove(&(left_inner.id(), left_inner.version()))
-                    .unwrap();
-                let right_relation = self
-                    .edb
-                    .remove(&(right_inner.id(), right_inner.version()))
-                    .unwrap();
+        assert!(swap.left().source() == swap.right().source());
 
-                self.edb = self
-                    .edb
-                    .update((left_inner.id(), left_inner.version()), right_relation);
-                self.edb = self
-                    .edb
-                    .update((right_inner.id(), right_inner.version()), left_relation);
-            }
+        if swap.left().source() == Source::Edb {
+            let left_relation = self
+                .edb
+                .remove(&(swap.left().id(), swap.left().version()))
+                .unwrap();
+            let right_relation = self
+                .edb
+                .remove(&(swap.right().id(), swap.right().version()))
+                .unwrap();
 
-            (RelationRef::Idb(left_inner), RelationRef::Idb(right_inner)) => {
-                let left_relation = self
-                    .idb
-                    .remove(&(left_inner.id(), left_inner.version()))
-                    .unwrap();
-                let right_relation = self
-                    .idb
-                    .remove(&(right_inner.id(), right_inner.version()))
-                    .unwrap();
+            self.edb = self
+                .edb
+                .update((swap.left().id(), swap.left().version()), right_relation);
+            self.edb = self
+                .edb
+                .update((swap.right().id(), swap.right().version()), left_relation);
+        } else {
+            let left_relation = self
+                .idb
+                .remove(&(swap.left().id(), swap.left().version()))
+                .unwrap();
+            let right_relation = self
+                .idb
+                .remove(&(swap.right().id(), swap.right().version()))
+                .unwrap();
 
-                self.idb = self
-                    .idb
-                    .update((left_inner.id(), left_inner.version()), right_relation);
-                self.idb = self
-                    .idb
-                    .update((right_inner.id(), right_inner.version()), left_relation)
-            }
-            _ => unreachable!(),
+            self.idb = self
+                .idb
+                .update((swap.left().id(), swap.left().version()), right_relation);
+            self.idb = self
+                .idb
+                .update((swap.right().id(), swap.right().version()), left_relation)
         }
     }
 
     fn handle_purge(&mut self, purge: &Purge) {
-        match *purge.relation() {
-            RelationRef::Edb(inner) => {
-                self.edb = self
-                    .edb
-                    .update((inner.id(), inner.version()), ER::default())
-            }
-            RelationRef::Idb(inner) => {
-                self.idb = self
-                    .idb
-                    .update((inner.id(), inner.version()), IR::default())
-            }
+        if purge.relation().source() == Source::Edb {
+            self.edb = self.edb.update(
+                (purge.relation().id(), purge.relation().version()),
+                ER::default(),
+            )
+        } else {
+            self.idb = self.idb.update(
+                (purge.relation().id(), purge.relation().version()),
+                IR::default(),
+            )
         }
     }
 
     fn handle_exit(&mut self, exit: &Exit) {
-        let is_done = exit.relations().iter().all(|r| match *r {
-            RelationRef::Edb(inner) => self
+        let is_done = exit.relations().iter().all(|r| match r.source() {
+            Source::Edb => self
                 .edb
-                .get(&(inner.id(), inner.version()))
+                .get(&(r.id(), r.version()))
                 .map_or(false, ER::is_empty),
-            RelationRef::Idb(inner) => self
+
+            Source::Idb => self
                 .idb
-                .get(&(inner.id(), inner.version()))
+                .get(&(r.id(), r.version()))
                 .map_or(false, IR::is_empty),
         });
 
@@ -597,11 +584,9 @@ where
 
     fn handle_sinks(&mut self, sinks: &Sinks) -> Result<()> {
         for &relation_ref in sinks.relations() {
-            let RelationRef::Idb(inner) = relation_ref else {
-                unreachable!();
-            };
+            assert!(relation_ref.source() == Source::Idb);
 
-            if let Some(relation) = self.idb.get(&(inner.id(), inner.version())) {
+            if let Some(relation) = self.idb.get(&(relation_ref.id(), relation_ref.version())) {
                 for fact in relation.clone() {
                     self.output.push_back(fact);
                 }
@@ -658,6 +643,8 @@ where
                 left == right
             }
             Formula::NotIn(not_in) => {
+                assert!(not_in.relation().source() == Source::Idb);
+
                 // TODO: Dry up constructing a fact from BTreeMap<ColId, Term>
                 let mut bound: Vec<(ColId, Val)> = Vec::default();
 
@@ -667,18 +654,13 @@ where
                     }
                 }
 
-                match *not_in.relation() {
-                    RelationRef::Edb(_) => unreachable!(),
-                    RelationRef::Idb(inner) => {
-                        let bound_fact = IF::new(inner.id(), bound);
+                let bound_fact = IF::new(not_in.relation().id(), bound);
 
-                        !self
-                            .idb
-                            .get(&(inner.id(), inner.version()))
-                            .map(|r| r.contains(&bound_fact))
-                            .unwrap()
-                    }
-                }
+                !self
+                    .idb
+                    .get(&(not_in.relation().id(), not_in.relation().version()))
+                    .map(|r| r.contains(&bound_fact))
+                    .unwrap()
             }
             Formula::Predicate(predicate) => {
                 let args = predicate

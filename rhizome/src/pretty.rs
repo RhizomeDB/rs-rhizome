@@ -22,6 +22,7 @@ mod tests {
             relation_version::RelationVersion,
             term::Term,
         },
+        relation::Source,
         value::Val,
     };
 
@@ -32,23 +33,39 @@ mod tests {
         let formula1 = Formula::equality(
             Term::Col(
                 ColId::new("name"),
-                RelationBinding::edb(RelationId::new("person"), Some(AliasId::new().next())),
+                RelationBinding::new(
+                    RelationId::new("person"),
+                    Some(AliasId::new().next()),
+                    Source::Edb,
+                ),
             ),
             Term::Lit(Arc::new(Val::String("Quinn".into()))),
         );
 
         let formula2 = Formula::not_in(
             [("age", Term::Lit(Arc::new(Val::U32(29))))],
-            RelationRef::edb(RelationId::new("person"), RelationVersion::Total),
+            RelationRef::new(
+                RelationId::new("person"),
+                RelationVersion::Total,
+                Source::Edb,
+            ),
         );
 
         let project = Operation::Project(Project::new(
             hashmap! {"age" => Term::Lit(Arc::new(Val::S32(29)))},
-            RelationRef::edb(RelationId::new("person"), RelationVersion::Total),
+            RelationRef::new(
+                RelationId::new("person"),
+                RelationVersion::Total,
+                Source::Edb,
+            ),
         ));
 
         let ast = Operation::Search(Search::new(
-            RelationRef::edb(RelationId::new("person"), RelationVersion::Total),
+            RelationRef::new(
+                RelationId::new("person"),
+                RelationVersion::Total,
+                Source::Edb,
+            ),
             None,
             [formula1, formula2],
             project,
