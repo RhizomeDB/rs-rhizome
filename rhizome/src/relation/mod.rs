@@ -17,17 +17,21 @@ pub struct EdbMarker;
 pub struct IdbMarker;
 
 // TODO: Keep track of the timestamp a fact was derived at?
-pub trait Relation<F>:
-    Default + Clone + Eq + PartialEq + FromIterator<F> + IntoIterator<Item = F>
+pub(crate) trait Relation<'a, F>: Default + Eq + PartialEq
 where
-    F: Fact,
+    F: Fact + 'a,
 {
+    type Iter: Iterator<Item = &'a F>;
+
+    fn iter(&'a self) -> Self::Iter;
+
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
 
     fn contains(&self, fact: &F) -> bool;
-    fn insert(self, fact: F) -> Self;
-    fn merge(self, rhs: Self) -> Self;
+
+    fn insert(&mut self, fact: F);
+    fn merge(&mut self, rhs: &Self);
 }
 
 // Just a simple (and slow) implementation for initial prototyping
@@ -50,10 +54,16 @@ where
     }
 }
 
-impl<F> Relation<F> for ImmutableOrdSetRelation<F>
+impl<'a, F> Relation<'a, F> for ImmutableOrdSetRelation<F>
 where
-    F: Fact,
+    F: Fact + 'a,
 {
+    type Iter = im::ordset::Iter<'a, F>;
+
+    fn iter(&'a self) -> Self::Iter {
+        self.inner.iter()
+    }
+
     fn len(&self) -> usize {
         self.inner.len()
     }
@@ -70,28 +80,12 @@ where
             .any(|f| fact.cols().iter().all(|k| f.col(k) == fact.col(k)))
     }
 
-    fn insert(self, fact: F) -> Self {
-        Self {
-            inner: self.inner.update(fact),
-        }
+    fn insert(&mut self, fact: F) {
+        self.inner = self.inner.update(fact);
     }
 
-    fn merge(self, rhs: Self) -> Self {
-        Self {
-            inner: self.inner.union(rhs.inner),
-        }
-    }
-}
-
-impl<F> IntoIterator for ImmutableOrdSetRelation<F>
-where
-    F: Fact,
-{
-    type Item = F;
-    type IntoIter = im::ordset::ConsumingIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.inner.into_iter()
+    fn merge(&mut self, rhs: &Self) {
+        self.inner = self.inner.clone().union(rhs.inner.clone());
     }
 }
 
@@ -106,5 +100,17 @@ where
         Self {
             inner: OrdSet::from_iter(iter),
         }
+    }
+}
+
+impl<'a, F> IntoIterator for &'a ImmutableOrdSetRelation<F>
+where
+    F: Fact + 'a,
+{
+    type Item = &'a F;
+    type IntoIter = im::ordset::Iter<'a, F>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }

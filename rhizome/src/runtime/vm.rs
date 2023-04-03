@@ -1,7 +1,8 @@
 use core::fmt::Debug;
 use std::{
     collections::{HashMap, VecDeque},
-    sync::Arc,
+    mem,
+    sync::{Arc, RwLock},
 };
 
 use anyhow::Result;
@@ -42,7 +43,7 @@ enum BindingKey {
     Agg(RelationBinding, Var),
 }
 
-pub struct VM<
+pub(crate) struct VM<
     T = DefaultTimestamp,
     EF = DefaultEDBFact,
     IF = DefaultIDBFact,
@@ -58,15 +59,15 @@ pub struct VM<
     output: VecDeque<IF>,
     program: Program,
     // TODO: Better data structure
-    edb: im::HashMap<(RelationId, RelationVersion), ER>,
-    idb: im::HashMap<(RelationId, RelationVersion), IR>,
+    edb: HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
+    idb: HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
 }
 
 impl<T, EF, IF, ER, IR> Debug for VM<T, EF, IF, ER, IR>
 where
     T: Timestamp,
-    ER: Relation<EF>,
-    IR: Relation<IF>,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
     EF: EDBFact,
     IF: IDBFact,
 {
@@ -81,31 +82,31 @@ where
 impl<T, EF, IF, ER, IR> VM<T, EF, IF, ER, IR>
 where
     T: Timestamp,
-    ER: Relation<EF>,
-    IR: Relation<IF>,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
     EF: EDBFact,
     IF: IDBFact,
 {
-    pub fn new(program: Program) -> Self {
-        let mut edb = im::HashMap::<(RelationId, RelationVersion), ER>::default();
+    pub(crate) fn new(program: Program) -> Self {
+        let mut edb = HashMap::default();
         for input in program.inputs() {
             for version in [
                 RelationVersion::New,
                 RelationVersion::Delta,
                 RelationVersion::Total,
             ] {
-                edb.insert((input.id(), version), ER::default());
+                edb.insert((input.id(), version), Arc::new(RwLock::new(ER::default())));
             }
         }
 
-        let mut idb = im::HashMap::<(RelationId, RelationVersion), IR>::default();
+        let mut idb = HashMap::default();
         for output in program.outputs() {
             for version in [
                 RelationVersion::New,
                 RelationVersion::Delta,
                 RelationVersion::Total,
             ] {
-                idb.insert((output.id(), version), IR::default());
+                idb.insert((output.id(), version), Arc::new(RwLock::new(IR::default())));
             }
         }
 
@@ -120,32 +121,23 @@ where
         }
     }
 
-    pub fn timestamp(&self) -> &T {
+    pub(crate) fn timestamp(&self) -> &T {
         &self.timestamp
     }
 
-    pub fn relation<S>(&self, id: S) -> &IR
-    where
-        S: AsRef<str>,
-    {
-        self.idb
-            .get(&(RelationId::new(id), RelationVersion::Total))
-            .unwrap()
-    }
-
-    pub fn push(&mut self, fact: EF) -> Result<()> {
+    pub(crate) fn push(&mut self, fact: EF) -> Result<()> {
         self.input.push_back(fact);
 
         Ok(())
     }
 
-    pub fn pop(&mut self) -> Result<Option<IF>> {
+    pub(crate) fn pop(&mut self) -> Result<Option<IF>> {
         let fact = self.output.pop_front();
 
         Ok(fact)
     }
 
-    pub fn step_epoch<BS>(&mut self, blockstore: &BS) -> Result<()>
+    pub(crate) fn step_epoch<BS>(&mut self, blockstore: &BS) -> Result<()>
     where
         BS: Blockstore,
     {
@@ -156,13 +148,9 @@ where
         while let Some(fact) = self.input.pop_front() {
             let id = fact.id();
 
-            self.edb = self.edb.alter(
-                |old| match old {
-                    Some(facts) => Some(facts.insert(fact)),
-                    None => Some(ER::default().insert(fact)),
-                },
-                (id, RelationVersion::Delta),
-            );
+            self.edb
+                .entry((id, RelationVersion::Delta))
+                .and_modify(|r| r.write().unwrap().insert(fact));
 
             has_new_facts = true;
         }
@@ -301,7 +289,7 @@ where
                 let id = search.relation().id();
                 let version = search.relation().version();
 
-                let to_search = self.edb.get(&(id, version)).cloned().unwrap();
+                let to_search = Arc::clone(self.edb.get(&(id, version)).unwrap());
                 let relation_binding = RelationBinding::new(id, *search.alias(), Source::Edb);
 
                 self.search_relation(search, blockstore, to_search, relation_binding, bindings);
@@ -310,7 +298,7 @@ where
                 let id = search.relation().id();
                 let version = search.relation().version();
 
-                let to_search = self.idb.get(&(id, version)).cloned().unwrap();
+                let to_search = Arc::clone(self.idb.get(&(id, version)).unwrap());
                 let relation_binding = RelationBinding::new(id, *search.alias(), Source::Idb);
 
                 self.search_relation(search, blockstore, to_search, relation_binding, bindings);
@@ -322,15 +310,15 @@ where
         &mut self,
         search: &Search,
         blockstore: &BS,
-        to_search: R,
+        to_search: Arc<RwLock<R>>,
         relation_binding: RelationBinding,
         bindings: &Bindings,
     ) where
         BS: Blockstore,
-        R: Relation<F>,
+        R: for<'a> Relation<'a, F>,
         F: Fact,
     {
-        for fact in &mut to_search.into_iter() {
+        for fact in &mut to_search.read().unwrap().iter() {
             let mut next_bindings = bindings.clone();
 
             for k in fact.cols() {
@@ -367,13 +355,9 @@ where
 
         let fact = IF::new(project.into().id(), bound);
 
-        self.idb = self.idb.alter(
-            |old| match old {
-                Some(facts) => Some(facts.insert(fact)),
-                None => Some(IR::default().insert(fact)),
-            },
-            (project.into().id(), project.into().version()),
-        )
+        self.idb
+            .entry((project.into().id(), project.into().version()))
+            .and_modify(|r| r.write().unwrap().insert(fact));
     }
 
     fn handle_reduce<BS>(&mut self, agg: &Reduce, blockstore: &BS, bindings: &Bindings)
@@ -382,20 +366,20 @@ where
     {
         match agg.relation().source() {
             Source::Edb => {
-                let to_search = self
-                    .edb
-                    .get(&(agg.relation().id(), RelationVersion::Total))
-                    .cloned()
-                    .unwrap();
+                let to_search = Arc::clone(
+                    self.edb
+                        .get(&(agg.relation().id(), RelationVersion::Total))
+                        .unwrap(),
+                );
 
                 self.do_handle_reduce(agg, blockstore, bindings, to_search);
             }
             Source::Idb => {
-                let to_search = self
-                    .idb
-                    .get(&(agg.relation().id(), RelationVersion::Total))
-                    .cloned()
-                    .unwrap();
+                let to_search = Arc::clone(
+                    self.idb
+                        .get(&(agg.relation().id(), RelationVersion::Total))
+                        .unwrap(),
+                );
 
                 self.do_handle_reduce(agg, blockstore, bindings, to_search);
             }
@@ -407,10 +391,10 @@ where
         agg: &Reduce,
         blockstore: &BS,
         bindings: &Bindings,
-        to_search: R,
+        to_search: Arc<RwLock<R>>,
     ) where
         BS: Blockstore,
-        R: Relation<F>,
+        R: for<'a> Relation<'a, F>,
         F: Fact,
     {
         let relation_binding =
@@ -427,7 +411,7 @@ where
 
         // TODO: This is extremely slow. We need indices over the required group_by_cols
         let mut matching: Vec<F> = Vec::default();
-        for fact in to_search.into_iter() {
+        for fact in to_search.read().unwrap().iter() {
             let mut matches = true;
             for (col_id, col_val) in &group_by_vals {
                 if *col_val != fact.col(col_id).unwrap() {
@@ -438,7 +422,7 @@ where
             }
 
             if matches {
-                matching.push(fact);
+                matching.push(fact.clone());
             }
         }
 
@@ -480,29 +464,25 @@ where
         assert!(merge.from().source() == merge.into().source());
 
         if merge.from().source() == Source::Edb {
-            let from_relation = self
-                .edb
-                .get(&(merge.from().id(), merge.from().version()))
-                .cloned()
-                .unwrap();
-
-            self.edb = self.edb.update_with(
-                (merge.into().id(), merge.into().version()),
-                from_relation,
-                |old, new| old.merge(new),
+            let from_relation = Arc::clone(
+                self.edb
+                    .get(&(merge.from().id(), merge.from().version()))
+                    .unwrap(),
             );
-        } else {
-            let from_relation = self
-                .idb
-                .get(&(merge.from().id(), merge.from().version()))
-                .cloned()
-                .unwrap();
 
-            self.idb = self.idb.update_with(
-                (merge.into().id(), merge.into().version()),
-                from_relation,
-                |old, new| old.merge(new),
-            )
+            self.edb
+                .entry((merge.into().id(), merge.into().version()))
+                .and_modify(|r| r.write().unwrap().merge(&from_relation.read().unwrap()));
+        } else {
+            let from_relation = Arc::clone(
+                self.idb
+                    .get(&(merge.from().id(), merge.from().version()))
+                    .unwrap(),
+            );
+
+            self.idb
+                .entry((merge.into().id(), merge.into().version()))
+                .and_modify(|r| r.write().unwrap().merge(&from_relation.read().unwrap()));
         }
     }
 
@@ -510,51 +490,49 @@ where
         assert!(swap.left().source() == swap.right().source());
 
         if swap.left().source() == Source::Edb {
-            let left_relation = self
+            let mut left_relation = self
                 .edb
-                .remove(&(swap.left().id(), swap.left().version()))
-                .unwrap();
-            let right_relation = self
-                .edb
-                .remove(&(swap.right().id(), swap.right().version()))
+                .get(&(swap.left().id(), swap.left().version()))
+                .unwrap()
+                .write()
                 .unwrap();
 
-            self.edb = self
+            let mut right_relation = self
                 .edb
-                .update((swap.left().id(), swap.left().version()), right_relation);
-            self.edb = self
-                .edb
-                .update((swap.right().id(), swap.right().version()), left_relation);
+                .get(&(swap.right().id(), swap.right().version()))
+                .unwrap()
+                .write()
+                .unwrap();
+
+            mem::swap(&mut *left_relation, &mut *right_relation);
         } else {
-            let left_relation = self
+            let mut left_relation = self
                 .idb
-                .remove(&(swap.left().id(), swap.left().version()))
-                .unwrap();
-            let right_relation = self
-                .idb
-                .remove(&(swap.right().id(), swap.right().version()))
+                .get(&(swap.left().id(), swap.left().version()))
+                .unwrap()
+                .write()
                 .unwrap();
 
-            self.idb = self
+            let mut right_relation = self
                 .idb
-                .update((swap.left().id(), swap.left().version()), right_relation);
-            self.idb = self
-                .idb
-                .update((swap.right().id(), swap.right().version()), left_relation)
+                .get(&(swap.right().id(), swap.right().version()))
+                .unwrap()
+                .write()
+                .unwrap();
+
+            mem::swap(&mut *left_relation, &mut *right_relation);
         }
     }
 
     fn handle_purge(&mut self, purge: &Purge) {
         if purge.relation().source() == Source::Edb {
-            self.edb = self.edb.update(
-                (purge.relation().id(), purge.relation().version()),
-                ER::default(),
-            )
+            self.edb
+                .entry((purge.relation().id(), purge.relation().version()))
+                .and_modify(|r| *r.write().unwrap() = ER::default());
         } else {
-            self.idb = self.idb.update(
-                (purge.relation().id(), purge.relation().version()),
-                IR::default(),
-            )
+            self.idb
+                .entry((purge.relation().id(), purge.relation().version()))
+                .and_modify(|r| *r.write().unwrap() = IR::default());
         }
     }
 
@@ -563,12 +541,12 @@ where
             Source::Edb => self
                 .edb
                 .get(&(r.id(), r.version()))
-                .map_or(false, ER::is_empty),
+                .map_or(true, |r| r.read().unwrap().is_empty()),
 
             Source::Idb => self
                 .idb
                 .get(&(r.id(), r.version()))
-                .map_or(false, IR::is_empty),
+                .map_or(true, |r| r.read().unwrap().is_empty()),
         });
 
         if is_done {
@@ -587,8 +565,8 @@ where
             assert!(relation_ref.source() == Source::Idb);
 
             if let Some(relation) = self.idb.get(&(relation_ref.id(), relation_ref.version())) {
-                for fact in relation.clone() {
-                    self.output.push_back(fact);
+                for fact in relation.read().unwrap().iter() {
+                    self.output.push_back(fact.clone());
                 }
             }
         }
@@ -659,7 +637,7 @@ where
                 !self
                     .idb
                     .get(&(not_in.relation().id(), not_in.relation().version()))
-                    .map(|r| r.contains(&bound_fact))
+                    .map(|r| r.read().unwrap().contains(&bound_fact))
                     .unwrap()
             }
             Formula::Predicate(predicate) => {
