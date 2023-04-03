@@ -44,9 +44,9 @@ async fn main() -> Result<()> {
         })
     })?;
 
-    let (mut client, mut rx, reactor) = Client::new(program);
+    let (mut client, mut rx, reactor) = Client::new();
 
-    spawn(async move { reactor.async_run().await });
+    spawn(async move { reactor.async_run(program).await });
     spawn(async move {
         loop {
             let _ = rx.next().await;

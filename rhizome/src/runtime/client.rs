@@ -9,11 +9,10 @@ use futures::{
 use crate::{
     fact::{DefaultEDBFact, DefaultIDBFact},
     id::RelationId,
-    ram::Program,
     timestamp::DefaultTimestamp,
 };
 
-use super::{reactor::Reactor, vm::VM, ClientCommand, ClientEvent, CreateSink, CreateStream};
+use super::{reactor::Reactor, ClientCommand, ClientEvent, CreateSink, CreateStream};
 
 #[derive(Debug)]
 pub struct Client {
@@ -22,7 +21,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(program: Program) -> (Self, mpsc::Receiver<ClientEvent<DefaultTimestamp>>, Reactor) {
+    pub fn new() -> (Self, mpsc::Receiver<ClientEvent<DefaultTimestamp>>, Reactor) {
         let (command_tx, command_rx) = mpsc::channel(1);
         let (event_tx, event_rx) = mpsc::channel(1);
 
@@ -31,11 +30,7 @@ impl Client {
             _marker: PhantomData::default(),
         };
 
-        // Unstable type parameter fallback means that the ergonomics of default type
-        // parameters aren't great, so for now we just use the defaults directly, without
-        // any type inference. We can improve this experience using GATs.
-        let vm = <VM>::new(program);
-        let reactor = <Reactor>::new(vm, command_rx, event_tx);
+        let reactor = <Reactor>::new(command_rx, event_tx);
 
         (client, event_rx, reactor)
     }

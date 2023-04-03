@@ -16,7 +16,8 @@ use crate::{
         DefaultEDBFact, DefaultIDBFact,
     },
     id::RelationId,
-    relation::{DefaultRelation, Relation},
+    ram::Program,
+    relation::DefaultRelation,
     storage::{blockstore::Blockstore, memory::MemoryBlockstore, DefaultCodec, DEFAULT_MULTIHASH},
     timestamp::{DefaultTimestamp, Timestamp},
 };
@@ -28,15 +29,12 @@ pub struct Reactor<
     BS = MemoryBlockstore,
     E = DefaultEDBFact,
     I = DefaultIDBFact,
-    ER = DefaultRelation<E>,
-    IR = DefaultRelation<I>,
 > where
     T: Timestamp,
     E: EDBFact,
     I: IDBFact,
 {
     runtime: Runtime,
-    vm: VM<T, E, I, ER, IR>,
     blockstore: BS,
     // TODO: set of stream IDs?
     sinks: Vec<(RelationId, mpsc::Sender<SinkCommand<I>>)>,
@@ -48,17 +46,14 @@ pub struct Reactor<
     stream_tx: mpsc::Sender<StreamEvent<E>>,
 }
 
-impl<T, BS, E, I, ER, IR> Reactor<T, BS, E, I, ER, IR>
+impl<T, BS, E, I> Reactor<T, BS, E, I>
 where
     T: Timestamp,
     BS: Blockstore,
     E: EDBFact + 'static,
     I: IDBFact + 'static,
-    ER: Relation<E>,
-    IR: Relation<I>,
 {
     pub fn new(
-        vm: VM<T, E, I, ER, IR>,
         command_rx: Receiver<ClientCommand<E, I>>,
         event_tx: Sender<ClientEvent<T>>,
     ) -> Self
@@ -67,7 +62,6 @@ where {
 
         Self {
             runtime: Runtime::default(),
-            vm,
             blockstore: BS::default(),
             sinks: Vec::default(),
             command_rx,
@@ -77,21 +71,23 @@ where {
         }
     }
 
-    pub async fn async_run(mut self) -> Result<()> {
+    pub async fn async_run(mut self, program: Program) -> Result<()> {
+        let mut vm = VM::<T, E, I, DefaultRelation<E>, DefaultRelation<I>>::new(program);
+
         loop {
             select! {
                 command = self.command_rx.next() => if let Some(c) = command {
-                    self.handle_command(c).await.unwrap();
+                    self.handle_command(&mut vm, c).await.unwrap();
                 },
                 event = self.stream_rx.next() => if let Some(e) = event {
-                    self.handle_event(e).await.unwrap();
+                    self.handle_event(&mut vm, e).await.unwrap();
                 }
             }
 
             // TODO: use a buffered blockstore and flush after each iteration?
-            self.vm.step_epoch(&self.blockstore)?;
+            vm.step_epoch(&self.blockstore)?;
 
-            while let Ok(Some(fact)) = self.vm.pop() {
+            while let Ok(Some(fact)) = vm.pop() {
                 // TODO: index sinks by relation_id
                 for (relation_id, sink) in &self.sinks {
                     if fact.id() == *relation_id {
@@ -103,12 +99,16 @@ where {
             }
 
             self.event_tx
-                .send(ClientEvent::ReachedFixedpoint(*self.vm.timestamp()))
+                .send(ClientEvent::ReachedFixedpoint(*vm.timestamp()))
                 .await?;
         }
     }
 
-    async fn handle_command(&mut self, command: ClientCommand<E, I>) -> Result<()> {
+    async fn handle_command(
+        &mut self,
+        vm: &mut VM<T, E, I, DefaultRelation<E>, DefaultRelation<I>>,
+        command: ClientCommand<E, I>,
+    ) -> Result<()> {
         match command {
             ClientCommand::Flush(sender) => {
                 let mut handles = Vec::default();
@@ -133,7 +133,7 @@ where {
                     DEFAULT_MULTIHASH,
                 )?;
 
-                self.vm.push(fact)?;
+                vm.push(fact)?;
 
                 sender.send(()).unwrap();
             }
@@ -175,7 +175,11 @@ where {
         Ok(())
     }
 
-    async fn handle_event(&mut self, event: StreamEvent<E>) -> Result<()> {
+    async fn handle_event(
+        &mut self,
+        vm: &mut VM<T, E, I, DefaultRelation<E>, DefaultRelation<I>>,
+        event: StreamEvent<E>,
+    ) -> Result<()> {
         match event {
             StreamEvent::Fact(fact) => {
                 self.blockstore.put_serializable(
@@ -184,7 +188,7 @@ where {
                     DEFAULT_MULTIHASH,
                 )?;
 
-                self.vm.push(fact)?;
+                vm.push(fact)?;
             }
         };
 
@@ -192,7 +196,7 @@ where {
     }
 }
 
-impl<T, BS, E, I, ER, IR> Debug for Reactor<T, BS, E, I, ER, IR>
+impl<T, BS, E, I> Debug for Reactor<T, BS, E, I>
 where
     T: Timestamp,
     E: EDBFact + 'static,
