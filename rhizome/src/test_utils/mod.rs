@@ -3,10 +3,41 @@ mod rvg;
 
 pub use rvg::*;
 
+use crate::{
+    fact::{DefaultEDBFact, DefaultIDBFact},
+    ram::Program,
+    relation::DefaultRelation,
+    ProgramBuilder,
+};
+use anyhow::Result;
+
+#[allow(dead_code)]
+pub(crate) fn build_easy<F>(
+    f: F,
+) -> Result<
+    Program<
+        DefaultEDBFact,
+        DefaultIDBFact,
+        DefaultRelation<DefaultEDBFact>,
+        DefaultRelation<DefaultIDBFact>,
+    >,
+>
+where
+    F: FnOnce(&mut ProgramBuilder) -> Result<()>,
+{
+    crate::build::<
+        DefaultEDBFact,
+        DefaultIDBFact,
+        DefaultRelation<DefaultEDBFact>,
+        DefaultRelation<DefaultIDBFact>,
+        F,
+    >(f)
+}
+
 #[macro_export]
 macro_rules! assert_compile {
     ($program_closure:expr) => {
-        match $crate::build($program_closure) {
+        match $crate::test_utils::build_easy($program_closure) {
             std::result::Result::Ok(v) => v,
             std::result::Result::Err(e) => {
                 panic!("Failed to build program: {:?}", e);
@@ -18,7 +49,7 @@ macro_rules! assert_compile {
 #[macro_export]
 macro_rules! assert_compile_err {
     ($err:expr, $program_closure:expr) => {
-        match $crate::build($program_closure) {
+        match $crate::test_utils::build_easy($program_closure) {
             std::result::Result::Ok(_) => {
                 panic!("Expected an error, but compilation succeeded!");
             }

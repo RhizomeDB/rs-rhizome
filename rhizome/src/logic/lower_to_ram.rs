@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    marker::PhantomData,
+    sync::{Arc, RwLock},
 };
 
 use anyhow::Result;
@@ -13,13 +14,14 @@ use petgraph::{
 use crate::{
     col_val::ColVal,
     error::{error, Error},
+    fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId},
     ram::{
-        self, AliasId, Exit, Formula, Insert, Loop, Merge, Operation, Project, Purge, Reduce,
-        RelationBinding, RelationRef, RelationVersion, Search, Sinks, Sources, Statement, Swap,
-        Term,
+        self, AliasId, ExitBuilder, Formula, Insert, Loop, Merge, NotInRelation, Operation,
+        Project, Purge, PurgeRelation, Reduce, ReduceRelation, RelationVersion, Search,
+        SearchRelation, SinksBuilder, SourcesBuilder, Statement, Swap, Term,
     },
-    relation::Source,
+    relation::{Relation, Source},
     value::Val,
     var::Var,
 };
@@ -36,64 +38,121 @@ use super::ast::{
     stratum::Stratum,
 };
 
-pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
+pub(crate) fn lower_to_ram<EF, IF, ER, IR>(
+    program: &Program,
+) -> Result<ram::program::Program<EF, IF, ER, IR>>
+where
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+    EF: EDBFact,
+    IF: IDBFact,
+{
+    let mut edb = HashMap::default();
+    let mut idb = HashMap::default();
+
     let mut inputs: Vec<&Declaration> = Vec::default();
     let mut outputs: Vec<&Declaration> = Vec::default();
-    let mut statements: Vec<Statement> = Vec::default();
+    let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
 
     for declaration in program.declarations() {
         match declaration.source() {
             Source::Edb => {
                 inputs.push(declaration);
+
+                edb.insert(
+                    (declaration.id(), RelationVersion::New),
+                    Arc::new(RwLock::new(ER::default())),
+                );
+
+                edb.insert(
+                    (declaration.id(), RelationVersion::Delta),
+                    Arc::new(RwLock::new(ER::default())),
+                );
+
+                edb.insert(
+                    (declaration.id(), RelationVersion::Total),
+                    Arc::new(RwLock::new(ER::default())),
+                );
             }
             Source::Idb => {
                 outputs.push(declaration);
+
+                idb.insert(
+                    (declaration.id(), RelationVersion::New),
+                    Arc::new(RwLock::new(IR::default())),
+                );
+
+                idb.insert(
+                    (declaration.id(), RelationVersion::Delta),
+                    Arc::new(RwLock::new(IR::default())),
+                );
+
+                idb.insert(
+                    (declaration.id(), RelationVersion::Total),
+                    Arc::new(RwLock::new(IR::default())),
+                );
             }
         }
     }
 
+    // Run sources for each input
     if !inputs.is_empty() {
-        let relations: HashSet<_> = inputs.iter().map(|r| r.id()).collect();
+        let mut sources_builder = SourcesBuilder::default();
 
-        // Run sources for each input
-        statements.push(Statement::Sources(Sources::from_iter(relations)));
+        for input in &inputs {
+            let id = input.id();
+            let relation = Arc::clone(edb.get(&(id, RelationVersion::Delta)).unwrap());
+
+            sources_builder.add_relation(id, relation);
+        }
+
+        statements.push(Statement::Sources(sources_builder.finalize()));
     }
 
     for stratum in &stratify(program)? {
-        let mut lowered = lower_stratum_to_ram(stratum, program)?;
+        let mut lowered = lower_stratum_to_ram(stratum, program, &edb, &idb)?;
 
         statements.append(&mut lowered);
     }
 
     // Purge all newly received input facts
-    for relation in &inputs {
-        let relation_ref = RelationRef::new(relation.id(), RelationVersion::Delta, Source::Edb);
+    for input in &inputs {
+        let id = input.id();
+        let relation = Arc::clone(edb.get(&(id, RelationVersion::Delta)).unwrap());
 
-        statements.push(Statement::Purge(Purge::new(relation_ref)));
+        statements.push(Statement::Purge(Purge::new(
+            id,
+            RelationVersion::Delta,
+            PurgeRelation::Edb {
+                relation,
+                _marker: PhantomData::default(),
+            },
+        )));
     }
-
-    let input_schemas = inputs.into_iter().map(|d| d.schema()).collect();
-    let output_schemas = outputs.into_iter().map(|d| d.schema()).collect();
 
     let statements = statements.into_iter().map(Arc::new).collect();
 
-    Ok(ram::program::Program::new(
-        input_schemas,
-        output_schemas,
-        statements,
-    ))
+    Ok(ram::program::Program::new(statements))
 }
 
-pub(crate) fn lower_stratum_to_ram(
+pub(crate) fn lower_stratum_to_ram<EF, IF, ER, IR>(
     stratum: &Stratum<'_>,
     program: &Program,
-) -> Result<Vec<Statement>> {
-    let mut statements: Vec<Statement> = Vec::default();
+    edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
+    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
+) -> Result<Vec<Statement<EF, IF, ER, IR>>>
+where
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+    EF: EDBFact,
+    IF: IDBFact,
+{
+    let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
 
     if stratum.is_recursive() {
         // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(fact)?;
+            let lowered = lower_fact_to_ram(fact, edb, idb)?;
 
             statements.push(lowered);
         }
@@ -112,67 +171,112 @@ pub(crate) fn lower_stratum_to_ram(
 
         // Evaluate static rules out of the loop
         for rule in &static_rules {
-            let mut lowered = lower_rule_to_ram(rule, stratum, program, RelationVersion::Delta)?;
+            let mut lowered =
+                lower_rule_to_ram(rule, stratum, program, RelationVersion::Delta, edb, idb)?;
 
             statements.append(&mut lowered);
         }
 
         // Merge the output of the static rules into total
         for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| r.head())) {
-            statements.push(Statement::Merge(Merge::new(
-                RelationRef::new(relation, RelationVersion::Delta, Source::Idb),
-                RelationRef::new(relation, RelationVersion::Total, Source::Idb),
-            )));
+            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
+            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
+
+            let merge = Merge::new(
+                relation,
+                RelationVersion::Delta,
+                relation,
+                RelationVersion::Total,
+                from_relation,
+                into_relation,
+            );
+
+            statements.push(Statement::Merge(merge));
         }
 
-        let mut loop_body: Vec<Statement> = Vec::default();
+        let mut loop_body: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
 
         // Purge new, computed during the last loop iteration
-        for relation in stratum.relations() {
-            loop_body.push(Statement::Purge(Purge::new(RelationRef::new(
-                *relation,
+        for &id in stratum.relations() {
+            let relation = Arc::clone(idb.get(&(id, RelationVersion::New)).unwrap());
+
+            let statement = Statement::Purge(Purge::new(
+                id,
                 RelationVersion::New,
-                Source::Idb,
-            ))));
+                PurgeRelation::Idb {
+                    relation,
+                    _marker: PhantomData::default(),
+                },
+            ));
+
+            loop_body.push(statement);
         }
 
         // Evaluate dynamic rules within the loop, inserting into new
         for rule in &dynamic_rules {
-            let mut lowered = lower_rule_to_ram(rule, stratum, program, RelationVersion::New)?;
+            let mut lowered =
+                lower_rule_to_ram(rule, stratum, program, RelationVersion::New, edb, idb)?;
 
             loop_body.append(&mut lowered);
         }
 
         // Run sinks for the stratum
-        loop_body.push(Statement::Sinks(Sinks::new(
-            stratum
-                .relations()
-                .iter()
-                .map(|&relation| RelationRef::new(relation, RelationVersion::Delta, Source::Idb)),
-        )));
+        let mut sinks_builder = SinksBuilder::default();
+
+        for &id in stratum.relations() {
+            let relation = Arc::clone(idb.get(&(id, RelationVersion::Delta)).unwrap());
+
+            sinks_builder.add_relation(id, relation);
+        }
+
+        loop_body.push(Statement::Sinks(sinks_builder.finalize()));
 
         // Exit the loop if all of the dynamic relations have reached a fixed point
-        loop_body.push(Statement::Exit(Exit::new(
-            stratum
-                .relations()
-                .iter()
-                .map(|&id| RelationRef::new(id, RelationVersion::New, Source::Idb)),
-        )));
+        let mut exit_builder = ExitBuilder::default();
+
+        for &id in stratum.relations() {
+            let relation = Arc::clone(idb.get(&(id, RelationVersion::New)).unwrap());
+
+            exit_builder.add_relation(id, RelationVersion::New, relation);
+        }
+
+        loop_body.push(Statement::Exit(exit_builder.finalize()));
 
         // Merge new into total, then swap new and delta
         for &relation in stratum.relations() {
-            loop_body.push(Statement::Merge(Merge::new(
-                RelationRef::new(relation, RelationVersion::New, Source::Idb),
-                RelationRef::new(relation, RelationVersion::Total, Source::Idb),
-            )));
+            // Merge the output of the static rules into total
+            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::New)).unwrap());
+            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
 
-            loop_body.push(Statement::Swap(Swap::new(
-                RelationRef::new(relation, RelationVersion::New, Source::Idb),
-                RelationRef::new(relation, RelationVersion::Delta, Source::Idb),
-            )));
+            let merge = Merge::new(
+                relation,
+                RelationVersion::New,
+                relation,
+                RelationVersion::Total,
+                from_relation,
+                into_relation,
+            );
+
+            loop_body.push(Statement::Merge(merge));
+
+            // Swap new and delta
+            let left_relation = Arc::clone(idb.get(&(relation, RelationVersion::New)).unwrap());
+            let right_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
+
+            let swap = Swap::new(
+                relation,
+                RelationVersion::New,
+                relation,
+                RelationVersion::Delta,
+                left_relation,
+                right_relation,
+            );
+
+            loop_body.push(Statement::Swap(swap));
         }
 
-        let loop_body: Vec<Arc<Statement>> = loop_body.into_iter().map(Arc::new).collect();
+        let loop_body: Vec<Arc<Statement<EF, IF, ER, IR>>> =
+            loop_body.into_iter().map(Arc::new).collect();
 
         statements.push(Statement::Loop(Loop::new(loop_body)));
 
@@ -180,10 +284,19 @@ pub(crate) fn lower_stratum_to_ram(
         // TODO: this seems wrong and will lead to duplicate work across epochs. Will likely need to
         // use the lattice based timestamps to resolve that.
         for &relation in stratum.relations() {
-            statements.push(Statement::Merge(Merge::new(
-                RelationRef::new(relation, RelationVersion::Total, Source::Idb),
-                RelationRef::new(relation, RelationVersion::Delta, Source::Idb),
-            )));
+            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
+            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
+
+            let merge = Merge::new(
+                relation,
+                RelationVersion::Total,
+                relation,
+                RelationVersion::Delta,
+                from_relation,
+                into_relation,
+            );
+
+            statements.push(Statement::Merge(merge));
 
             // statements.push(Statement::Purge(Purge::new(RelationRef::new(
             //     *relation,
@@ -194,48 +307,75 @@ pub(crate) fn lower_stratum_to_ram(
     } else {
         // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(fact)?;
+            let lowered = lower_fact_to_ram(fact, edb, idb)?;
 
             statements.push(lowered);
         }
 
         // Evaluate all rules, inserting into Delta
         for rule in stratum.rules() {
-            let mut lowered = lower_rule_to_ram(rule, stratum, program, RelationVersion::Delta)?;
+            let mut lowered =
+                lower_rule_to_ram(rule, stratum, program, RelationVersion::Delta, edb, idb)?;
 
             statements.append(&mut lowered);
         }
 
         // Merge rules from Delta into Total
-        for relation in stratum.relations() {
-            statements.push(Statement::Merge(Merge::new(
-                RelationRef::new(*relation, RelationVersion::Delta, Source::Idb),
-                RelationRef::new(*relation, RelationVersion::Total, Source::Idb),
-            )));
+        for &relation in stratum.relations() {
+            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
+            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
+
+            let merge = Merge::new(
+                relation,
+                RelationVersion::Delta,
+                relation,
+                RelationVersion::Total,
+                from_relation,
+                into_relation,
+            );
+
+            statements.push(Statement::Merge(merge));
         }
 
         // Run sinks for the stratum
-        statements.push(Statement::Sinks(Sinks::new(
-            stratum
-                .relations()
-                .iter()
-                .map(|relation| RelationRef::new(*relation, RelationVersion::Delta, Source::Idb)),
-        )));
+        let mut sinks_builder = SinksBuilder::default();
+
+        for &id in stratum.relations() {
+            let relation = Arc::clone(idb.get(&(id, RelationVersion::Delta)).unwrap());
+
+            sinks_builder.add_relation(id, relation);
+        }
+
+        statements.push(Statement::Sinks(sinks_builder.finalize()));
     };
 
     Ok(statements)
 }
 
-pub(crate) fn lower_fact_to_ram(fact: &Fact) -> Result<Statement> {
+pub(crate) fn lower_fact_to_ram<EF, IF, ER, IR>(
+    fact: &Fact,
+    _edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
+    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
+) -> Result<Statement<EF, IF, ER, IR>>
+where
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+    EF: EDBFact,
+    IF: IDBFact,
+{
     let cols = fact
         .args()
         .iter()
         .map(|(k, v)| (*k, Term::Lit(Arc::clone(v))));
 
+    let relation = Arc::clone(idb.get(&(fact.head(), RelationVersion::Delta)).unwrap());
+
     Ok(Statement::Insert(Insert::new(
         Operation::Project(Project::new(
+            fact.head(),
+            RelationVersion::Delta,
             cols,
-            RelationRef::new(fact.head(), RelationVersion::Delta, Source::Idb),
+            relation,
         )),
         true,
     )))
@@ -256,12 +396,20 @@ impl TermMetadata {
     }
 }
 
-pub(crate) fn lower_rule_to_ram(
+pub(crate) fn lower_rule_to_ram<EF, IF, ER, IR>(
     rule: &Rule,
     _stratum: &Stratum<'_>,
     _program: &Program,
     version: RelationVersion,
-) -> Result<Vec<Statement>> {
+    edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
+    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
+) -> Result<Vec<Statement<EF, IF, ER, IR>>>
+where
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+    EF: EDBFact,
+    IF: IDBFact,
+{
     let mut next_alias = im::HashMap::<RelationId, AliasId>::default();
     let mut bindings = im::HashMap::<Var, Term>::default();
     let mut term_metadata = Vec::<(&BodyTerm, TermMetadata)>::default();
@@ -280,20 +428,13 @@ pub(crate) fn lower_rule_to_ram(
                 for (col_id, col_val) in predicate.args() {
                     match col_val {
                         ColVal::Lit(_) => continue,
-                        ColVal::Binding(var) if !bindings.contains_key(var) => {
-                            let col_binding = RelationBinding::new(
-                                predicate.relation().id(),
-                                alias,
-                                predicate.relation().source(),
-                            );
-
-                            bindings.insert(*var, Term::Col(*col_id, col_binding))
-                        }
+                        ColVal::Binding(var) if !bindings.contains_key(&var) => bindings
+                            .insert(*var, Term::Col(predicate.relation().id(), alias, *col_id)),
                         _ => continue,
                     };
                 }
 
-                term_metadata.push((body_term, TermMetadata::new(alias, bindings.clone())));
+                term_metadata.push((&body_term, TermMetadata::new(alias, bindings.clone())));
             }
             BodyTerm::Negation(_) => continue,
             BodyTerm::GetLink(inner) => {
@@ -334,15 +475,12 @@ pub(crate) fn lower_rule_to_ram(
                         |old, _| old.next(),
                     );
 
-                    let rel_binding = RelationBinding::new(
-                        inner.relation().id(),
-                        alias,
-                        inner.relation().source(),
+                    bindings.insert(
+                        *inner.target(),
+                        Term::Agg(inner.relation().id(), alias, *inner.target()),
                     );
 
-                    bindings.insert(*inner.target(), Term::Agg(*inner.target(), rel_binding));
-
-                    term_metadata.push((body_term, TermMetadata::new(alias, bindings.clone())));
+                    term_metadata.push((&body_term, TermMetadata::new(alias, bindings.clone())));
                 }
             }
         }
@@ -366,7 +504,7 @@ pub(crate) fn lower_rule_to_ram(
         })
         .collect();
 
-    let mut statements: Vec<Statement> = Vec::default();
+    let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
 
     // We use a bitmask to represent all of the possible rewrites of the rule under
     // semi-naive evaluation, i.e. those where at least one rel_predicate searches
@@ -381,9 +519,13 @@ pub(crate) fn lower_rule_to_ram(
         let mut get_link_terms = rule.get_link_terms();
         let mut var_predicate_terms = rule.var_predicate_terms();
 
+        let relation = Arc::clone(idb.get(&(rule.head(), version)).unwrap());
+
         let mut previous = Operation::Project(Project::new(
+            rule.head(),
+            version,
             projection_cols.clone(),
-            RelationRef::new(rule.head(), version, Source::Idb),
+            relation,
         ));
 
         for (i, (body_term, metadata)) in term_metadata.iter().rev().enumerate() {
@@ -391,26 +533,27 @@ pub(crate) fn lower_rule_to_ram(
 
             // TODO: Add this once, after all projection vars are bound
             if projection_vars.iter().all(|&v| metadata.is_bound(&v)) {
+                let not_in_relation = NotInRelation::Idb {
+                    relation: Arc::clone(idb.get(&(rule.head(), RelationVersion::Total)).unwrap()),
+                    _marker: PhantomData::default(),
+                };
+
                 formulae.push(Formula::not_in(
+                    rule.head(),
+                    RelationVersion::Total,
                     Vec::from_iter(projection_cols.clone()),
-                    RelationRef::new(rule.head(), RelationVersion::Total, Source::Idb),
+                    not_in_relation,
                 ))
             }
 
             match body_term {
                 BodyTerm::RelPredicate(predicate) => {
                     for (&col_id, col_val) in predicate.args() {
-                        let binding = RelationBinding::new(
-                            predicate.relation().id(),
-                            metadata.alias,
-                            predicate.relation().source(),
-                        );
-
                         match col_val {
                             ColVal::Lit(val) => {
                                 let formula = Formula::equality(
-                                    Term::Col(col_id, binding),
-                                    Term::Lit(Arc::clone(val)),
+                                    Term::Col(predicate.relation().id(), metadata.alias, col_id),
+                                    Term::Lit(Arc::clone(&val)),
                                 );
 
                                 formulae.push(formula);
@@ -418,10 +561,16 @@ pub(crate) fn lower_rule_to_ram(
                             ColVal::Binding(var) => {
                                 if let Some(bound) = metadata.bindings.get(var) {
                                     match bound {
-                                        Term::Col(_, col_binding) if *col_binding == binding => {}
+                                        Term::Col(rel_id, alias, _)
+                                            if *rel_id == predicate.relation().id()
+                                                && *alias == metadata.alias => {}
                                         bound_value => {
                                             let formula = Formula::equality(
-                                                Term::Col(col_id, binding),
+                                                Term::Col(
+                                                    predicate.relation().id(),
+                                                    metadata.alias,
+                                                    col_id,
+                                                ),
                                                 bound_value.clone(),
                                             );
 
@@ -441,26 +590,35 @@ pub(crate) fn lower_rule_to_ram(
 
                     for negation in satisfied {
                         let cols = negation.args().iter().map(|(k, v)| match v {
-                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(val))),
+                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(&val))),
                             ColVal::Binding(var) => {
                                 (*k, metadata.bindings.get(var).unwrap().clone())
                             }
                         });
 
-                        let relation_ref = match negation.relation().source() {
-                            Source::Edb => RelationRef::new(
-                                negation.relation().id(),
-                                RelationVersion::Total,
-                                Source::Edb,
-                            ),
-                            Source::Idb => RelationRef::new(
-                                negation.relation().id(),
-                                RelationVersion::Total,
-                                Source::Idb,
-                            ),
+                        let not_in_relation = match negation.relation().source() {
+                            Source::Edb => NotInRelation::Edb {
+                                relation: Arc::clone(
+                                    edb.get(&(negation.relation().id(), RelationVersion::Total))
+                                        .unwrap(),
+                                ),
+                                _marker: PhantomData::default(),
+                            },
+                            Source::Idb => NotInRelation::Idb {
+                                relation: Arc::clone(
+                                    idb.get(&(negation.relation().id(), RelationVersion::Total))
+                                        .unwrap(),
+                                ),
+                                _marker: PhantomData::default(),
+                            },
                         };
 
-                        formulae.push(Formula::not_in(cols, relation_ref))
+                        formulae.push(Formula::not_in(
+                            negation.relation().id(),
+                            RelationVersion::Total,
+                            cols,
+                            not_in_relation,
+                        ));
                     }
 
                     let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = get_link_terms
@@ -514,15 +672,32 @@ pub(crate) fn lower_rule_to_ram(
                         RelationVersion::Total
                     };
 
-                    let relation_ref = RelationRef::new(
-                        predicate.relation().id(),
-                        version,
-                        predicate.relation().source(),
-                    );
+                    let search_relation = match predicate.relation().source() {
+                        Source::Edb => {
+                            let relation =
+                                Arc::clone(edb.get(&(predicate.relation().id(), version)).unwrap());
+
+                            SearchRelation::Edb {
+                                relation,
+                                _marker: PhantomData::default(),
+                            }
+                        }
+                        Source::Idb => {
+                            let relation =
+                                Arc::clone(idb.get(&(predicate.relation().id(), version)).unwrap());
+
+                            SearchRelation::Idb {
+                                relation,
+                                _marker: PhantomData::default(),
+                            }
+                        }
+                    };
 
                     previous = Operation::Search(Search::new(
-                        relation_ref,
+                        predicate.relation().id(),
                         metadata.alias,
+                        version,
+                        search_relation,
                         formulae,
                         previous,
                     ));
@@ -531,26 +706,24 @@ pub(crate) fn lower_rule_to_ram(
                 BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::VarPredicate(_) => unreachable!("Only iterating through positive terms"),
                 BodyTerm::Reduce(agg) => {
-                    let rel_binding = RelationBinding::new(
-                        agg.relation().id(),
-                        metadata.alias,
-                        agg.relation().source(),
-                    );
-
                     let mut args = Vec::default();
                     let mut group_by_cols = HashMap::default();
                     for (col_id, col_val) in agg.group_by_cols() {
                         if let Some(term) = match col_val {
-                            ColVal::Lit(lit) => Some(Term::Lit(Arc::clone(lit))),
+                            ColVal::Lit(lit) => Some(Term::Lit(Arc::clone(&lit))),
                             ColVal::Binding(var) => {
-                                if let Some(term) = bindings.get(var) {
-                                    if agg.vars().contains(var) {
+                                if let Some(term) = bindings.get(&var) {
+                                    if agg.vars().contains(&var) {
                                         args.push(term.clone());
                                     }
 
                                     Some(term.clone())
-                                } else if agg.vars().contains(var) {
-                                    args.push(Term::Col(*col_id, rel_binding));
+                                } else if agg.vars().contains(&var) {
+                                    args.push(Term::Col(
+                                        agg.relation().id(),
+                                        metadata.alias,
+                                        *col_id,
+                                    ));
 
                                     None
                                 } else {
@@ -570,19 +743,35 @@ pub(crate) fn lower_rule_to_ram(
 
                     for negation in satisfied {
                         let cols = negation.args().iter().map(|(k, v)| match v {
-                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(val))),
+                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(&val))),
                             ColVal::Binding(var) => {
                                 (*k, metadata.bindings.get(var).unwrap().clone())
                             }
                         });
 
-                        let relation_ref = RelationRef::new(
+                        let not_in_relation = match negation.relation().source() {
+                            Source::Edb => NotInRelation::Edb {
+                                relation: Arc::clone(
+                                    edb.get(&(negation.relation().id(), RelationVersion::Total))
+                                        .unwrap(),
+                                ),
+                                _marker: PhantomData::default(),
+                            },
+                            Source::Idb => NotInRelation::Idb {
+                                relation: Arc::clone(
+                                    idb.get(&(negation.relation().id(), RelationVersion::Total))
+                                        .unwrap(),
+                                ),
+                                _marker: PhantomData::default(),
+                            },
+                        };
+
+                        formulae.push(Formula::not_in(
                             negation.relation().id(),
                             RelationVersion::Total,
-                            negation.relation().source(),
-                        );
-
-                        formulae.push(Formula::not_in(cols, relation_ref))
+                            cols,
+                            not_in_relation,
+                        ));
                     }
 
                     let (satisfied, unsatisfied): (Vec<_>, Vec<_>) = get_link_terms
@@ -636,8 +825,26 @@ pub(crate) fn lower_rule_to_ram(
                         RelationVersion::Total
                     };
 
-                    let relation_ref =
-                        RelationRef::new(agg.relation().id(), version, agg.relation().source());
+                    let reduce_relation = match agg.relation().source() {
+                        Source::Edb => {
+                            let relation =
+                                Arc::clone(edb.get(&(agg.relation().id(), version)).unwrap());
+
+                            ReduceRelation::Edb {
+                                relation,
+                                _marker: PhantomData::default(),
+                            }
+                        }
+                        Source::Idb => {
+                            let relation =
+                                Arc::clone(idb.get(&(agg.relation().id(), version)).unwrap());
+
+                            ReduceRelation::Idb {
+                                relation,
+                                _marker: PhantomData::default(),
+                            }
+                        }
+                    };
 
                     previous = Operation::Reduce(Reduce::new(
                         args,
@@ -645,8 +852,9 @@ pub(crate) fn lower_rule_to_ram(
                         agg.f(),
                         *agg.target(),
                         group_by_cols,
-                        relation_ref,
+                        agg.relation().id(),
                         metadata.alias,
+                        reduce_relation,
                         formulae,
                         previous,
                     ));

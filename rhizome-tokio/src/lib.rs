@@ -23,42 +23,45 @@ mod tests {
         let buf1 = Arc::new(Mutex::new(RefCell::new(BTreeSet::new())));
         let buf2 = Arc::clone(&buf1);
 
-        let program = rhizome::build(|p| {
-            p.input("evac", |h| {
-                h.column::<Any>("entity")
-                    .column::<Any>("attribute")
-                    .column::<Any>("value")
-            })?;
-
-            p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
-            p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
-
-            p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
-                (
-                    h.bind((("from", x), ("to", y))),
-                    b.search("evac", (("entity", x), ("attribute", "to"), ("value", y))),
-                )
-            })?;
-
-            p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
-                (
-                    h.bind((("from", x), ("to", y))),
-                    b.search("edge", (("from", x), ("to", y))),
-                )
-            })?;
-
-            p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
-                (
-                    h.bind((("from", x), ("to", z))),
-                    b.search("edge", (("from", x), ("to", y)))
-                        .search("path", (("from", y), ("to", z))),
-                )
-            })
-        })?;
-
         let (mut client, mut rx, reactor) = Client::new();
 
-        spawn(async move { reactor.async_run(program).await });
+        spawn(async move {
+            reactor
+                .async_run(|p| {
+                    p.input("evac", |h| {
+                        h.column::<Any>("entity")
+                            .column::<Any>("attribute")
+                            .column::<Any>("value")
+                    })?;
+
+                    p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
+                    p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
+
+                    p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
+                        (
+                            h.bind((("from", x), ("to", y))),
+                            b.search("evac", (("entity", x), ("attribute", "to"), ("value", y))),
+                        )
+                    })?;
+
+                    p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
+                        (
+                            h.bind((("from", x), ("to", y))),
+                            b.search("edge", (("from", x), ("to", y))),
+                        )
+                    })?;
+
+                    p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
+                        (
+                            h.bind((("from", x), ("to", z))),
+                            b.search("edge", (("from", x), ("to", y)))
+                                .search("path", (("from", y), ("to", z))),
+                        )
+                    })
+                })
+                .await
+        });
+
         spawn(async move {
             loop {
                 let _ = rx.next().await;

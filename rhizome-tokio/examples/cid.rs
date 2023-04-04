@@ -10,112 +10,115 @@ use tokio::spawn;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let program = rhizome::build(|p| {
-        p.input("evac", |h| {
-            h.column::<Cid>("cid")
-                .column::<Any>("entity")
-                .column::<Any>("attribute")
-                .column::<Any>("value")
-        })?;
-
-        p.output("create", |h| {
-            h.column::<Cid>("cid")
-                .column::<i32>("entity")
-                .column::<i32>("initial")
-        })?;
-
-        p.output("update", |h| {
-            h.column::<Cid>("cid")
-                .column::<i32>("entity")
-                .column::<Cid>("parent")
-                .column::<i32>("value")
-        })?;
-
-        p.output("head", |h| {
-            h.column::<Cid>("cid")
-                .column::<i32>("entity")
-                .column::<i32>("value")
-        })?;
-
-        p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, e, i)| {
-            (
-                h.bind((("cid", cid), ("entity", e), ("initial", i))),
-                b.search(
-                    "evac",
-                    (
-                        ("cid", cid),
-                        ("entity", e),
-                        ("attribute", "initial"),
-                        ("value", i),
-                    ),
-                ),
-            )
-        })?;
-
-        p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
-            (
-                h.bind((
-                    ("cid", cid),
-                    ("entity", e),
-                    ("value", v),
-                    ("parent", parent),
-                )),
-                b.search(
-                    "evac",
-                    (
-                        ("cid", cid),
-                        ("entity", e),
-                        ("attribute", "write"),
-                        ("value", v),
-                    ),
-                )
-                .get_link(cid, "parent", parent)
-                .search("create", (("cid", parent), ("entity", e))),
-            )
-        })?;
-
-        p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
-            (
-                h.bind((
-                    ("cid", cid),
-                    ("entity", e),
-                    ("value", v),
-                    ("parent", parent),
-                )),
-                b.search(
-                    "evac",
-                    (
-                        ("cid", cid),
-                        ("entity", e),
-                        ("attribute", "write"),
-                        ("value", v),
-                    ),
-                )
-                .get_link(cid, "parent", parent)
-                .search("update", (("cid", parent), ("entity", e))),
-            )
-        })?;
-
-        p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
-            (
-                h.bind((("cid", cid), ("entity", e), ("value", v))),
-                b.search("create", (("cid", cid), ("entity", e), ("initial", v)))
-                    .except("update", (("entity", e), ("parent", cid))),
-            )
-        })?;
-
-        p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
-            (
-                h.bind((("cid", cid), ("entity", e), ("value", v))),
-                b.search("update", (("cid", cid), ("entity", e), ("value", v)))
-                    .except("update", (("entity", e), ("parent", cid))),
-            )
-        })
-    })?;
-
     let (mut client, mut rx, reactor) = Client::new();
 
-    spawn(async move { reactor.async_run(program).await });
+    spawn(async move {
+        reactor
+            .async_run(|p| {
+                p.input("evac", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("create", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<i32>("entity")
+                        .column::<i32>("initial")
+                })?;
+
+                p.output("update", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<i32>("entity")
+                        .column::<Cid>("parent")
+                        .column::<i32>("value")
+                })?;
+
+                p.output("head", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<i32>("entity")
+                        .column::<i32>("value")
+                })?;
+
+                p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, e, i)| {
+                    (
+                        h.bind((("cid", cid), ("entity", e), ("initial", i))),
+                        b.search(
+                            "evac",
+                            (
+                                ("cid", cid),
+                                ("entity", e),
+                                ("attribute", "initial"),
+                                ("value", i),
+                            ),
+                        ),
+                    )
+                })?;
+
+                p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
+                    (
+                        h.bind((
+                            ("cid", cid),
+                            ("entity", e),
+                            ("value", v),
+                            ("parent", parent),
+                        )),
+                        b.search(
+                            "evac",
+                            (
+                                ("cid", cid),
+                                ("entity", e),
+                                ("attribute", "write"),
+                                ("value", v),
+                            ),
+                        )
+                        .get_link(cid, "parent", parent)
+                        .search("create", (("cid", parent), ("entity", e))),
+                    )
+                })?;
+
+                p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
+                    (
+                        h.bind((
+                            ("cid", cid),
+                            ("entity", e),
+                            ("value", v),
+                            ("parent", parent),
+                        )),
+                        b.search(
+                            "evac",
+                            (
+                                ("cid", cid),
+                                ("entity", e),
+                                ("attribute", "write"),
+                                ("value", v),
+                            ),
+                        )
+                        .get_link(cid, "parent", parent)
+                        .search("update", (("cid", parent), ("entity", e))),
+                    )
+                })?;
+
+                p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
+                    (
+                        h.bind((("cid", cid), ("entity", e), ("value", v))),
+                        b.search("create", (("cid", cid), ("entity", e), ("initial", v)))
+                            .except("update", (("entity", e), ("parent", cid))),
+                    )
+                })?;
+
+                p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
+                    (
+                        h.bind((("cid", cid), ("entity", e), ("value", v))),
+                        b.search("update", (("cid", cid), ("entity", e), ("value", v)))
+                            .except("update", (("entity", e), ("parent", cid))),
+                    )
+                })
+            })
+            .await
+    });
+
     spawn(async move {
         loop {
             let _ = rx.next().await;

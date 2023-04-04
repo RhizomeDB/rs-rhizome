@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum RelationVersion {
+pub(crate) enum RelationVersion {
     Total,
     Delta,
     New,

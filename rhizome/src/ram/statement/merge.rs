@@ -1,32 +1,78 @@
+use std::{
+    marker::PhantomData,
+    sync::{Arc, RwLock},
+};
+
 use pretty::RcDoc;
 
-use crate::{pretty::Pretty, ram::relation_ref::RelationRef};
+use crate::{
+    fact::traits::Fact, id::RelationId, pretty::Pretty, ram::RelationVersion, relation::Relation,
+};
 
-#[derive(Clone, Copy, Debug)]
-pub struct Merge {
-    from: RelationRef,
-    into: RelationRef,
+#[derive(Clone, Debug)]
+pub(crate) struct Merge<F, R>
+where
+    F: Fact,
+    R: for<'a> Relation<'a, F>,
+{
+    from_id: RelationId,
+    into_id: RelationId,
+    from_version: RelationVersion,
+    into_version: RelationVersion,
+    merge_from: Arc<RwLock<R>>,
+    merge_into: Arc<RwLock<R>>,
+    _marker: PhantomData<(F, R)>,
 }
 
-impl Merge {
-    pub fn new(from: RelationRef, into: RelationRef) -> Self {
-        Self { from, into }
+impl<F, R> Merge<F, R>
+where
+    F: Fact,
+    R: for<'a> Relation<'a, F>,
+{
+    pub(crate) fn new(
+        from_id: RelationId,
+        from_version: RelationVersion,
+        into_id: RelationId,
+        into_version: RelationVersion,
+        from: Arc<RwLock<R>>,
+        into: Arc<RwLock<R>>,
+    ) -> Self {
+        Self {
+            from_id,
+            into_id,
+            from_version,
+            into_version,
+            merge_from: from,
+            merge_into: into,
+            _marker: PhantomData::default(),
+        }
     }
 
-    pub fn from(&self) -> &RelationRef {
-        &self.from
-    }
+    pub(crate) fn apply(&self) {
+        let mut merge_into = self.merge_into.write().unwrap();
+        let merge_from = self.merge_from.read().unwrap();
 
-    pub fn into(&self) -> &RelationRef {
-        &self.into
+        merge_into.merge(&merge_from);
+
+        debug_assert!(merge_into.len() >= merge_from.len());
     }
 }
 
-impl Pretty for Merge {
+impl<F, R> Pretty for Merge<F, R>
+where
+    F: Fact,
+    R: for<'a> Relation<'a, F>,
+{
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        RcDoc::text("merge ")
-            .append(self.from().to_doc())
-            .append(RcDoc::text(" into "))
-            .append(self.into().to_doc())
+        RcDoc::concat([
+            RcDoc::text("merge "),
+            RcDoc::as_string(self.from_id),
+            RcDoc::text("_"),
+            RcDoc::as_string(self.from_version),
+            RcDoc::text(" into "),
+            RcDoc::as_string(self.into_id),
+            RcDoc::text("_"),
+            RcDoc::as_string(self.into_version),
+        ])
     }
 }

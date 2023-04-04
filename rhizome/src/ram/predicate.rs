@@ -8,21 +8,21 @@ use crate::{logic::VarClosure, pretty::Pretty, value::Val};
 
 use super::Term;
 
-pub struct Predicate {
+pub(crate) struct Predicate {
     args: Vec<Term>,
     f: Arc<dyn VarClosure>,
 }
 
 impl Predicate {
-    pub fn new(args: Vec<Term>, f: Arc<dyn VarClosure>) -> Self {
+    pub(crate) fn new(args: Vec<Term>, f: Arc<dyn VarClosure>) -> Self {
         Self { args, f }
     }
 
-    pub fn args(&self) -> &Vec<Term> {
+    pub(crate) fn args(&self) -> &Vec<Term> {
         &self.args
     }
 
-    pub fn is_satisfied(&self, args: Vec<Val>) -> bool {
+    pub(crate) fn is_satisfied(&self, args: Vec<Val>) -> bool {
         (self.f)(args)
     }
 }

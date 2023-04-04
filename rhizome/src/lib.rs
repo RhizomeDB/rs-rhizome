@@ -24,7 +24,8 @@ pub mod runtime;
 pub mod storage;
 pub mod types;
 
-pub use logic::build;
+pub(crate) use logic::build;
+pub use logic::ProgramBuilder;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

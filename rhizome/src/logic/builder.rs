@@ -1,8 +1,12 @@
 use anyhow::Result;
 
-use crate::ram::Program;
+use crate::{
+    fact::traits::{EDBFact, IDBFact},
+    ram::Program,
+    relation::Relation,
+};
 
-use self::program::ProgramBuilder;
+pub use self::program::ProgramBuilder;
 
 use super::lower_to_ram;
 
@@ -18,12 +22,16 @@ mod rule_head;
 mod rule_vars;
 mod typed_vars_tuple;
 
-pub fn build<F>(f: F) -> Result<Program>
+pub(crate) fn build<E, I, ER, IR, F>(f: F) -> Result<Program<E, I, ER, IR>>
 where
+    E: EDBFact,
+    I: IDBFact,
+    ER: for<'a> Relation<'a, E>,
+    IR: for<'a> Relation<'a, I>,
     F: FnOnce(&mut ProgramBuilder) -> Result<()>,
 {
     let logic = ProgramBuilder::build(f)?;
-    let ram = lower_to_ram::lower_to_ram(&logic)?;
+    let ram = lower_to_ram::lower_to_ram::<E, I, ER, IR>(&logic)?;
 
     Ok(ram)
 }

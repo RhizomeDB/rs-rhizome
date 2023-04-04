@@ -1,21 +1,47 @@
-use std::{collections::HashMap};
+use std::{
+    collections::HashMap,
+    marker::PhantomData,
+    sync::{Arc, RwLock},
+};
 
 use pretty::RcDoc;
 
 use crate::{
-    id::ColId,
+    fact::traits::{EDBFact, IDBFact},
+    id::{ColId, RelationId},
     pretty::Pretty,
-    ram::{relation_ref::RelationRef, term::Term},
+    ram::{term::Term, Bindings, RelationVersion},
+    relation::Relation,
+    storage::blockstore::Blockstore,
+    value::Val,
 };
 
 #[derive(Clone, Debug)]
-pub struct Project {
+pub(crate) struct Project<EF, IF, R>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    R: for<'a> Relation<'a, IF>,
+{
+    id: RelationId,
+    version: RelationVersion,
     cols: HashMap<ColId, Term>,
-    into: RelationRef,
+    relation: Arc<RwLock<R>>,
+    _marker: PhantomData<(EF, IF, R)>,
 }
 
-impl Project {
-    pub fn new<A, T>(cols: impl IntoIterator<Item = (A, T)>, into: RelationRef) -> Self
+impl<EF, IF, R> Project<EF, IF, R>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    R: for<'a> Relation<'a, IF>,
+{
+    pub(crate) fn new<A, T>(
+        id: RelationId,
+        version: RelationVersion,
+        cols: impl IntoIterator<Item = (A, T)>,
+        into: Arc<RwLock<R>>,
+    ) -> Self
     where
         A: Into<ColId>,
         T: Into<Term>,
@@ -25,22 +51,44 @@ impl Project {
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
 
-        Self { cols, into }
+        Self {
+            id,
+            version,
+            cols,
+            relation: into,
+            _marker: PhantomData::default(),
+        }
     }
 
-    pub fn cols(&self) -> &HashMap<ColId, Term> {
-        &self.cols
-    }
+    pub(crate) fn apply<BS>(&self, blockstore: &BS, bindings: &Bindings)
+    where
+        BS: Blockstore,
+    {
+        let mut bound: Vec<(ColId, Val)> = Vec::default();
 
-    pub fn into(&self) -> &RelationRef {
-        &self.into
+        for (id, term) in &self.cols {
+            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore) {
+                bound.push((*id, <Val>::clone(&val)));
+            } else {
+                panic!();
+            }
+        }
+
+        let fact = IF::new(self.id, bound);
+
+        self.relation.write().unwrap().insert(fact);
     }
 }
 
-impl Pretty for Project {
+impl<EF, IF, R> Pretty for Project<EF, IF, R>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    R: for<'a> Relation<'a, IF>,
+{
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let cols_doc = RcDoc::intersperse(
-            self.cols().iter().map(|(col, term)| {
+            self.cols.iter().map(|(col, term)| {
                 RcDoc::concat([RcDoc::as_string(col), RcDoc::text(": "), term.to_doc()])
             }),
             RcDoc::text(",").append(RcDoc::line()),
@@ -54,7 +102,9 @@ impl Pretty for Project {
             cols_doc,
             RcDoc::text(")"),
             RcDoc::text(" into "),
-            self.into().to_doc(),
+            RcDoc::as_string(self.id),
+            RcDoc::text("_"),
+            RcDoc::as_string(self.version),
         ])
     }
 }

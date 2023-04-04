@@ -1,47 +1,26 @@
 use core::fmt::Debug;
-use std::{
-    collections::{HashMap, VecDeque},
-    mem,
-    sync::{Arc, RwLock},
-};
+use std::{collections::VecDeque, sync::Arc};
 
 use anyhow::Result;
 
 use crate::{
     fact::{
-        traits::{EDBFact, Fact, IDBFact},
+        traits::{EDBFact, IDBFact},
         DefaultEDBFact, DefaultIDBFact,
     },
-    id::{ColId, RelationId},
     ram::{
-        formula::Formula,
         operation::{project::Project, search::Search, Operation},
         program::Program,
-        relation_binding::RelationBinding,
-        relation_version::RelationVersion,
         statement::{
             exit::Exit, insert::Insert, merge::Merge, purge::Purge, recursive::Loop, sinks::Sinks,
             sources::Sources, swap::Swap, Statement,
         },
-        term::Term,
-        Reduce,
+        Bindings, Reduce,
     },
-    relation::{DefaultRelation, Relation, Source},
-    storage::{blockstore::Blockstore, DefaultCodec},
+    relation::{DefaultRelation, Relation},
+    storage::blockstore::Blockstore,
     timestamp::{DefaultTimestamp, Timestamp},
-    value::Val,
-    var::Var,
 };
-
-type Bindings = im::HashMap<BindingKey, Arc<Val>>;
-
-// TODO: Put Links in here as they're resolved,
-// so that we can memoize their resolution
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-enum BindingKey {
-    Relation(RelationBinding, ColId),
-    Agg(RelationBinding, Var),
-}
 
 pub(crate) struct VM<
     T = DefaultTimestamp,
@@ -52,15 +31,14 @@ pub(crate) struct VM<
 > where
     EF: EDBFact,
     IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
 {
     timestamp: T,
     pc: (usize, Option<usize>),
     input: VecDeque<EF>,
     output: VecDeque<IF>,
-    program: Program,
-    // TODO: Better data structure
-    edb: HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
-    idb: HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
+    program: Program<EF, IF, ER, IR>,
 }
 
 impl<T, EF, IF, ER, IR> Debug for VM<T, EF, IF, ER, IR>
@@ -87,37 +65,13 @@ where
     EF: EDBFact,
     IF: IDBFact,
 {
-    pub(crate) fn new(program: Program) -> Self {
-        let mut edb = HashMap::default();
-        for input in program.inputs() {
-            for version in [
-                RelationVersion::New,
-                RelationVersion::Delta,
-                RelationVersion::Total,
-            ] {
-                edb.insert((input.id(), version), Arc::new(RwLock::new(ER::default())));
-            }
-        }
-
-        let mut idb = HashMap::default();
-        for output in program.outputs() {
-            for version in [
-                RelationVersion::New,
-                RelationVersion::Delta,
-                RelationVersion::Total,
-            ] {
-                idb.insert((output.id(), version), Arc::new(RwLock::new(IR::default())));
-            }
-        }
-
+    pub(crate) fn new(program: Program<EF, IF, ER, IR>) -> Self {
         Self {
             timestamp: T::default(),
             pc: (0, None),
             input: VecDeque::default(),
             output: VecDeque::default(),
             program,
-            edb,
-            idb,
         }
     }
 
@@ -143,41 +97,22 @@ where
     {
         assert!(self.timestamp == self.timestamp.epoch_start());
 
-        let mut has_new_facts = false;
-
-        while let Some(fact) = self.input.pop_front() {
-            let id = fact.id();
-
-            self.edb
-                .entry((id, RelationVersion::Delta))
-                .and_modify(|r| r.write().unwrap().insert(fact));
-
-            has_new_facts = true;
-        }
-
         let start = self.timestamp;
 
-        // Only run the epoch if there's new input facts
-        // TODO: We also run once at the start, to handle hardcoded facts. This isn't
-        // super elegant though.
-        if has_new_facts || start == self.timestamp().clock_start() {
-            loop {
-                self.step(blockstore)?;
-
-                if self.timestamp.epoch() != start.epoch() {
-                    break;
-                }
-            }
+        loop {
+            if !self.step(blockstore)? || self.timestamp.epoch() != start.epoch() {
+                break;
+            };
         }
 
         Ok(())
     }
 
-    fn step<BS>(&mut self, blockstore: &BS) -> Result<()>
+    fn step<BS>(&mut self, blockstore: &BS) -> Result<bool>
     where
         BS: Blockstore,
     {
-        match &*self.load_statement() {
+        let continue_epoch = match &*self.load_statement() {
             Statement::Insert(insert) => self.handle_insert(insert, blockstore),
             Statement::Merge(merge) => self.handle_merge(merge),
             Statement::Swap(swap) => self.handle_swap(swap),
@@ -185,14 +120,18 @@ where
             Statement::Exit(exit) => {
                 assert!(self.pc.1.is_some());
 
-                self.handle_exit(exit);
+                self.handle_exit(exit)
             }
-            Statement::Sources(sources) => self.handle_sources(sources)?,
-            Statement::Sinks(sinks) => self.handle_sinks(sinks)?,
+            Statement::Sources(sources) => self.handle_sources(sources),
+            Statement::Sinks(sinks) => self.handle_sinks(sinks),
             Statement::Loop(Loop { .. }) => {
                 unreachable!("load_statement follows loops in the root block")
             }
-        };
+        }?;
+
+        if !continue_epoch {
+            return Ok(false);
+        }
 
         self.pc = self.step_pc();
 
@@ -202,7 +141,7 @@ where
             self.timestamp = self.timestamp.advance_iteration();
         };
 
-        Ok(())
+        Ok(true)
     }
 
     fn step_pc(&self) -> (usize, Option<usize>) {
@@ -230,7 +169,7 @@ where
         }
     }
 
-    fn load_statement(&self) -> Arc<Statement> {
+    fn load_statement(&self) -> Arc<Statement<EF, IF, ER, IR>> {
         match &**self.program.statements().get(self.pc.0).unwrap() {
             Statement::Loop(loop_statement) => {
                 assert!(self.pc.1.is_some());
@@ -245,18 +184,27 @@ where
         }
     }
 
-    fn handle_insert<BS>(&mut self, insert: &Insert, blockstore: &BS)
+    fn handle_insert<BS>(
+        &mut self,
+        insert: &Insert<EF, IF, ER, IR>,
+        blockstore: &BS,
+    ) -> Result<bool>
     where
         BS: Blockstore,
     {
         // Only insert ground facts on the first clock cycle
         if insert.is_ground() && *self.timestamp() != self.timestamp().clock_start() {
+            Ok(true)
         } else {
-            self.handle_operation(insert.operation(), blockstore);
+            self.handle_operation(insert.operation(), blockstore)
         }
     }
 
-    fn handle_operation<BS>(&mut self, operation: &Operation, blockstore: &BS)
+    fn handle_operation<BS>(
+        &mut self,
+        operation: &Operation<EF, IF, ER, IR>,
+        blockstore: &BS,
+    ) -> Result<bool>
     where
         BS: Blockstore,
     {
@@ -266,390 +214,101 @@ where
     }
 
     fn do_handle_operation<BS>(
-        &mut self,
-        operation: &Operation,
+        &self,
+        operation: &Operation<EF, IF, ER, IR>,
         blockstore: &BS,
         bindings: &Bindings,
-    ) where
+    ) -> Result<bool>
+    where
         BS: Blockstore,
     {
         match operation {
             Operation::Search(inner) => self.handle_search(inner, blockstore, bindings),
             Operation::Project(inner) => self.handle_project(inner, blockstore, bindings),
             Operation::Reduce(inner) => self.handle_reduce(inner, blockstore, bindings),
-        }
+        }?;
+
+        Ok(true)
     }
 
-    fn handle_search<BS>(&mut self, search: &Search, blockstore: &BS, bindings: &Bindings)
-    where
-        BS: Blockstore,
-    {
-        match search.relation().source() {
-            Source::Edb => {
-                let id = search.relation().id();
-                let version = search.relation().version();
-
-                let to_search = Arc::clone(self.edb.get(&(id, version)).unwrap());
-                let relation_binding = RelationBinding::new(id, *search.alias(), Source::Edb);
-
-                self.search_relation(search, blockstore, to_search, relation_binding, bindings);
-            }
-            Source::Idb => {
-                let id = search.relation().id();
-                let version = search.relation().version();
-
-                let to_search = Arc::clone(self.idb.get(&(id, version)).unwrap());
-                let relation_binding = RelationBinding::new(id, *search.alias(), Source::Idb);
-
-                self.search_relation(search, blockstore, to_search, relation_binding, bindings);
-            }
-        };
-    }
-
-    fn search_relation<BS, R, F>(
-        &mut self,
-        search: &Search,
-        blockstore: &BS,
-        to_search: Arc<RwLock<R>>,
-        relation_binding: RelationBinding,
-        bindings: &Bindings,
-    ) where
-        BS: Blockstore,
-        R: for<'a> Relation<'a, F>,
-        F: Fact,
-    {
-        for fact in &mut to_search.read().unwrap().iter() {
-            let mut next_bindings = bindings.clone();
-
-            for k in fact.cols() {
-                if let Some(v) = fact.col(&k) {
-                    next_bindings.insert(BindingKey::Relation(relation_binding, k), v.clone());
-                } else {
-                    panic!("expected column missing: {k}");
-                }
-            }
-
-            if !self.is_formulae_satisfied(search.when(), blockstore, &next_bindings) {
-                continue;
-            }
-
-            self.do_handle_operation(search.operation(), blockstore, &next_bindings);
-        }
-    }
-
-    fn handle_project<BS>(&mut self, project: &Project, blockstore: &BS, bindings: &Bindings)
-    where
-        BS: Blockstore,
-    {
-        assert!(project.into().source() == Source::Idb);
-
-        let mut bound: Vec<(ColId, Val)> = Vec::default();
-
-        for (id, term) in project.cols() {
-            if let Some(val) = Self::resolve_term(term, blockstore, bindings) {
-                bound.push((*id, <Val>::clone(&val)));
-            } else {
-                return;
-            }
-        }
-
-        let fact = IF::new(project.into().id(), bound);
-
-        self.idb
-            .entry((project.into().id(), project.into().version()))
-            .and_modify(|r| r.write().unwrap().insert(fact));
-    }
-
-    fn handle_reduce<BS>(&mut self, agg: &Reduce, blockstore: &BS, bindings: &Bindings)
-    where
-        BS: Blockstore,
-    {
-        match agg.relation().source() {
-            Source::Edb => {
-                let to_search = Arc::clone(
-                    self.edb
-                        .get(&(agg.relation().id(), RelationVersion::Total))
-                        .unwrap(),
-                );
-
-                self.do_handle_reduce(agg, blockstore, bindings, to_search);
-            }
-            Source::Idb => {
-                let to_search = Arc::clone(
-                    self.idb
-                        .get(&(agg.relation().id(), RelationVersion::Total))
-                        .unwrap(),
-                );
-
-                self.do_handle_reduce(agg, blockstore, bindings, to_search);
-            }
-        };
-    }
-
-    fn do_handle_reduce<BS, R, F>(
-        &mut self,
-        agg: &Reduce,
+    fn handle_search<BS>(
+        &self,
+        search: &Search<EF, IF, ER, IR>,
         blockstore: &BS,
         bindings: &Bindings,
-        to_search: Arc<RwLock<R>>,
-    ) where
+    ) -> Result<bool>
+    where
         BS: Blockstore,
-        R: for<'a> Relation<'a, F>,
-        F: Fact,
     {
-        let relation_binding =
-            RelationBinding::new(agg.relation().id(), *agg.alias(), agg.relation().source());
-
-        let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
-        for (col_id, col_term) in agg.group_by_cols() {
-            if let Some(col_val) = Self::resolve_term(col_term, blockstore, bindings) {
-                group_by_vals.insert(*col_id, col_val);
-            } else {
-                panic!();
-            };
-        }
-
-        // TODO: This is extremely slow. We need indices over the required group_by_cols
-        let mut matching: Vec<F> = Vec::default();
-        for fact in to_search.read().unwrap().iter() {
-            let mut matches = true;
-            for (col_id, col_val) in &group_by_vals {
-                if *col_val != fact.col(col_id).unwrap() {
-                    matches = false;
-
-                    break;
-                }
-            }
-
-            if matches {
-                matching.push(fact.clone());
-            }
-        }
-
-        if matching.is_empty() {
-            return;
-        }
-
-        let result = matching.iter().fold(agg.init().clone(), |acc, f| {
-            let mut match_bindings = bindings.clone();
-
-            for k in f.cols() {
-                if let Some(v) = f.col(&k) {
-                    match_bindings.insert(BindingKey::Relation(relation_binding, k), v.clone());
-                } else {
-                    panic!("expected column missing: {k}");
-                }
-            }
-
-            let args = agg
-                .args()
-                .iter()
-                .map(|t| Self::resolve_term(t, blockstore, &match_bindings).unwrap())
-                .map(|v| Arc::try_unwrap(v).unwrap_or_else(|arc| (*arc).clone()))
-                .collect::<Vec<_>>();
-
-            agg.apply(acc, args)
-        });
-
-        let mut next_bindings = bindings.clone();
-        next_bindings.insert(
-            BindingKey::Agg(relation_binding, agg.target()),
-            Arc::new(result),
-        );
-
-        self.do_handle_operation(agg.operation(), blockstore, &next_bindings);
+        search.apply(blockstore, bindings, |next_bindings| {
+            self.do_handle_operation(search.operation(), blockstore, &next_bindings)
+        })
     }
 
-    fn handle_merge(&mut self, merge: &Merge) {
-        assert!(merge.from().source() == merge.into().source());
+    fn handle_project<BS>(
+        &self,
+        project: &Project<EF, IF, IR>,
+        blockstore: &BS,
+        bindings: &Bindings,
+    ) -> Result<bool>
+    where
+        BS: Blockstore,
+    {
+        project.apply(blockstore, bindings);
 
-        if merge.from().source() == Source::Edb {
-            let from_relation = Arc::clone(
-                self.edb
-                    .get(&(merge.from().id(), merge.from().version()))
-                    .unwrap(),
-            );
-
-            self.edb
-                .entry((merge.into().id(), merge.into().version()))
-                .and_modify(|r| r.write().unwrap().merge(&from_relation.read().unwrap()));
-        } else {
-            let from_relation = Arc::clone(
-                self.idb
-                    .get(&(merge.from().id(), merge.from().version()))
-                    .unwrap(),
-            );
-
-            self.idb
-                .entry((merge.into().id(), merge.into().version()))
-                .and_modify(|r| r.write().unwrap().merge(&from_relation.read().unwrap()));
-        }
+        Ok(true)
     }
 
-    fn handle_swap(&mut self, swap: &Swap) {
-        assert!(swap.left().source() == swap.right().source());
-
-        if swap.left().source() == Source::Edb {
-            let mut left_relation = self
-                .edb
-                .get(&(swap.left().id(), swap.left().version()))
-                .unwrap()
-                .write()
-                .unwrap();
-
-            let mut right_relation = self
-                .edb
-                .get(&(swap.right().id(), swap.right().version()))
-                .unwrap()
-                .write()
-                .unwrap();
-
-            mem::swap(&mut *left_relation, &mut *right_relation);
-        } else {
-            let mut left_relation = self
-                .idb
-                .get(&(swap.left().id(), swap.left().version()))
-                .unwrap()
-                .write()
-                .unwrap();
-
-            let mut right_relation = self
-                .idb
-                .get(&(swap.right().id(), swap.right().version()))
-                .unwrap()
-                .write()
-                .unwrap();
-
-            mem::swap(&mut *left_relation, &mut *right_relation);
+    fn handle_reduce<BS>(
+        &self,
+        agg: &Reduce<EF, IF, ER, IR>,
+        blockstore: &BS,
+        bindings: &Bindings,
+    ) -> Result<bool>
+    where
+        BS: Blockstore,
+    {
+        if let Some(next_bindings) = agg.apply(blockstore, bindings) {
+            self.do_handle_operation(agg.operation(), blockstore, &next_bindings)?;
         }
+
+        Ok(true)
     }
 
-    fn handle_purge(&mut self, purge: &Purge) {
-        if purge.relation().source() == Source::Edb {
-            self.edb
-                .entry((purge.relation().id(), purge.relation().version()))
-                .and_modify(|r| *r.write().unwrap() = ER::default());
-        } else {
-            self.idb
-                .entry((purge.relation().id(), purge.relation().version()))
-                .and_modify(|r| *r.write().unwrap() = IR::default());
-        }
+    fn handle_merge(&self, merge: &Merge<IF, IR>) -> Result<bool> {
+        merge.apply();
+
+        Ok(true)
     }
 
-    fn handle_exit(&mut self, exit: &Exit) {
-        let is_done = exit.relations().iter().all(|r| match r.source() {
-            Source::Edb => self
-                .edb
-                .get(&(r.id(), r.version()))
-                .map_or(true, |r| r.read().unwrap().is_empty()),
+    fn handle_swap(&self, swap: &Swap<IR>) -> Result<bool> {
+        swap.apply();
 
-            Source::Idb => self
-                .idb
-                .get(&(r.id(), r.version()))
-                .map_or(true, |r| r.read().unwrap().is_empty()),
-        });
+        Ok(true)
+    }
 
-        if is_done {
+    fn handle_purge(&self, purge: &Purge<EF, IF, ER, IR>) -> Result<bool> {
+        purge.apply();
+
+        Ok(true)
+    }
+
+    fn handle_exit(&mut self, exit: &Exit<IF, IR>) -> Result<bool> {
+        if exit.apply() {
             self.pc.1 = None;
         }
+
+        Ok(true)
     }
 
-    fn handle_sources(&mut self, _sources: &Sources) -> Result<()> {
-        // TODO: Channels are now read at the start of the epoch; maybe remove this?
-
-        Ok(())
+    fn handle_sources(&mut self, sources: &Sources<EF, ER>) -> Result<bool> {
+        Ok(sources.apply(&mut self.input)
+            || self.timestamp().epoch_start() == self.timestamp().clock_start())
     }
 
-    fn handle_sinks(&mut self, sinks: &Sinks) -> Result<()> {
-        for &relation_ref in sinks.relations() {
-            assert!(relation_ref.source() == Source::Idb);
+    fn handle_sinks(&mut self, sinks: &Sinks<IF, IR>) -> Result<bool> {
+        sinks.apply(&mut self.output);
 
-            if let Some(relation) = self.idb.get(&(relation_ref.id(), relation_ref.version())) {
-                for fact in relation.read().unwrap().iter() {
-                    self.output.push_back(fact.clone());
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn resolve_term<BS>(term: &Term, blockstore: &BS, bindings: &Bindings) -> Option<Arc<Val>>
-    where
-        BS: Blockstore,
-    {
-        match term {
-            Term::Link(link_id, cid_term) => {
-                let Some(cid_val) = Self::resolve_term(cid_term, blockstore, bindings) else {
-                    panic!();
-                };
-
-                let Val::Cid(cid) = &*cid_val else {
-                    panic!();
-                };
-
-                let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(cid) else {
-                        return None;
-                    };
-
-                fact.link(*link_id)
-            }
-            Term::Col(col, col_binding) => bindings
-                .get(&BindingKey::Relation(*col_binding, *col))
-                .map(Arc::clone),
-            Term::Lit(val) => Some(val).map(Arc::clone),
-            Term::Agg(col, col_binding) => bindings
-                .get(&BindingKey::Agg(*col_binding, *col))
-                .map(Arc::clone),
-        }
-    }
-
-    fn is_formulae_satisfied<BS>(
-        &self,
-        when: &[Formula],
-        blockstore: &BS,
-        bindings: &Bindings,
-    ) -> bool
-    where
-        BS: Blockstore,
-    {
-        when.iter().all(|f| match f {
-            Formula::Equality(equality) => {
-                let left = Self::resolve_term(equality.left(), blockstore, bindings);
-                let right = Self::resolve_term(equality.right(), blockstore, bindings);
-
-                left == right
-            }
-            Formula::NotIn(not_in) => {
-                assert!(not_in.relation().source() == Source::Idb);
-
-                // TODO: Dry up constructing a fact from BTreeMap<ColId, Term>
-                let mut bound: Vec<(ColId, Val)> = Vec::default();
-
-                for (id, term) in not_in.cols() {
-                    if let Some(val) = Self::resolve_term(term, blockstore, bindings) {
-                        bound.push((*id, <Val>::clone(&val)));
-                    }
-                }
-
-                let bound_fact = IF::new(not_in.relation().id(), bound);
-
-                !self
-                    .idb
-                    .get(&(not_in.relation().id(), not_in.relation().version()))
-                    .map(|r| r.read().unwrap().contains(&bound_fact))
-                    .unwrap()
-            }
-            Formula::Predicate(predicate) => {
-                let args = predicate
-                    .args()
-                    .iter()
-                    .map(|t| Self::resolve_term(t, blockstore, bindings).unwrap())
-                    .map(|v| Arc::try_unwrap(v).unwrap_or_else(|arc| (*arc).clone()))
-                    .collect::<Vec<_>>();
-
-                predicate.is_satisfied(args)
-            }
-        })
+        Ok(true)
     }
 }
