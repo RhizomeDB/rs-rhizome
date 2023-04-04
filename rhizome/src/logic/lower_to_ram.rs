@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    marker::PhantomData,
     sync::{Arc, RwLock},
 };
 
@@ -42,8 +41,8 @@ pub(crate) fn lower_to_ram<EF, IF, ER, IR>(
     program: &Program,
 ) -> Result<ram::program::Program<EF, IF, ER, IR>>
 where
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
     EF: EDBFact,
     IF: IDBFact,
 {
@@ -123,10 +122,7 @@ where
         statements.push(Statement::Purge(Purge::new(
             id,
             RelationVersion::Delta,
-            PurgeRelation::Edb {
-                relation,
-                _marker: PhantomData::default(),
-            },
+            PurgeRelation::Edb(relation),
         )));
     }
 
@@ -142,8 +138,8 @@ pub(crate) fn lower_stratum_to_ram<EF, IF, ER, IR>(
     idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
 ) -> Result<Vec<Statement<EF, IF, ER, IR>>>
 where
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
     EF: EDBFact,
     IF: IDBFact,
 {
@@ -203,10 +199,7 @@ where
             let statement = Statement::Purge(Purge::new(
                 id,
                 RelationVersion::New,
-                PurgeRelation::Idb {
-                    relation,
-                    _marker: PhantomData::default(),
-                },
+                PurgeRelation::Idb(relation),
             ));
 
             loop_body.push(statement);
@@ -358,8 +351,8 @@ pub(crate) fn lower_fact_to_ram<EF, IF, ER, IR>(
     idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
 ) -> Result<Statement<EF, IF, ER, IR>>
 where
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
     EF: EDBFact,
     IF: IDBFact,
 {
@@ -405,8 +398,8 @@ pub(crate) fn lower_rule_to_ram<EF, IF, ER, IR>(
     idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
 ) -> Result<Vec<Statement<EF, IF, ER, IR>>>
 where
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
     EF: EDBFact,
     IF: IDBFact,
 {
@@ -533,10 +526,9 @@ where
 
             // TODO: Add this once, after all projection vars are bound
             if projection_vars.iter().all(|&v| metadata.is_bound(&v)) {
-                let not_in_relation = NotInRelation::Idb {
-                    relation: Arc::clone(idb.get(&(rule.head(), RelationVersion::Total)).unwrap()),
-                    _marker: PhantomData::default(),
-                };
+                let not_in_relation = NotInRelation::Idb(Arc::clone(
+                    idb.get(&(rule.head(), RelationVersion::Total)).unwrap(),
+                ));
 
                 formulae.push(Formula::not_in(
                     rule.head(),
@@ -597,20 +589,14 @@ where
                         });
 
                         let not_in_relation = match negation.relation().source() {
-                            Source::Edb => NotInRelation::Edb {
-                                relation: Arc::clone(
-                                    edb.get(&(negation.relation().id(), RelationVersion::Total))
-                                        .unwrap(),
-                                ),
-                                _marker: PhantomData::default(),
-                            },
-                            Source::Idb => NotInRelation::Idb {
-                                relation: Arc::clone(
-                                    idb.get(&(negation.relation().id(), RelationVersion::Total))
-                                        .unwrap(),
-                                ),
-                                _marker: PhantomData::default(),
-                            },
+                            Source::Edb => NotInRelation::Edb(Arc::clone(
+                                edb.get(&(negation.relation().id(), RelationVersion::Total))
+                                    .unwrap(),
+                            )),
+                            Source::Idb => NotInRelation::Idb(Arc::clone(
+                                idb.get(&(negation.relation().id(), RelationVersion::Total))
+                                    .unwrap(),
+                            )),
                         };
 
                         formulae.push(Formula::not_in(
@@ -677,19 +663,13 @@ where
                             let relation =
                                 Arc::clone(edb.get(&(predicate.relation().id(), version)).unwrap());
 
-                            SearchRelation::Edb {
-                                relation,
-                                _marker: PhantomData::default(),
-                            }
+                            SearchRelation::Edb(relation)
                         }
                         Source::Idb => {
                             let relation =
                                 Arc::clone(idb.get(&(predicate.relation().id(), version)).unwrap());
 
-                            SearchRelation::Idb {
-                                relation,
-                                _marker: PhantomData::default(),
-                            }
+                            SearchRelation::Idb(relation)
                         }
                     };
 
@@ -750,20 +730,14 @@ where
                         });
 
                         let not_in_relation = match negation.relation().source() {
-                            Source::Edb => NotInRelation::Edb {
-                                relation: Arc::clone(
-                                    edb.get(&(negation.relation().id(), RelationVersion::Total))
-                                        .unwrap(),
-                                ),
-                                _marker: PhantomData::default(),
-                            },
-                            Source::Idb => NotInRelation::Idb {
-                                relation: Arc::clone(
-                                    idb.get(&(negation.relation().id(), RelationVersion::Total))
-                                        .unwrap(),
-                                ),
-                                _marker: PhantomData::default(),
-                            },
+                            Source::Edb => NotInRelation::Edb(Arc::clone(
+                                edb.get(&(negation.relation().id(), RelationVersion::Total))
+                                    .unwrap(),
+                            )),
+                            Source::Idb => NotInRelation::Idb(Arc::clone(
+                                idb.get(&(negation.relation().id(), RelationVersion::Total))
+                                    .unwrap(),
+                            )),
                         };
 
                         formulae.push(Formula::not_in(
@@ -830,19 +804,13 @@ where
                             let relation =
                                 Arc::clone(edb.get(&(agg.relation().id(), version)).unwrap());
 
-                            ReduceRelation::Edb {
-                                relation,
-                                _marker: PhantomData::default(),
-                            }
+                            ReduceRelation::Edb(relation)
                         }
                         Source::Idb => {
                             let relation =
                                 Arc::clone(idb.get(&(agg.relation().id(), version)).unwrap());
 
-                            ReduceRelation::Idb {
-                                relation,
-                                _marker: PhantomData::default(),
-                            }
+                            ReduceRelation::Idb(relation)
                         }
                     };
 

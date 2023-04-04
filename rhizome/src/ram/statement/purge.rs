@@ -1,7 +1,4 @@
-use std::{
-    marker::PhantomData,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use pretty::RcDoc;
 
@@ -18,30 +15,24 @@ pub(crate) enum PurgeRelation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
-    Edb {
-        relation: Arc<RwLock<ER>>,
-        _marker: PhantomData<EF>,
-    },
-    Idb {
-        relation: Arc<RwLock<IR>>,
-        _marker: PhantomData<IF>,
-    },
+    Edb(Arc<RwLock<ER>>),
+    Idb(Arc<RwLock<IR>>),
 }
 
 impl<EF, IF, ER, IR> PurgeRelation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn apply(&self) {
         match self {
-            PurgeRelation::Edb { relation, .. } => *relation.write().unwrap() = ER::default(),
-            PurgeRelation::Idb { relation, .. } => *relation.write().unwrap() = IR::default(),
+            PurgeRelation::Edb(relation) => *relation.write().unwrap() = ER::default(),
+            PurgeRelation::Idb(relation) => *relation.write().unwrap() = IR::default(),
         }
     }
 }
@@ -51,8 +42,8 @@ pub(crate) struct Purge<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     id: RelationId,
     version: RelationVersion,
@@ -63,8 +54,8 @@ impl<EF, IF, ER, IR> Purge<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn new(
         id: RelationId,
@@ -87,8 +78,8 @@ impl<EF, IF, ER, IR> Pretty for Purge<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::concat([

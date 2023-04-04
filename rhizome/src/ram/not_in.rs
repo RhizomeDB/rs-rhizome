@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     sync::{Arc, RwLock},
 };
 
@@ -22,18 +21,11 @@ pub(crate) enum NotInRelation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
-    Edb {
-        #[allow(dead_code)]
-        relation: Arc<RwLock<ER>>,
-        _marker: PhantomData<EF>,
-    },
-    Idb {
-        relation: Arc<RwLock<IR>>,
-        _marker: PhantomData<IF>,
-    },
+    Edb(Arc<RwLock<ER>>),
+    Idb(Arc<RwLock<IR>>),
 }
 
 #[derive(Clone, Debug)]
@@ -41,8 +33,8 @@ pub(crate) struct NotIn<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     id: RelationId,
     cols: HashMap<ColId, Term>,
@@ -54,8 +46,8 @@ impl<EF, IF, ER, IR> NotIn<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn new<A, T>(
         id: RelationId,
@@ -98,10 +90,10 @@ where
         }
 
         match &self.relation {
-            NotInRelation::Edb { .. } => {
+            NotInRelation::Edb(_) => {
                 todo!("Oops, apparently negation is only implemented on IDB relations")
             }
-            NotInRelation::Idb { relation, .. } => {
+            NotInRelation::Idb(relation) => {
                 let bound_fact = IF::new(self.id, bound);
 
                 !relation.read().unwrap().contains(&bound_fact)
@@ -114,8 +106,8 @@ impl<EF, IF, ER, IR> Pretty for NotIn<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let cols_doc = RcDoc::intersperse(

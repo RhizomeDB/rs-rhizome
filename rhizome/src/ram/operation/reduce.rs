@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
-    marker::PhantomData,
     sync::{Arc, RwLock},
 };
 
@@ -26,25 +25,19 @@ pub(crate) enum ReduceRelation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
-    Edb {
-        relation: Arc<RwLock<ER>>,
-        _marker: PhantomData<EF>,
-    },
-    Idb {
-        relation: Arc<RwLock<IR>>,
-        _marker: PhantomData<IF>,
-    },
+    Edb(Arc<RwLock<ER>>),
+    Idb(Arc<RwLock<IR>>),
 }
 
 pub(crate) struct Reduce<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     args: Vec<Term>,
     init: Val,
@@ -56,15 +49,14 @@ where
     relation: ReduceRelation<EF, IF, ER, IR>,
     when: Vec<Formula<EF, IF, ER, IR>>,
     operation: Box<Operation<EF, IF, ER, IR>>,
-    _marker: PhantomData<(EF, IF)>,
 }
 
 impl<EF, IF, ER, IR> Reduce<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn new(
         args: Vec<Term>,
@@ -91,7 +83,6 @@ where
             relation,
             when,
             operation: Box::new(operation),
-            _marker: PhantomData::default(),
         }
     }
 
@@ -104,8 +95,8 @@ where
         BS: Blockstore,
     {
         match &self.relation {
-            ReduceRelation::Edb { relation, .. } => self.do_apply(blockstore, bindings, relation),
-            ReduceRelation::Idb { relation, .. } => self.do_apply(blockstore, bindings, relation),
+            ReduceRelation::Edb(relation) => self.do_apply(blockstore, bindings, relation),
+            ReduceRelation::Idb(relation) => self.do_apply(blockstore, bindings, relation),
         }
     }
 
@@ -118,7 +109,7 @@ where
     where
         BS: Blockstore,
         F: Fact,
-        R: for<'a> Relation<'a, F>,
+        R: Relation<Fact = F>,
     {
         let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
         for (col_id, col_term) in &self.group_by_cols {
@@ -189,8 +180,8 @@ impl<EF, IF, ER, IR> Debug for Reduce<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Reduce")
@@ -209,8 +200,8 @@ impl<EF, IF, ER, IR> Pretty for Reduce<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         // TODO

@@ -6,6 +6,7 @@ pub(super) mod dependency;
 pub(super) mod fact;
 pub(super) mod program;
 pub(super) mod rule;
+pub(super) mod schema;
 pub(super) mod stratum;
 
 pub(super) use body_term::*;
@@ -16,3 +17,4 @@ pub(super) use dependency::*;
 pub(super) use fact::*;
 pub(super) use program::*;
 pub(super) use rule::*;
+pub(super) use schema::*;

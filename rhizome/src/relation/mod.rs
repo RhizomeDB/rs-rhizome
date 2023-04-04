@@ -17,20 +17,20 @@ pub struct EdbMarker;
 pub struct IdbMarker;
 
 // TODO: Keep track of the timestamp a fact was derived at?
-pub trait Relation<'a, F>: Default + Eq + PartialEq + Debug
-where
-    F: Fact + 'a,
-{
-    type Iter: Iterator<Item = &'a F>;
+pub trait Relation: Default + Eq + PartialEq + Debug {
+    type Fact: Fact;
+    type Iter<'a>: Iterator<Item = &'a Self::Fact>
+    where
+        Self: 'a;
 
-    fn iter(&'a self) -> Self::Iter;
+    fn iter(&self) -> Self::Iter<'_>;
 
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
 
-    fn contains(&self, fact: &F) -> bool;
+    fn contains(&self, fact: &Self::Fact) -> bool;
 
-    fn insert(&mut self, fact: F);
+    fn insert(&mut self, fact: Self::Fact);
     fn merge(&mut self, rhs: &Self);
 }
 
@@ -54,13 +54,14 @@ where
     }
 }
 
-impl<'a, F> Relation<'a, F> for ImmutableOrdSetRelation<F>
+impl<F> Relation for ImmutableOrdSetRelation<F>
 where
-    F: Fact + 'a,
+    F: Fact,
 {
-    type Iter = im::ordset::Iter<'a, F>;
+    type Fact = F;
+    type Iter<'a> = im::ordset::Iter<'a, F> where Self: 'a;
 
-    fn iter(&'a self) -> Self::Iter {
+    fn iter(&self) -> Self::Iter<'_> {
         self.inner.iter()
     }
 

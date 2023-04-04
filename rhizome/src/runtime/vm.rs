@@ -31,8 +31,8 @@ pub(crate) struct VM<
 > where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     timestamp: T,
     pc: (usize, Option<usize>),
@@ -44,8 +44,8 @@ pub(crate) struct VM<
 impl<T, EF, IF, ER, IR> Debug for VM<T, EF, IF, ER, IR>
 where
     T: Timestamp,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
     EF: EDBFact,
     IF: IDBFact,
 {
@@ -60,8 +60,8 @@ where
 impl<T, EF, IF, ER, IR> VM<T, EF, IF, ER, IR>
 where
     T: Timestamp,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
     EF: EDBFact,
     IF: IDBFact,
 {

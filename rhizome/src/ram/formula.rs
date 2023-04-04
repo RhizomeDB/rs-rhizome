@@ -18,8 +18,8 @@ pub(crate) enum Formula<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     Equality(Equality),
     NotIn(NotIn<EF, IF, ER, IR>),
@@ -30,8 +30,8 @@ impl<EF, IF, ER, IR> Formula<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn equality(left: impl Into<Term>, right: impl Into<Term>) -> Self {
         Self::Equality(Equality::new(left, right))
@@ -59,8 +59,8 @@ impl<EF, IF, ER, IR> Pretty for Formula<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         match self {
