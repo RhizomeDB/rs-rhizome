@@ -3,7 +3,8 @@ mod builder;
 
 pub(crate) mod lower_to_ram;
 
-pub use builder::build;
+pub(crate) use builder::build;
+pub use builder::ProgramBuilder;
 
 use crate::value::Val;
 

@@ -1,32 +1,60 @@
+use std::{
+    mem,
+    sync::{Arc, RwLock},
+};
+
 use pretty::RcDoc;
 
-use crate::{pretty::Pretty, ram::relation_ref::RelationRef};
+use crate::{id::RelationId, pretty::Pretty, ram::RelationVersion};
 
-#[derive(Clone, Copy, Debug)]
-pub struct Swap {
-    left: RelationRef,
-    right: RelationRef,
+#[derive(Clone, Debug)]
+pub(crate) struct Swap<R> {
+    left_id: RelationId,
+    right_id: RelationId,
+    left_version: RelationVersion,
+    right_version: RelationVersion,
+    left: Arc<RwLock<R>>,
+    right: Arc<RwLock<R>>,
 }
 
-impl Swap {
-    pub fn new(left: RelationRef, right: RelationRef) -> Self {
-        Self { left, right }
+impl<R> Swap<R> {
+    pub(crate) fn new(
+        left_id: RelationId,
+        left_version: RelationVersion,
+        right_id: RelationId,
+        right_version: RelationVersion,
+        left: Arc<RwLock<R>>,
+        right: Arc<RwLock<R>>,
+    ) -> Self {
+        Self {
+            left_id,
+            left_version,
+            right_id,
+            right_version,
+            left,
+            right,
+        }
     }
 
-    pub fn left(&self) -> &RelationRef {
-        &self.left
-    }
+    pub(crate) fn apply(&self) {
+        let mut left = self.left.write().unwrap();
+        let mut right = self.right.write().unwrap();
 
-    pub fn right(&self) -> &RelationRef {
-        &self.right
+        mem::swap(&mut *left, &mut *right);
     }
 }
 
-impl Pretty for Swap {
+impl<R> Pretty for Swap<R> {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        RcDoc::text("swap ")
-            .append(self.left().to_doc())
-            .append(RcDoc::text(" and "))
-            .append(self.right().to_doc())
+        RcDoc::concat([
+            RcDoc::text("swap "),
+            RcDoc::as_string(self.left_id),
+            RcDoc::text("_"),
+            RcDoc::as_string(self.left_version),
+            RcDoc::text(" and "),
+            RcDoc::as_string(self.right_id),
+            RcDoc::text("_"),
+            RcDoc::as_string(self.right_version),
+        ])
     }
 }

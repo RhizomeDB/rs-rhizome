@@ -1,7 +1,11 @@
 use derive_more::IsVariant;
 use pretty::RcDoc;
 
-use crate::pretty::Pretty;
+use crate::{
+    fact::traits::{EDBFact, IDBFact},
+    pretty::Pretty,
+    relation::Relation,
+};
 
 pub(crate) mod exit;
 pub(crate) mod insert;
@@ -24,18 +28,30 @@ pub(crate) use swap::*;
 // TODO: Nested loops shouldn't be supported, so I should split the AST
 // to make them unrepresentable.
 #[derive(Debug, IsVariant)]
-pub enum Statement {
-    Insert(Insert),
-    Merge(Merge),
-    Swap(Swap),
-    Purge(Purge),
-    Loop(Loop),
-    Exit(Exit),
-    Sources(Sources),
-    Sinks(Sinks),
+pub(crate) enum Statement<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    Insert(Insert<EF, IF, ER, IR>),
+    Merge(Merge<IF, IR>),
+    Swap(Swap<IR>),
+    Purge(Purge<EF, IF, ER, IR>),
+    Loop(Loop<EF, IF, ER, IR>),
+    Exit(Exit<IF, IR>),
+    Sources(Sources<EF, ER>),
+    Sinks(Sinks<IF, IR>),
 }
 
-impl Pretty for Statement {
+impl<EF, IF, ER, IR> Pretty for Statement<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
     fn to_doc(&self) -> RcDoc<'_, ()> {
         match self {
             Statement::Insert(inner) => inner.to_doc(),

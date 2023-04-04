@@ -4,25 +4,33 @@ pub trait Pretty {
     fn to_doc(&self) -> RcDoc<'_, ()>;
 }
 
+impl Pretty for &str {
+    fn to_doc(&self) -> RcDoc<'_, ()> {
+        RcDoc::as_string(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{
+        marker::PhantomData,
+        sync::{Arc, RwLock},
+    };
 
     use im::hashmap;
     use pretty_assertions::assert_eq;
 
     use crate::{
-        id::{ColId, RelationId},
+        fact::{DefaultEDBFact, DefaultIDBFact},
         ram::{
             alias_id::AliasId,
             formula::Formula,
             operation::{project::Project, search::Search, Operation},
-            relation_binding::RelationBinding,
-            relation_ref::RelationRef,
             relation_version::RelationVersion,
             term::Term,
+            SearchRelation,
         },
-        relation::Source,
+        relation::DefaultRelation,
         value::Val,
     };
 
@@ -31,42 +39,39 @@ mod tests {
     #[test]
     fn test() {
         let formula1 = Formula::equality(
-            Term::Col(
-                ColId::new("name"),
-                RelationBinding::new(
-                    RelationId::new("person"),
-                    Some(AliasId::new().next()),
-                    Source::Edb,
-                ),
-            ),
+            Term::Col("person".into(), Some(AliasId::new().next()), "name".into()),
             Term::Lit(Arc::new(Val::String("Quinn".into()))),
         );
 
         let formula2 = Formula::not_in(
+            "person".into(),
+            RelationVersion::Total,
             [("age", Term::Lit(Arc::new(Val::U32(29))))],
-            RelationRef::new(
-                RelationId::new("person"),
-                RelationVersion::Total,
-                Source::Edb,
-            ),
+            crate::ram::NotInRelation::Edb {
+                relation: Arc::new(RwLock::new(DefaultRelation::default())),
+                _marker: PhantomData::default(),
+            },
         );
 
-        let project = Operation::Project(Project::new(
+        let project = Operation::Project(Project::<
+            DefaultEDBFact,
+            DefaultIDBFact,
+            DefaultRelation<DefaultIDBFact>,
+        >::new(
+            "person".into(),
+            RelationVersion::Total,
             hashmap! {"age" => Term::Lit(Arc::new(Val::S32(29)))},
-            RelationRef::new(
-                RelationId::new("person"),
-                RelationVersion::Total,
-                Source::Edb,
-            ),
+            Arc::new(RwLock::new(DefaultRelation::default())),
         ));
 
         let ast = Operation::Search(Search::new(
-            RelationRef::new(
-                RelationId::new("person"),
-                RelationVersion::Total,
-                Source::Edb,
-            ),
+            "person".into(),
             None,
+            RelationVersion::Total,
+            SearchRelation::Edb {
+                relation: Arc::new(RwLock::new(DefaultRelation::default())),
+                _marker: PhantomData::default(),
+            },
             [formula1, formula2],
             project,
         ));

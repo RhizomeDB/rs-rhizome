@@ -1,5 +1,3 @@
-
-
 use pretty::RcDoc;
 
 use crate::pretty::Pretty;
@@ -7,24 +5,24 @@ use crate::pretty::Pretty;
 use super::Term;
 
 #[derive(Clone, Debug)]
-pub struct Equality {
+pub(crate) struct Equality {
     left: Term,
     right: Term,
 }
 
 impl Equality {
-    pub fn new(left: impl Into<Term>, right: impl Into<Term>) -> Self {
+    pub(crate) fn new(left: impl Into<Term>, right: impl Into<Term>) -> Self {
         let left = left.into();
         let right = right.into();
 
         Self { left, right }
     }
 
-    pub fn left(&self) -> &Term {
+    pub(crate) fn left(&self) -> &Term {
         &self.left
     }
 
-    pub fn right(&self) -> &Term {
+    pub(crate) fn right(&self) -> &Term {
         &self.right
     }
 }

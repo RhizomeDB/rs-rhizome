@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    atom_args::{AtomArgs},
+    atom_args::AtomArgs,
     negation::NegationBuilder,
     reduce::ReduceBuilder,
     rel_predicate::RelPredicateBuilder,

@@ -1,6 +1,6 @@
 use crate::fact::traits::Fact;
 use im::OrdSet;
-use std::hash::Hash;
+use std::{fmt::Debug, hash::Hash};
 
 pub(crate) type DefaultRelation<F> = ImmutableOrdSetRelation<F>;
 
@@ -17,7 +17,7 @@ pub struct EdbMarker;
 pub struct IdbMarker;
 
 // TODO: Keep track of the timestamp a fact was derived at?
-pub(crate) trait Relation<'a, F>: Default + Eq + PartialEq
+pub trait Relation<'a, F>: Default + Eq + PartialEq + Debug
 where
     F: Fact + 'a,
 {
