@@ -2,44 +2,48 @@ use std::sync::Arc;
 
 use pretty::RcDoc;
 
-use crate::{pretty::Pretty, schema::Schema};
+use crate::{
+    fact::traits::{EDBFact, IDBFact},
+    pretty::Pretty,
+    relation::Relation,
+};
 
 use super::Statement;
 
 #[derive(Debug)]
-pub struct Program {
-    inputs: Vec<Arc<Schema>>,
-    outputs: Vec<Arc<Schema>>,
-    statements: Vec<Arc<Statement>>,
+pub(crate) struct Program<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    statements: Vec<Arc<Statement<EF, IF, ER, IR>>>,
 }
 
-impl Program {
-    pub fn new(
-        inputs: Vec<Arc<Schema>>,
-        outputs: Vec<Arc<Schema>>,
-        statements: Vec<Arc<Statement>>,
-    ) -> Self {
-        Self {
-            inputs,
-            outputs,
-            statements,
-        }
+impl<EF, IF, ER, IR> Program<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    pub(crate) fn new(statements: Vec<Arc<Statement<EF, IF, ER, IR>>>) -> Self {
+        Self { statements }
     }
 
-    pub fn inputs(&self) -> &[Arc<Schema>] {
-        &self.inputs
-    }
-
-    pub fn outputs(&self) -> &[Arc<Schema>] {
-        &self.outputs
-    }
-
-    pub fn statements(&self) -> &[Arc<Statement>] {
+    pub(crate) fn statements(&self) -> &[Arc<Statement<EF, IF, ER, IR>>] {
         &self.statements
     }
 }
 
-impl Pretty for Program {
+impl<EF, IF, ER, IR> Pretty for Program<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::intersperse(
             self.statements().iter().map(|statement| statement.to_doc()),

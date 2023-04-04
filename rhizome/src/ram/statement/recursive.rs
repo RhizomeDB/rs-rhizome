@@ -2,28 +2,50 @@ use std::sync::Arc;
 
 use pretty::RcDoc;
 
-use crate::pretty::Pretty;
+use crate::{
+    fact::traits::{EDBFact, IDBFact},
+    pretty::Pretty,
+    relation::Relation,
+};
 
 use super::Statement;
 
 #[derive(Debug)]
-pub struct Loop {
-    body: Vec<Arc<Statement>>,
+pub(crate) struct Loop<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    body: Vec<Arc<Statement<EF, IF, ER, IR>>>,
 }
 
-impl Loop {
-    pub fn new(body: impl IntoIterator<Item = Arc<Statement>>) -> Self {
+impl<EF, IF, ER, IR> Loop<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    pub(crate) fn new(body: impl IntoIterator<Item = Arc<Statement<EF, IF, ER, IR>>>) -> Self {
         let body = body.into_iter().collect();
 
         Self { body }
     }
 
-    pub fn body(&self) -> &[Arc<Statement>] {
+    pub(crate) fn body(&self) -> &[Arc<Statement<EF, IF, ER, IR>>] {
         &self.body
     }
 }
 
-impl Pretty for Loop {
+impl<EF, IF, ER, IR> Pretty for Loop<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let body_doc = RcDoc::hardline()
             .append(RcDoc::intersperse(

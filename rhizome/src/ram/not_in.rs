@@ -1,19 +1,68 @@
-use std::{collections::HashMap};
+use std::{
+    collections::HashMap,
+    marker::PhantomData,
+    sync::{Arc, RwLock},
+};
 
 use pretty::RcDoc;
 
-use crate::{id::ColId, pretty::Pretty};
+use crate::{
+    fact::traits::{EDBFact, IDBFact},
+    id::{ColId, RelationId},
+    pretty::Pretty,
+    relation::Relation,
+    storage::blockstore::Blockstore,
+    value::Val,
+};
 
-use super::{RelationRef, Term};
+use super::{Bindings, RelationVersion, Term};
 
 #[derive(Clone, Debug)]
-pub struct NotIn {
-    cols: HashMap<ColId, Term>,
-    relation: RelationRef,
+pub(crate) enum NotInRelation<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    Edb {
+        #[allow(dead_code)]
+        relation: Arc<RwLock<ER>>,
+        _marker: PhantomData<EF>,
+    },
+    Idb {
+        relation: Arc<RwLock<IR>>,
+        _marker: PhantomData<IF>,
+    },
 }
 
-impl NotIn {
-    pub fn new<A, T>(cols: impl IntoIterator<Item = (A, T)>, relation: RelationRef) -> Self
+#[derive(Clone, Debug)]
+pub(crate) struct NotIn<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    id: RelationId,
+    cols: HashMap<ColId, Term>,
+    version: RelationVersion,
+    relation: NotInRelation<EF, IF, ER, IR>,
+}
+
+impl<EF, IF, ER, IR> NotIn<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
+    pub(crate) fn new<A, T>(
+        id: RelationId,
+        version: RelationVersion,
+        cols: impl IntoIterator<Item = (A, T)>,
+        relation: NotInRelation<EF, IF, ER, IR>,
+    ) -> Self
     where
         A: Into<ColId>,
         T: Into<Term>,
@@ -23,19 +72,51 @@ impl NotIn {
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
 
-        Self { cols, relation }
+        Self {
+            id,
+            version,
+            cols,
+            relation,
+        }
     }
 
-    pub fn cols(&self) -> &HashMap<ColId, Term> {
+    pub(crate) fn cols(&self) -> &HashMap<ColId, Term> {
         &self.cols
     }
 
-    pub fn relation(&self) -> &RelationRef {
-        &self.relation
+    pub(crate) fn is_satisfied<BS>(&self, blockstore: &BS, bindings: &Bindings) -> bool
+    where
+        BS: Blockstore,
+    {
+        // TODO: Dry up constructing a fact from BTreeMap<ColId, Term>
+        let mut bound: Vec<(ColId, Val)> = Vec::default();
+
+        for (id, term) in self.cols() {
+            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore) {
+                bound.push((*id, <Val>::clone(&val)));
+            }
+        }
+
+        match &self.relation {
+            NotInRelation::Edb { .. } => {
+                todo!("Oops, apparently negation is only implemented on IDB relations")
+            }
+            NotInRelation::Idb { relation, .. } => {
+                let bound_fact = IF::new(self.id, bound);
+
+                !relation.read().unwrap().contains(&bound_fact)
+            }
+        }
     }
 }
 
-impl Pretty for NotIn {
+impl<EF, IF, ER, IR> Pretty for NotIn<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: for<'a> Relation<'a, EF>,
+    IR: for<'a> Relation<'a, IF>,
+{
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let cols_doc = RcDoc::intersperse(
             self.cols().iter().map(|(col, term)| {
@@ -51,7 +132,9 @@ impl Pretty for NotIn {
             cols_doc,
             RcDoc::text(")"),
             RcDoc::text(" notin "),
-            self.relation().to_doc(),
+            RcDoc::as_string(self.id),
+            RcDoc::text("_"),
+            RcDoc::as_string(self.version),
         ])
     }
 }

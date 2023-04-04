@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rhizome_runtime::Runtime;
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 
 use futures::{
     channel::{
@@ -11,13 +11,14 @@ use futures::{
 };
 
 use crate::{
+    build,
     fact::{
         traits::{EDBFact, IDBFact},
         DefaultEDBFact, DefaultIDBFact,
     },
     id::RelationId,
-    ram::Program,
-    relation::DefaultRelation,
+    logic::ProgramBuilder,
+    relation::{DefaultRelation, Relation},
     storage::{blockstore::Blockstore, memory::MemoryBlockstore, DefaultCodec, DEFAULT_MULTIHASH},
     timestamp::{DefaultTimestamp, Timestamp},
 };
@@ -29,10 +30,14 @@ pub struct Reactor<
     BS = MemoryBlockstore,
     E = DefaultEDBFact,
     I = DefaultIDBFact,
+    ER = DefaultRelation<E>,
+    IR = DefaultRelation<I>,
 > where
     T: Timestamp,
     E: EDBFact,
     I: IDBFact,
+    ER: for<'a> Relation<'a, E>,
+    IR: for<'a> Relation<'a, I>,
 {
     runtime: Runtime,
     blockstore: BS,
@@ -44,14 +49,17 @@ pub struct Reactor<
     event_tx: mpsc::Sender<ClientEvent<T>>,
     stream_rx: mpsc::Receiver<StreamEvent<E>>,
     stream_tx: mpsc::Sender<StreamEvent<E>>,
+    _marker: PhantomData<(ER, IR)>,
 }
 
-impl<T, BS, E, I> Reactor<T, BS, E, I>
+impl<T, BS, E, I, ER, IR> Reactor<T, BS, E, I, ER, IR>
 where
     T: Timestamp,
     BS: Blockstore,
     E: EDBFact + 'static,
     I: IDBFact + 'static,
+    ER: for<'a> Relation<'a, E>,
+    IR: for<'a> Relation<'a, I>,
 {
     pub fn new(
         command_rx: Receiver<ClientCommand<E, I>>,
@@ -68,11 +76,16 @@ where {
             event_tx,
             stream_tx,
             stream_rx,
+            _marker: PhantomData::default(),
         }
     }
 
-    pub async fn async_run(mut self, program: Program) -> Result<()> {
-        let mut vm = VM::<T, E, I, DefaultRelation<E>, DefaultRelation<I>>::new(program);
+    pub async fn async_run<F>(mut self, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut ProgramBuilder) -> Result<()>,
+    {
+        let program = build(f)?;
+        let mut vm = VM::<T, E, I, ER, IR>::new(program);
 
         loop {
             select! {
@@ -106,7 +119,7 @@ where {
 
     async fn handle_command(
         &mut self,
-        vm: &mut VM<T, E, I, DefaultRelation<E>, DefaultRelation<I>>,
+        vm: &mut VM<T, E, I, ER, IR>,
         command: ClientCommand<E, I>,
     ) -> Result<()> {
         match command {
@@ -177,7 +190,7 @@ where {
 
     async fn handle_event(
         &mut self,
-        vm: &mut VM<T, E, I, DefaultRelation<E>, DefaultRelation<I>>,
+        vm: &mut VM<T, E, I, ER, IR>,
         event: StreamEvent<E>,
     ) -> Result<()> {
         match event {
