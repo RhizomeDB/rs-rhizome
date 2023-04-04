@@ -1,8 +1,5 @@
 use anyhow::Result;
-use std::{
-    marker::PhantomData,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use pretty::RcDoc;
 
@@ -22,17 +19,11 @@ pub(crate) enum SearchRelation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
-    Edb {
-        relation: Arc<RwLock<ER>>,
-        _marker: PhantomData<EF>,
-    },
-    Idb {
-        relation: Arc<RwLock<IR>>,
-        _marker: PhantomData<IF>,
-    },
+    Edb(Arc<RwLock<ER>>),
+    Idb(Arc<RwLock<IR>>),
 }
 
 #[derive(Debug)]
@@ -40,8 +31,8 @@ pub(crate) struct Search<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     id: RelationId,
     alias: Option<AliasId>,
@@ -49,15 +40,14 @@ where
     relation: SearchRelation<EF, IF, ER, IR>,
     when: Vec<Formula<EF, IF, ER, IR>>,
     operation: Box<Operation<EF, IF, ER, IR>>,
-    _marker: PhantomData<(EF, IF, ER, IR)>,
 }
 
 impl<EF, IF, ER, IR> Search<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn new(
         id: RelationId,
@@ -76,7 +66,6 @@ where
             relation,
             when,
             operation: Box::new(operation),
-            _marker: PhantomData::default(),
         }
     }
 
@@ -90,10 +79,10 @@ where
         F: Fn(Bindings) -> Result<bool>,
     {
         match &self.relation {
-            SearchRelation::Edb { relation, .. } => {
+            SearchRelation::Edb(relation) => {
                 self.do_apply::<BS, EF, ER, F>(blockstore, bindings, relation, f)
             }
-            SearchRelation::Idb { relation, .. } => {
+            SearchRelation::Idb(relation) => {
                 self.do_apply::<BS, IF, IR, F>(blockstore, bindings, relation, f)
             }
         }
@@ -109,7 +98,7 @@ where
     where
         BS: Blockstore,
         F: Fact,
-        R: for<'r> Relation<'r, F>,
+        R: Relation<Fact = F>,
         WithBindings: Fn(Bindings) -> Result<bool>,
     {
         for fact in relation.read().unwrap().iter() {
@@ -144,8 +133,8 @@ impl<EF, IF, ER, IR> Pretty for Search<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relation_doc = match self.alias {

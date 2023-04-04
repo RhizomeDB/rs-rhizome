@@ -1,5 +1,7 @@
-use crate::{id::RelationId, relation::Source, schema::Schema};
+use crate::{id::RelationId, relation::Source};
 use std::sync::Arc;
+
+use super::Schema;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Declaration {

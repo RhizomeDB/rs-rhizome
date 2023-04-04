@@ -12,7 +12,6 @@ pub(crate) mod lattice;
 pub(crate) mod logic;
 pub(crate) mod ram;
 pub(crate) mod relation;
-pub(crate) mod schema;
 pub(crate) mod timestamp;
 pub(crate) mod value;
 pub(crate) mod var;

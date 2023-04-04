@@ -15,8 +15,8 @@ pub(crate) struct Loop<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     body: Vec<Arc<Statement<EF, IF, ER, IR>>>,
 }
@@ -25,8 +25,8 @@ impl<EF, IF, ER, IR> Loop<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn new(body: impl IntoIterator<Item = Arc<Statement<EF, IF, ER, IR>>>) -> Self {
         let body = body.into_iter().collect();
@@ -43,8 +43,8 @@ impl<EF, IF, ER, IR> Pretty for Loop<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let body_doc = RcDoc::hardline()

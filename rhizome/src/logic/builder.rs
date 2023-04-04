@@ -26,8 +26,8 @@ pub(crate) fn build<E, I, ER, IR, F>(f: F) -> Result<Program<E, I, ER, IR>>
 where
     E: EDBFact,
     I: IDBFact,
-    ER: for<'a> Relation<'a, E>,
-    IR: for<'a> Relation<'a, I>,
+    ER: Relation<Fact = E>,
+    IR: Relation<Fact = I>,
     F: FnOnce(&mut ProgramBuilder) -> Result<()>,
 {
     let logic = ProgramBuilder::build(f)?;

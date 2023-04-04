@@ -15,8 +15,8 @@ pub(crate) struct Program<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     statements: Vec<Arc<Statement<EF, IF, ER, IR>>>,
 }
@@ -25,8 +25,8 @@ impl<EF, IF, ER, IR> Program<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn new(statements: Vec<Arc<Statement<EF, IF, ER, IR>>>) -> Self {
         Self { statements }
@@ -41,8 +41,8 @@ impl<EF, IF, ER, IR> Pretty for Program<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    ER: for<'a> Relation<'a, EF>,
-    IR: for<'a> Relation<'a, IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::intersperse(

@@ -36,8 +36,8 @@ pub struct Reactor<
     T: Timestamp,
     E: EDBFact,
     I: IDBFact,
-    ER: for<'a> Relation<'a, E>,
-    IR: for<'a> Relation<'a, I>,
+    ER: Relation<Fact = E>,
+    IR: Relation<Fact = I>,
 {
     runtime: Runtime,
     blockstore: BS,
@@ -58,8 +58,8 @@ where
     BS: Blockstore,
     E: EDBFact + 'static,
     I: IDBFact + 'static,
-    ER: for<'a> Relation<'a, E>,
-    IR: for<'a> Relation<'a, I>,
+    ER: Relation<Fact = E>,
+    IR: Relation<Fact = I>,
 {
     pub fn new(
         command_rx: Receiver<ClientCommand<E, I>>,

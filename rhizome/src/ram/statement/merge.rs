@@ -1,7 +1,4 @@
-use std::{
-    marker::PhantomData,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use pretty::RcDoc;
 
@@ -13,7 +10,7 @@ use crate::{
 pub(crate) struct Merge<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     from_id: RelationId,
     into_id: RelationId,
@@ -21,13 +18,12 @@ where
     into_version: RelationVersion,
     merge_from: Arc<RwLock<R>>,
     merge_into: Arc<RwLock<R>>,
-    _marker: PhantomData<(F, R)>,
 }
 
 impl<F, R> Merge<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     pub(crate) fn new(
         from_id: RelationId,
@@ -44,7 +40,6 @@ where
             into_version,
             merge_from: from,
             merge_into: into,
-            _marker: PhantomData::default(),
         }
     }
 
@@ -61,7 +56,7 @@ where
 impl<F, R> Pretty for Merge<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::concat([
