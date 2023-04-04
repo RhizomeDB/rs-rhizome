@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     sync::{Arc, RwLock},
 };
 
@@ -14,21 +13,19 @@ use crate::{
 pub(crate) struct ExitBuilder<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     relations: HashMap<(RelationId, RelationVersion), Arc<RwLock<R>>>,
-    _marker: PhantomData<F>,
 }
 
 impl<F, R> Default for ExitBuilder<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     fn default() -> Self {
         Self {
             relations: HashMap::default(),
-            _marker: PhantomData::default(),
         }
     }
 }
@@ -36,7 +33,7 @@ where
 impl<F, R> ExitBuilder<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     pub(crate) fn add_relation(
         &mut self,
@@ -50,7 +47,6 @@ where
     pub(crate) fn finalize(self) -> Exit<F, R> {
         Exit {
             relations: self.relations,
-            _marker: PhantomData::default(),
         }
     }
 }
@@ -59,16 +55,15 @@ where
 pub(crate) struct Exit<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     relations: HashMap<(RelationId, RelationVersion), Arc<RwLock<R>>>,
-    _marker: PhantomData<F>,
 }
 
 impl<F, R> Exit<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     pub(crate) fn apply(&self) -> bool {
         self.relations
@@ -80,7 +75,7 @@ where
 impl<F, R> Pretty for Exit<F, R>
 where
     F: Fact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relations_doc = RcDoc::intersperse(

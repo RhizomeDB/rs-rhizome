@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, VecDeque},
-    marker::PhantomData,
     sync::{Arc, RwLock},
 };
 
@@ -12,21 +11,19 @@ use crate::{fact::traits::IDBFact, id::RelationId, pretty::Pretty, relation::Rel
 pub(crate) struct SinksBuilder<F, R>
 where
     F: IDBFact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     relations: HashMap<RelationId, Arc<RwLock<R>>>,
-    _marker: PhantomData<F>,
 }
 
 impl<F, R> Default for SinksBuilder<F, R>
 where
     F: IDBFact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     fn default() -> Self {
         Self {
             relations: HashMap::default(),
-            _marker: PhantomData::default(),
         }
     }
 }
@@ -34,7 +31,7 @@ where
 impl<F, R> SinksBuilder<F, R>
 where
     F: IDBFact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     pub(crate) fn add_relation(&mut self, id: RelationId, relation: Arc<RwLock<R>>) {
         self.relations.insert(id, relation);
@@ -43,7 +40,6 @@ where
     pub(crate) fn finalize(self) -> Sinks<F, R> {
         Sinks {
             relations: self.relations,
-            _marker: PhantomData::default(),
         }
     }
 }
@@ -52,16 +48,15 @@ where
 pub(crate) struct Sinks<F, R>
 where
     F: IDBFact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     relations: HashMap<RelationId, Arc<RwLock<R>>>,
-    _marker: PhantomData<F>,
 }
 
 impl<F, R> Sinks<F, R>
 where
     F: IDBFact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     pub(crate) fn apply(&self, output: &mut VecDeque<F>) {
         for relation in self.relations.values() {
@@ -75,7 +70,7 @@ where
 impl<F, R> Pretty for Sinks<F, R>
 where
     F: IDBFact,
-    R: for<'a> Relation<'a, F>,
+    R: Relation<Fact = F>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relations_doc = RcDoc::intersperse(

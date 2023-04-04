@@ -21,20 +21,20 @@ pub(crate) struct Project<EF, IF, R>
 where
     EF: EDBFact,
     IF: IDBFact,
-    R: for<'a> Relation<'a, IF>,
+    R: Relation<Fact = IF>,
 {
     id: RelationId,
     version: RelationVersion,
     cols: HashMap<ColId, Term>,
     relation: Arc<RwLock<R>>,
-    _marker: PhantomData<(EF, IF, R)>,
+    _marker: PhantomData<EF>,
 }
 
 impl<EF, IF, R> Project<EF, IF, R>
 where
     EF: EDBFact,
     IF: IDBFact,
-    R: for<'a> Relation<'a, IF>,
+    R: Relation<Fact = IF>,
 {
     pub(crate) fn new<A, T>(
         id: RelationId,
@@ -84,7 +84,7 @@ impl<EF, IF, R> Pretty for Project<EF, IF, R>
 where
     EF: EDBFact,
     IF: IDBFact,
-    R: for<'a> Relation<'a, IF>,
+    R: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let cols_doc = RcDoc::intersperse(

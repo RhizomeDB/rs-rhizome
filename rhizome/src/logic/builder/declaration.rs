@@ -5,9 +5,8 @@ use crate::{
     col::Col,
     error::{error, Error},
     id::{ColId, RelationId},
-    logic::ast::Declaration,
+    logic::ast::{Declaration, Schema},
     relation::Source,
-    schema::Schema,
     types::{ColType, FromType},
 };
 

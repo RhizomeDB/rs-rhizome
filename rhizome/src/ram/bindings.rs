@@ -72,8 +72,8 @@ impl Bindings {
         BS: Blockstore,
         EF: EDBFact,
         IF: IDBFact,
-        ER: for<'a> Relation<'a, EF>,
-        IR: for<'a> Relation<'a, IF>,
+        ER: Relation<Fact = EF>,
+        IR: Relation<Fact = IF>,
     {
         match formula {
             Formula::Equality(inner) => {

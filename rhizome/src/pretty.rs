@@ -12,10 +12,7 @@ impl Pretty for &str {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        marker::PhantomData,
-        sync::{Arc, RwLock},
-    };
+    use std::sync::{Arc, RwLock};
 
     use im::hashmap;
     use pretty_assertions::assert_eq;
@@ -47,10 +44,7 @@ mod tests {
             "person".into(),
             RelationVersion::Total,
             [("age", Term::Lit(Arc::new(Val::U32(29))))],
-            crate::ram::NotInRelation::Edb {
-                relation: Arc::new(RwLock::new(DefaultRelation::default())),
-                _marker: PhantomData::default(),
-            },
+            crate::ram::NotInRelation::Edb(Arc::new(RwLock::new(DefaultRelation::default()))),
         );
 
         let project = Operation::Project(Project::<
@@ -68,10 +62,7 @@ mod tests {
             "person".into(),
             None,
             RelationVersion::Total,
-            SearchRelation::Edb {
-                relation: Arc::new(RwLock::new(DefaultRelation::default())),
-                _marker: PhantomData::default(),
-            },
+            SearchRelation::Edb(Arc::new(RwLock::new(DefaultRelation::default()))),
             [formula1, formula2],
             project,
         ));
