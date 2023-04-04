@@ -428,13 +428,13 @@ where
                 for (col_id, col_val) in predicate.args() {
                     match col_val {
                         ColVal::Lit(_) => continue,
-                        ColVal::Binding(var) if !bindings.contains_key(&var) => bindings
+                        ColVal::Binding(var) if !bindings.contains_key(var) => bindings
                             .insert(*var, Term::Col(predicate.relation().id(), alias, *col_id)),
                         _ => continue,
                     };
                 }
 
-                term_metadata.push((&body_term, TermMetadata::new(alias, bindings.clone())));
+                term_metadata.push((body_term, TermMetadata::new(alias, bindings.clone())));
             }
             BodyTerm::Negation(_) => continue,
             BodyTerm::GetLink(inner) => {
@@ -480,7 +480,7 @@ where
                         Term::Agg(inner.relation().id(), alias, *inner.target()),
                     );
 
-                    term_metadata.push((&body_term, TermMetadata::new(alias, bindings.clone())));
+                    term_metadata.push((body_term, TermMetadata::new(alias, bindings.clone())));
                 }
             }
         }
@@ -553,7 +553,7 @@ where
                             ColVal::Lit(val) => {
                                 let formula = Formula::equality(
                                     Term::Col(predicate.relation().id(), metadata.alias, col_id),
-                                    Term::Lit(Arc::clone(&val)),
+                                    Term::Lit(Arc::clone(val)),
                                 );
 
                                 formulae.push(formula);
@@ -590,7 +590,7 @@ where
 
                     for negation in satisfied {
                         let cols = negation.args().iter().map(|(k, v)| match v {
-                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(&val))),
+                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(val))),
                             ColVal::Binding(var) => {
                                 (*k, metadata.bindings.get(var).unwrap().clone())
                             }
@@ -710,15 +710,15 @@ where
                     let mut group_by_cols = HashMap::default();
                     for (col_id, col_val) in agg.group_by_cols() {
                         if let Some(term) = match col_val {
-                            ColVal::Lit(lit) => Some(Term::Lit(Arc::clone(&lit))),
+                            ColVal::Lit(lit) => Some(Term::Lit(Arc::clone(lit))),
                             ColVal::Binding(var) => {
-                                if let Some(term) = bindings.get(&var) {
-                                    if agg.vars().contains(&var) {
+                                if let Some(term) = bindings.get(var) {
+                                    if agg.vars().contains(var) {
                                         args.push(term.clone());
                                     }
 
                                     Some(term.clone())
-                                } else if agg.vars().contains(&var) {
+                                } else if agg.vars().contains(var) {
                                     args.push(Term::Col(
                                         agg.relation().id(),
                                         metadata.alias,
@@ -743,7 +743,7 @@ where
 
                     for negation in satisfied {
                         let cols = negation.args().iter().map(|(k, v)| match v {
-                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(&val))),
+                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(val))),
                             ColVal::Binding(var) => {
                                 (*k, metadata.bindings.get(var).unwrap().clone())
                             }
