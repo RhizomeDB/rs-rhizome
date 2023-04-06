@@ -32,9 +32,9 @@
 
 <div align="center"><sub>:warning: Work in progress :warning:</sub></div>
 
-##
+## rhizome
 
-Description.
+The Rhizome query engine.
 
 ## License
 
