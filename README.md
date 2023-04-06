@@ -35,7 +35,9 @@
 
 <div align="center"><sub>:warning: Work in progress :warning:</sub></div>
 
-##
+## Rhizome
+
+Rhizome is an in-development database for use in building local-first applications over a content addressable store, like IPFS.
 
 ## Outline
 
