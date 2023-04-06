@@ -4,6 +4,7 @@ use std::{collections::VecDeque, sync::Arc};
 use anyhow::Result;
 
 use crate::{
+    error::{error, Error},
     fact::{
         traits::{EDBFact, IDBFact},
         DefaultEDBFact, DefaultIDBFact,
@@ -112,7 +113,7 @@ where
     where
         BS: Blockstore,
     {
-        let continue_epoch = match &*self.load_statement() {
+        let continue_epoch = match &*self.load_statement()? {
             Statement::Insert(insert) => self.handle_insert(insert, blockstore),
             Statement::Merge(merge) => self.handle_merge(merge),
             Statement::Swap(swap) => self.handle_swap(swap),
@@ -133,7 +134,7 @@ where
             return Ok(false);
         }
 
-        self.pc = self.step_pc();
+        self.pc = self.step_pc()?;
 
         if self.pc.0 == 0 {
             self.timestamp = self.timestamp.advance_epoch();
@@ -144,42 +145,59 @@ where
         Ok(true)
     }
 
-    fn step_pc(&self) -> (usize, Option<usize>) {
+    fn step_pc(&self) -> Result<(usize, Option<usize>)> {
         match self.pc {
             (outer, None) => {
                 if let Some(statement) = self.program.statements().get(self.pc.0 + 1) {
                     if let Statement::Loop(Loop { .. }) = &**statement {
-                        ((outer + 1) % self.program.statements().len(), Some(0))
+                        Ok(((outer + 1) % self.program.statements().len(), Some(0)))
                     } else {
-                        ((outer + 1) % self.program.statements().len(), None)
+                        Ok(((outer + 1) % self.program.statements().len(), None))
                     }
                 } else {
-                    ((outer + 1) % self.program.statements().len(), None)
+                    Ok(((outer + 1) % self.program.statements().len(), None))
                 }
             }
             (outer, Some(inner)) => {
-                if let Statement::Loop(loop_statement) =
-                    &**self.program.statements().get(self.pc.0).unwrap()
-                {
-                    (outer, Some((inner + 1) % loop_statement.body().len()))
-                } else {
-                    unreachable!("Current statement must be a loop!")
+                let outer_statement =
+                    self.program.statements().get(self.pc.0).ok_or_else(|| {
+                        Error::InternalRhizomeError("PC stepped past end of program".to_owned())
+                    })?;
+
+                match &**outer_statement {
+                    Statement::Loop(inner_statement) => {
+                        Ok((outer, Some((inner + 1) % inner_statement.body().len())))
+                    }
+
+                    _ => error(Error::InternalRhizomeError(
+                        "current statement must be a loop".to_owned(),
+                    )),
                 }
             }
         }
     }
 
-    fn load_statement(&self) -> Arc<Statement<EF, IF, ER, IR>> {
-        match &**self.program.statements().get(self.pc.0).unwrap() {
-            Statement::Loop(loop_statement) => {
-                assert!(self.pc.1.is_some());
+    fn load_statement(&self) -> Result<Arc<Statement<EF, IF, ER, IR>>> {
+        let outer_statement = self.program.statements().get(self.pc.0).ok_or_else(|| {
+            Error::InternalRhizomeError("PC stepped past end of program".to_owned())
+        })?;
 
-                Arc::clone(loop_statement.body().get(self.pc.1.unwrap()).unwrap())
+        match &**outer_statement {
+            Statement::Loop(loop_statement) => {
+                let inner_pc = self.pc.1.ok_or_else(|| {
+                    Error::InternalRhizomeError("inner loop PC is None".to_owned())
+                })?;
+
+                let inner_statement = loop_statement.body().get(inner_pc).ok_or_else(|| {
+                    Error::InternalRhizomeError("inner loop PC stepped past end of loop".to_owned())
+                })?;
+
+                Ok(Arc::clone(inner_statement))
             }
             _ => {
                 assert!(self.pc.1.is_none());
 
-                Arc::clone(self.program.statements().get(self.pc.0).unwrap())
+                Ok(Arc::clone(outer_statement))
             }
         }
     }
