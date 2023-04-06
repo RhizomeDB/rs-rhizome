@@ -189,25 +189,6 @@ impl Type {
             unreachable!()
         }
     }
-
-    // TODO: Better would probably be to implement lattice / ring / monoid / etc
-    // traits over these types
-    pub fn zero(&self) -> Option<Val> {
-        match self {
-            Type::Bool => Some(bool::default().into()),
-            Type::S8 => Some(i8::default().into()),
-            Type::U8 => Some(u8::default().into()),
-            Type::S16 => Some(i16::default().into()),
-            Type::U16 => Some(u16::default().into()),
-            Type::S32 => Some(i32::default().into()),
-            Type::U32 => Some(u32::default().into()),
-            Type::S64 => Some(i64::default().into()),
-            Type::U64 => Some(u64::default().into()),
-            Type::Char => None,
-            Type::String => None,
-            Type::Cid => None,
-        }
-    }
 }
 
 impl Display for Type {
