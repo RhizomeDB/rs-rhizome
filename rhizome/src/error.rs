@@ -13,6 +13,10 @@ use crate::{
 /// Rhizome errors.
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum Error {
+    #[error(
+        "An unexpected error occurred in Rhizome: {0}. This is a bug: please consider filing an issue"
+    )]
+    InternalRhizomeError(String),
     #[error("Program could not be stratified")]
     ProgramUnstratifiable,
     #[error("Clause not range restricted: variable {1}, in attribute {0} of head must be bound")]
