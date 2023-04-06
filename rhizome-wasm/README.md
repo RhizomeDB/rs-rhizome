@@ -35,9 +35,9 @@
 
 <div align="center"><sub>:warning: Work in progress :warning:</sub></div>
 
-##
+## rhizome-wasm
 
-Description.
+WebAssembly bindings for Rhizome.
 
 ## Outline
 
