@@ -788,9 +788,21 @@ where
                         previous,
                     ));
                 }
-                BodyTerm::GetLink(_) => unreachable!("Only iterating through positive terms"),
-                BodyTerm::Negation(_) => unreachable!("Only iterating through positive terms"),
-                BodyTerm::VarPredicate(_) => unreachable!("Only iterating through positive terms"),
+                BodyTerm::GetLink(_) => {
+                    return error(Error::InternalRhizomeError(
+                        "unexpected body term".to_owned(),
+                    ));
+                }
+                BodyTerm::Negation(_) => {
+                    return error(Error::InternalRhizomeError(
+                        "unexpected body term".to_owned(),
+                    ));
+                }
+                BodyTerm::VarPredicate(_) => {
+                    return error(Error::InternalRhizomeError(
+                        "unexpected body term".to_owned(),
+                    ));
+                }
                 BodyTerm::Reduce(agg) => {
                     let mut args = Vec::default();
                     let mut group_by_cols = HashMap::default();

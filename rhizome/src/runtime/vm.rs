@@ -126,7 +126,9 @@ where
             Statement::Sources(sources) => self.handle_sources(sources),
             Statement::Sinks(sinks) => self.handle_sinks(sinks),
             Statement::Loop(Loop { .. }) => {
-                unreachable!("load_statement follows loops in the root block")
+                return error(Error::InternalRhizomeError(
+                    "nested loop encountered".to_owned(),
+                ));
             }
         }?;
 

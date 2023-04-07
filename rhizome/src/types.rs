@@ -184,9 +184,11 @@ impl Type {
         if self == other {
             Ok(())
         } else if mem::discriminant(self) != mem::discriminant(other) {
-            return error(Error::TypeMismatch(*self, *other));
+            error(Error::TypeMismatch(*self, *other))
         } else {
-            unreachable!()
+            error(Error::InternalRhizomeError(
+                "unreachable case in type checking".to_owned(),
+            ))
         }
     }
 }
