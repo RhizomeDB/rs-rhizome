@@ -1,9 +1,12 @@
+use core::fmt;
 use std::{collections::BTreeMap, fmt::Display, sync::Arc};
 
+use anyhow::Result;
 use cid::Cid;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    error::Error,
     id::{ColId, LinkId, RelationId},
     relation::EdbMarker,
     storage::content_addressable::ContentAddressable,
@@ -30,7 +33,7 @@ impl EDBFact for EVACFact {
         attr: impl Into<Val>,
         val: impl Into<Val>,
         links: Vec<(&str, Cid)>,
-    ) -> Self {
+    ) -> Result<Self> {
         let entity = Arc::new(entity.into());
         let attr = Arc::new(attr.into());
         let val = Arc::new(val.into());
@@ -49,18 +52,19 @@ impl EDBFact for EVACFact {
             cid_val: None,
         };
 
-        fact.cid = Some(ContentAddressable::cid(&fact));
+        fact.cid = Some(ContentAddressable::cid(&fact)?);
         fact.cid_val = fact.cid.map(|c| Arc::new(Val::Cid(c)));
 
-        fact
+        Ok(fact)
     }
 
     fn id(&self) -> RelationId {
         RelationId::new("evac")
     }
 
-    fn cid(&self) -> Cid {
-        self.cid.unwrap()
+    fn cid(&self) -> Result<Cid> {
+        self.cid
+            .ok_or_else(|| Error::InternalRhizomeError("EVAC fact has no CID".to_owned()).into())
     }
 
     fn link(&self, id: LinkId) -> Option<Arc<Val>> {
@@ -99,12 +103,15 @@ impl Fact for EVACFact {
 
 impl Display for EVACFact {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let cols = self
-            .cols()
-            .iter()
-            .map(|k| format!("{k}: {}", self.col(k).unwrap()))
-            .collect::<Vec<String>>()
-            .join(", ");
+        let mut cols = Vec::default();
+        for col in self.cols() {
+            let val = self.col(&col).ok_or(fmt::Error)?;
+            let col = format!("{col}: {val}");
+
+            cols.push(col);
+        }
+
+        let cols = cols.join(", ");
 
         let links = self
             .causal_links

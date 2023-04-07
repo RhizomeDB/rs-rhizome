@@ -1,3 +1,4 @@
+use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde::{
     de::{self, Visitor},
@@ -16,15 +17,20 @@ pub(crate) struct Symbol(DefaultSymbol);
 
 impl Symbol {
     pub(crate) fn get_or_intern(s: &str) -> Symbol {
-        Self(INSTANCE.lock().unwrap().get_or_intern(s))
+        let symbol = INSTANCE
+            .lock()
+            .expect("interner lock poisoned")
+            .get_or_intern(s);
+
+        Self(symbol)
     }
 
     pub(crate) fn resolve(&self) -> String {
         INSTANCE
             .lock()
-            .unwrap()
+            .expect("interner lock poisoned")
             .resolve(self.0)
-            .unwrap()
+            .expect("symbol not found")
             .to_string()
     }
 }

@@ -272,7 +272,7 @@ where
     where
         BS: Blockstore,
     {
-        project.apply(blockstore, bindings);
+        project.apply(blockstore, bindings)?;
 
         Ok(true)
     }
@@ -286,7 +286,7 @@ where
     where
         BS: Blockstore,
     {
-        if let Some(next_bindings) = agg.apply(blockstore, bindings) {
+        if let Some(next_bindings) = agg.apply(blockstore, bindings)? {
             self.do_handle_operation(agg.operation(), blockstore, &next_bindings)?;
         }
 
@@ -294,25 +294,25 @@ where
     }
 
     fn handle_merge(&self, merge: &Merge<IF, IR>) -> Result<bool> {
-        merge.apply();
+        merge.apply()?;
 
         Ok(true)
     }
 
     fn handle_swap(&self, swap: &Swap<IR>) -> Result<bool> {
-        swap.apply();
+        swap.apply()?;
 
         Ok(true)
     }
 
     fn handle_purge(&self, purge: &Purge<EF, IF, ER, IR>) -> Result<bool> {
-        purge.apply();
+        purge.apply()?;
 
         Ok(true)
     }
 
     fn handle_exit(&mut self, exit: &Exit<IF, IR>) -> Result<bool> {
-        if exit.apply() {
+        if exit.apply()? {
             self.pc.1 = None;
         }
 
@@ -320,12 +320,12 @@ where
     }
 
     fn handle_sources(&mut self, sources: &Sources<EF, ER>) -> Result<bool> {
-        Ok(sources.apply(&mut self.input)
+        Ok(sources.apply(&mut self.input)?
             || self.timestamp().epoch_start() == self.timestamp().clock_start())
     }
 
     fn handle_sinks(&mut self, sinks: &Sinks<IF, IR>) -> Result<bool> {
-        sinks.apply(&mut self.output);
+        sinks.apply(&mut self.output)?;
 
         Ok(true)
     }

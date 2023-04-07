@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -6,6 +7,7 @@ use std::{
 use pretty::RcDoc;
 
 use crate::{
+    error::{error, Error},
     fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId},
     pretty::Pretty,
@@ -76,7 +78,7 @@ where
         &self.cols
     }
 
-    pub(crate) fn is_satisfied<BS>(&self, blockstore: &BS, bindings: &Bindings) -> bool
+    pub(crate) fn is_satisfied<BS>(&self, blockstore: &BS, bindings: &Bindings) -> Result<bool>
     where
         BS: Blockstore,
     {
@@ -84,7 +86,7 @@ where
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in self.cols() {
-            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore) {
+            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore)? {
                 bound.push((*id, <Val>::clone(&val)));
             }
         }
@@ -96,7 +98,14 @@ where
             NotInRelation::Idb(relation) => {
                 let bound_fact = IF::new(self.id, bound);
 
-                !relation.read().unwrap().contains(&bound_fact)
+                Ok(!relation
+                    .read()
+                    .or_else(|_| {
+                        error(Error::InternalRhizomeError(
+                            "relation lock poisoned".to_owned(),
+                        ))
+                    })?
+                    .contains(&bound_fact))
             }
         }
     }

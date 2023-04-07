@@ -114,7 +114,9 @@ async fn main() -> Result<()> {
                         b.search("update", (("cid", cid), ("entity", e), ("value", v)))
                             .except("update", (("entity", e), ("parent", cid))),
                     )
-                })
+                })?;
+
+                Ok(p)
             })
             .await
     });
@@ -125,11 +127,11 @@ async fn main() -> Result<()> {
         }
     });
 
-    let e0 = EVACFact::new(0, "initial", 0, vec![]);
-    let e1 = EVACFact::new(0, "write", 1, vec![("parent", e0.cid())]);
-    let e2 = EVACFact::new(0, "write", 5, vec![("parent", e1.cid())]);
-    let e3 = EVACFact::new(0, "write", 3, vec![("parent", e1.cid())]);
-    let e4 = EVACFact::new(1, "initial", 4, vec![]);
+    let e0 = EVACFact::new(0, "initial", 0, vec![])?;
+    let e1 = EVACFact::new(0, "write", 1, vec![("parent", e0.cid()?)])?;
+    let e2 = EVACFact::new(0, "write", 5, vec![("parent", e1.cid()?)])?;
+    let e3 = EVACFact::new(0, "write", 3, vec![("parent", e1.cid()?)])?;
+    let e4 = EVACFact::new(1, "initial", 4, vec![])?;
 
     client
         .register_sink(

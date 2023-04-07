@@ -14,13 +14,13 @@ use crate::{
 use super::atom_args::{AtomArg, AtomArgs};
 
 #[derive(Debug)]
-pub struct RuleHeadBuilder<'a> {
-    relation: &'a Declaration,
+pub struct RuleHeadBuilder {
+    relation: Arc<Declaration>,
     bindings: Vec<(ColId, ColVal)>,
 }
 
-impl<'a> RuleHeadBuilder<'a> {
-    pub fn new(relation: &'a Declaration) -> Self {
+impl RuleHeadBuilder {
+    pub fn new(relation: Arc<Declaration>) -> Self {
         Self {
             relation,
             bindings: Vec::default(),

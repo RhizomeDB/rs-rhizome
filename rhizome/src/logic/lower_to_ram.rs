@@ -100,7 +100,10 @@ where
 
         for input in &inputs {
             let id = input.id();
-            let relation = Arc::clone(edb.get(&(id, RelationVersion::Delta)).unwrap());
+            let relation = Arc::clone(
+                edb.get(&(id, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             sources_builder.add_relation(id, relation);
         }
@@ -117,7 +120,10 @@ where
     // Purge all newly received input facts
     for input in &inputs {
         let id = input.id();
-        let relation = Arc::clone(edb.get(&(id, RelationVersion::Delta)).unwrap());
+        let relation = Arc::clone(
+            edb.get(&(id, RelationVersion::Delta))
+                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+        );
 
         statements.push(Statement::Purge(Purge::new(
             id,
@@ -175,8 +181,15 @@ where
 
         // Merge the output of the static rules into total
         for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| r.head())) {
-            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
-            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
+            let from_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let into_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             let merge = Merge::new(
                 relation,
@@ -194,7 +207,10 @@ where
 
         // Purge new, computed during the last loop iteration
         for &id in stratum.relations() {
-            let relation = Arc::clone(idb.get(&(id, RelationVersion::New)).unwrap());
+            let relation = Arc::clone(
+                idb.get(&(id, RelationVersion::New))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             let statement = Statement::Purge(Purge::new(
                 id,
@@ -217,7 +233,10 @@ where
         let mut sinks_builder = SinksBuilder::default();
 
         for &id in stratum.relations() {
-            let relation = Arc::clone(idb.get(&(id, RelationVersion::Delta)).unwrap());
+            let relation = Arc::clone(
+                idb.get(&(id, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             sinks_builder.add_relation(id, relation);
         }
@@ -228,7 +247,10 @@ where
         let mut exit_builder = ExitBuilder::default();
 
         for &id in stratum.relations() {
-            let relation = Arc::clone(idb.get(&(id, RelationVersion::New)).unwrap());
+            let relation = Arc::clone(
+                idb.get(&(id, RelationVersion::New))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             exit_builder.add_relation(id, RelationVersion::New, relation);
         }
@@ -238,8 +260,15 @@ where
         // Merge new into total, then swap new and delta
         for &relation in stratum.relations() {
             // Merge the output of the static rules into total
-            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::New)).unwrap());
-            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
+            let from_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::New))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let into_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             let merge = Merge::new(
                 relation,
@@ -253,8 +282,15 @@ where
             loop_body.push(Statement::Merge(merge));
 
             // Swap new and delta
-            let left_relation = Arc::clone(idb.get(&(relation, RelationVersion::New)).unwrap());
-            let right_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
+            let left_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::New))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let right_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             let swap = Swap::new(
                 relation,
@@ -277,8 +313,15 @@ where
         // TODO: this seems wrong and will lead to duplicate work across epochs. Will likely need to
         // use the lattice based timestamps to resolve that.
         for &relation in stratum.relations() {
-            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
-            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
+            let from_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let into_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             let merge = Merge::new(
                 relation,
@@ -315,8 +358,15 @@ where
 
         // Merge rules from Delta into Total
         for &relation in stratum.relations() {
-            let from_relation = Arc::clone(idb.get(&(relation, RelationVersion::Delta)).unwrap());
-            let into_relation = Arc::clone(idb.get(&(relation, RelationVersion::Total)).unwrap());
+            let from_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let into_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             let merge = Merge::new(
                 relation,
@@ -334,7 +384,10 @@ where
         let mut sinks_builder = SinksBuilder::default();
 
         for &id in stratum.relations() {
-            let relation = Arc::clone(idb.get(&(id, RelationVersion::Delta)).unwrap());
+            let relation = Arc::clone(
+                idb.get(&(id, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             sinks_builder.add_relation(id, relation);
         }
@@ -361,7 +414,10 @@ where
         .iter()
         .map(|(k, v)| (*k, Term::Lit(Arc::clone(v))));
 
-    let relation = Arc::clone(idb.get(&(fact.head(), RelationVersion::Delta)).unwrap());
+    let relation = Arc::clone(
+        idb.get(&(fact.head(), RelationVersion::Delta))
+            .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+    );
 
     Ok(Statement::Insert(Insert::new(
         Operation::Project(Project::new(
@@ -479,23 +535,23 @@ where
         }
     }
 
-    let projection_cols: im::HashMap<ColId, Term> = rule
-        .args()
-        .iter()
-        .map(|(k, v)| match v {
-            ColVal::Lit(c) => (*k, Term::Lit(Arc::clone(c))),
-            ColVal::Binding(v) => (*k, bindings.get(v).unwrap().clone()),
-        })
-        .collect();
+    let mut projection_vars = Vec::<Var>::default();
+    let mut projection_cols = im::HashMap::<ColId, Term>::default();
+    for (k, v) in rule.args() {
+        if let ColVal::Binding(var) = v {
+            projection_vars.push(*var);
+        }
 
-    let projection_vars: Vec<Var> = rule
-        .args()
-        .iter()
-        .filter_map(|(_, v)| match *v {
-            ColVal::Lit(_) => None,
-            ColVal::Binding(var) => Some(var),
-        })
-        .collect();
+        let term = match v {
+            ColVal::Lit(c) => Term::Lit(Arc::clone(c)),
+            ColVal::Binding(v) => bindings
+                .get(v)
+                .ok_or_else(|| Error::InternalRhizomeError("binding not found".to_owned()))?
+                .clone(),
+        };
+
+        projection_cols.insert(*k, term);
+    }
 
     let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
 
@@ -512,7 +568,10 @@ where
         let mut get_link_terms = rule.get_link_terms();
         let mut var_predicate_terms = rule.var_predicate_terms();
 
-        let relation = Arc::clone(idb.get(&(rule.head(), version)).unwrap());
+        let relation = Arc::clone(
+            idb.get(&(rule.head(), version))
+                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+        );
 
         let mut previous = Operation::Project(Project::new(
             rule.head(),
@@ -527,7 +586,10 @@ where
             // TODO: Add this once, after all projection vars are bound
             if projection_vars.iter().all(|&v| metadata.is_bound(&v)) {
                 let not_in_relation = NotInRelation::Idb(Arc::clone(
-                    idb.get(&(rule.head(), RelationVersion::Total)).unwrap(),
+                    idb.get(&(rule.head(), RelationVersion::Total))
+                        .ok_or_else(|| {
+                            Error::InternalRhizomeError("relation not found".to_owned())
+                        })?,
                 ));
 
                 formulae.push(Formula::not_in(
@@ -581,28 +643,42 @@ where
                     negation_terms = unsatisfied;
 
                     for negation in satisfied {
-                        let cols = negation.args().iter().map(|(k, v)| match v {
-                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(val))),
-                            ColVal::Binding(var) => {
-                                (*k, metadata.bindings.get(var).unwrap().clone())
-                            }
-                        });
+                        let mut negation_cols = im::HashMap::<ColId, Term>::default();
+                        for (k, v) in negation.args() {
+                            let term = match v {
+                                ColVal::Lit(val) => Term::Lit(Arc::clone(val)),
+                                ColVal::Binding(var) => metadata
+                                    .bindings
+                                    .get(var)
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("binding not found".to_owned())
+                                    })?
+                                    .clone(),
+                            };
+
+                            negation_cols.insert(*k, term);
+                        }
 
                         let not_in_relation = match negation.relation().source() {
                             Source::Edb => NotInRelation::Edb(Arc::clone(
                                 edb.get(&(negation.relation().id(), RelationVersion::Total))
-                                    .unwrap(),
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("relation not found".to_owned())
+                                    })?,
                             )),
+
                             Source::Idb => NotInRelation::Idb(Arc::clone(
                                 idb.get(&(negation.relation().id(), RelationVersion::Total))
-                                    .unwrap(),
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("relation not found".to_owned())
+                                    })?,
                             )),
                         };
 
                         formulae.push(Formula::not_in(
                             negation.relation().id(),
                             RelationVersion::Total,
-                            cols,
+                            negation_cols,
                             not_in_relation,
                         ));
                     }
@@ -621,7 +697,17 @@ where
                             CidValue::Cid(cid) => Term::Lit(Arc::new(Val::Cid(cid))),
                             CidValue::Var(var) => Term::Link(
                                 term.link_id(),
-                                Box::new(metadata.bindings.get(&var).unwrap().clone()),
+                                Box::new(
+                                    metadata
+                                        .bindings
+                                        .get(&var)
+                                        .ok_or_else(|| {
+                                            Error::InternalRhizomeError(
+                                                "binding not found".to_owned(),
+                                            )
+                                        })?
+                                        .clone(),
+                                ),
                             ),
                         };
 
@@ -630,7 +716,13 @@ where
                                 term.link_id(),
                                 Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
                             ),
-                            CidValue::Var(var) => metadata.bindings.get(&var).unwrap().clone(),
+                            CidValue::Var(var) => metadata
+                                .bindings
+                                .get(&var)
+                                .ok_or_else(|| {
+                                    Error::InternalRhizomeError("binding not found".to_owned())
+                                })?
+                                .clone(),
                         };
 
                         formulae.push(Formula::equality(cid_term, val_term));
@@ -646,8 +738,16 @@ where
                         let var_terms = term
                             .vars()
                             .iter()
-                            .map(|var| metadata.bindings.get(var).unwrap().clone())
-                            .collect();
+                            .map(|var| {
+                                Ok(metadata
+                                    .bindings
+                                    .get(var)
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("binding not found".to_owned())
+                                    })?
+                                    .clone())
+                            })
+                            .collect::<Result<Vec<Term>>>()?;
 
                         formulae.push(Formula::predicate(var_terms, term.f()));
                     }
@@ -660,14 +760,20 @@ where
 
                     let search_relation = match predicate.relation().source() {
                         Source::Edb => {
-                            let relation =
-                                Arc::clone(edb.get(&(predicate.relation().id(), version)).unwrap());
+                            let relation = Arc::clone(
+                                edb.get(&(predicate.relation().id(), version)).ok_or_else(
+                                    || Error::InternalRhizomeError("relation not found".to_owned()),
+                                )?,
+                            );
 
                             SearchRelation::Edb(relation)
                         }
                         Source::Idb => {
-                            let relation =
-                                Arc::clone(idb.get(&(predicate.relation().id(), version)).unwrap());
+                            let relation = Arc::clone(
+                                idb.get(&(predicate.relation().id(), version)).ok_or_else(
+                                    || Error::InternalRhizomeError("relation not found".to_owned()),
+                                )?,
+                            );
 
                             SearchRelation::Idb(relation)
                         }
@@ -722,28 +828,41 @@ where
                     negation_terms = unsatisfied;
 
                     for negation in satisfied {
-                        let cols = negation.args().iter().map(|(k, v)| match v {
-                            ColVal::Lit(val) => (*k, Term::Lit(Arc::clone(val))),
-                            ColVal::Binding(var) => {
-                                (*k, metadata.bindings.get(var).unwrap().clone())
-                            }
-                        });
+                        let mut negation_cols = im::HashMap::<ColId, Term>::default();
+                        for (k, v) in negation.args() {
+                            let term = match v {
+                                ColVal::Lit(val) => Term::Lit(Arc::clone(val)),
+                                ColVal::Binding(var) => metadata
+                                    .bindings
+                                    .get(var)
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("binding not found".to_owned())
+                                    })?
+                                    .clone(),
+                            };
+
+                            negation_cols.insert(*k, term);
+                        }
 
                         let not_in_relation = match negation.relation().source() {
                             Source::Edb => NotInRelation::Edb(Arc::clone(
                                 edb.get(&(negation.relation().id(), RelationVersion::Total))
-                                    .unwrap(),
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("relation not found".to_owned())
+                                    })?,
                             )),
                             Source::Idb => NotInRelation::Idb(Arc::clone(
                                 idb.get(&(negation.relation().id(), RelationVersion::Total))
-                                    .unwrap(),
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("relation not found".to_owned())
+                                    })?,
                             )),
                         };
 
                         formulae.push(Formula::not_in(
                             negation.relation().id(),
                             RelationVersion::Total,
-                            cols,
+                            negation_cols,
                             not_in_relation,
                         ));
                     }
@@ -762,7 +881,17 @@ where
                             CidValue::Cid(cid) => Term::Lit(Arc::new(Val::Cid(cid))),
                             CidValue::Var(var) => Term::Link(
                                 term.link_id(),
-                                Box::new(metadata.bindings.get(&var).unwrap().clone()),
+                                Box::new(
+                                    metadata
+                                        .bindings
+                                        .get(&var)
+                                        .ok_or_else(|| {
+                                            Error::InternalRhizomeError(
+                                                "binding not found".to_owned(),
+                                            )
+                                        })?
+                                        .clone(),
+                                ),
                             ),
                         };
 
@@ -771,7 +900,13 @@ where
                                 term.link_id(),
                                 Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
                             ),
-                            CidValue::Var(var) => metadata.bindings.get(&var).unwrap().clone(),
+                            CidValue::Var(var) => metadata
+                                .bindings
+                                .get(&var)
+                                .ok_or_else(|| {
+                                    Error::InternalRhizomeError("binding not found".to_owned())
+                                })?
+                                .clone(),
                         };
 
                         formulae.push(Formula::equality(cid_term, val_term));
@@ -787,8 +922,16 @@ where
                         let var_terms = term
                             .vars()
                             .iter()
-                            .map(|var| metadata.bindings.get(var).unwrap().clone())
-                            .collect();
+                            .map(|var| {
+                                Ok(metadata
+                                    .bindings
+                                    .get(var)
+                                    .ok_or_else(|| {
+                                        Error::InternalRhizomeError("binding not found".to_owned())
+                                    })?
+                                    .clone())
+                            })
+                            .collect::<Result<Vec<Term>>>()?;
 
                         formulae.push(Formula::predicate(var_terms, term.f()));
                     }
@@ -802,13 +945,17 @@ where
                     let reduce_relation = match agg.relation().source() {
                         Source::Edb => {
                             let relation =
-                                Arc::clone(edb.get(&(agg.relation().id(), version)).unwrap());
+                                Arc::clone(edb.get(&(agg.relation().id(), version)).ok_or_else(
+                                    || Error::InternalRhizomeError("relation not found".to_owned()),
+                                )?);
 
                             ReduceRelation::Edb(relation)
                         }
                         Source::Idb => {
                             let relation =
-                                Arc::clone(idb.get(&(agg.relation().id(), version)).unwrap());
+                                Arc::clone(idb.get(&(agg.relation().id(), version)).ok_or_else(
+                                    || Error::InternalRhizomeError("relation not found".to_owned()),
+                                )?);
 
                             ReduceRelation::Idb(relation)
                         }
@@ -871,8 +1018,13 @@ pub(crate) fn stratify(program: &Program) -> Result<Vec<Stratum<'_>>> {
                 .entry(dependency.from())
                 .or_insert_with(|| edg.add_node(dependency.from()));
 
-            let to = nodes.get(&dependency.to()).unwrap();
-            let from = nodes.get(&dependency.from()).unwrap();
+            let to = nodes
+                .get(&dependency.to())
+                .ok_or_else(|| Error::InternalRhizomeError("dependency not found".to_owned()))?;
+
+            let from = nodes
+                .get(&dependency.from())
+                .ok_or_else(|| Error::InternalRhizomeError("dependency not found".to_owned()))?;
 
             edg.add_edge(*from, *to, dependency.polarity());
         }

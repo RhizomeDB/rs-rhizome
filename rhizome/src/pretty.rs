@@ -14,6 +14,7 @@ impl Pretty for &str {
 mod tests {
     use std::sync::{Arc, RwLock};
 
+    use anyhow::Result;
     use im::hashmap;
     use pretty_assertions::assert_eq;
 
@@ -34,7 +35,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test() {
+    fn test_pretty() -> Result<()> {
         let formula1 = Formula::equality(
             Term::Col("person".into(), Some(AliasId::new().next()), "name".into()),
             Term::Lit(Arc::new(Val::String("Quinn".into()))),
@@ -68,13 +69,15 @@ mod tests {
         ));
 
         let mut w = Vec::new();
-        ast.to_doc().render(80, &mut w).unwrap();
+        ast.to_doc().render(80, &mut w)?;
 
         assert_eq!(
             r#"search person_total where
 (person_1.name = "Quinn" and (age: 29) notin person_total) do
   project (age: 29) into person_total"#,
-            String::from_utf8(w).unwrap()
+            String::from_utf8(w)?
         );
+
+        Ok(())
     }
 }

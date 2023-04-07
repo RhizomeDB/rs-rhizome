@@ -3,9 +3,15 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use anyhow::Result;
 use pretty::RcDoc;
 
-use crate::{id::RelationId, pretty::Pretty, ram::RelationVersion};
+use crate::{
+    error::{error, Error},
+    id::RelationId,
+    pretty::Pretty,
+    ram::RelationVersion,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Swap<R> {
@@ -36,11 +42,22 @@ impl<R> Swap<R> {
         }
     }
 
-    pub(crate) fn apply(&self) {
-        let mut left = self.left.write().unwrap();
-        let mut right = self.right.write().unwrap();
+    pub(crate) fn apply(&self) -> Result<()> {
+        let mut left = self.left.write().or_else(|_| {
+            error(Error::InternalRhizomeError(
+                "relation lock poisoned".to_owned(),
+            ))
+        })?;
+
+        let mut right = self.right.write().or_else(|_| {
+            error(Error::InternalRhizomeError(
+                "relation lock poisoned".to_owned(),
+            ))
+        })?;
 
         mem::swap(&mut *left, &mut *right);
+
+        Ok(())
     }
 }
 

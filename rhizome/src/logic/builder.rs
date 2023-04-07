@@ -28,7 +28,7 @@ where
     I: IDBFact,
     ER: Relation<Fact = E>,
     IR: Relation<Fact = I>,
-    F: FnOnce(&mut ProgramBuilder) -> Result<()>,
+    F: FnOnce(ProgramBuilder) -> Result<ProgramBuilder>,
 {
     let logic = ProgramBuilder::build(f)?;
     let ram = lower_to_ram::lower_to_ram::<E, I, ER, IR>(&logic)?;
@@ -40,6 +40,7 @@ where
 mod tests {
     use std::{cmp, sync::Arc};
 
+    use anyhow::Result;
     use cid::Cid;
 
     use crate::{
@@ -70,14 +71,15 @@ mod tests {
                     b.search("edge", (("from", x), ("to", y)))
                         .search("path", (("from", y), ("to", z))),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
     #[test]
-    fn test_get_link() {
-        let cid =
-            Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily").unwrap();
+    fn test_get_link() -> Result<()> {
+        let cid = Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")?;
 
         assert_compile!(|p| {
             p.input("evac", |h| h)?;
@@ -85,8 +87,12 @@ mod tests {
 
             p.rule::<(Cid,)>("p", &|h, b, (x,)| {
                 (h.bind((("x", x),)), b.get_link(cid, "link", x))
-            })
+            })?;
+
+            Ok(p)
         });
+
+        Ok(())
     }
 
     #[test]
@@ -130,7 +136,7 @@ mod tests {
                 )
             })?;
 
-            Ok(())
+            Ok(p)
         });
     }
 
@@ -154,7 +160,9 @@ mod tests {
                     h.bind((("q", x),)),
                     b.search("t", ((("t", x)),)).except("p", (("p", x),)),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -168,7 +176,9 @@ mod tests {
 
                 p.rule::<(i32, i32)>("p", &|h, b, (x, y)| {
                     (h.bind((("p0", x),)), b.search("q", (("q0", y),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
@@ -181,7 +191,9 @@ mod tests {
 
             p.rule::<(i32,)>("p", &|h, b, (x,)| {
                 (h.bind((("p0", x),)), b.except("q", (("q0", x),)))
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -190,7 +202,9 @@ mod tests {
         assert_compile_err!(&Error::ClauseHeadEDB("p".into()), |p| {
             p.input("p", |h| h.column::<i32>("p0"))?;
 
-            p.fact("p", |f| f.bind((("p0", 1),)))
+            p.fact("p", |f| f.bind((("p0", 1),)))?;
+
+            Ok(p)
         });
     }
 
@@ -199,21 +213,27 @@ mod tests {
         assert_compile_err!(&Error::ClauseHeadEDB("p".into()), |p| {
             p.input("p", |h| h.column::<i32>("p0"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("p0", 1),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("p0", 1),)), b))?;
+
+            Ok(p)
         });
     }
 
     #[test]
     fn test_fact_unrecognized() {
         assert_compile_err!(&Error::UnrecognizedRelation("p".into()), |p| {
-            p.fact("p", |f| f.bind((("p0", 1),)))
+            p.fact("p", |f| f.bind((("p0", 1),)))?;
+
+            Ok(p)
         });
     }
 
     #[test]
     fn test_rule_unrecognized() {
         assert_compile_err!(&Error::UnrecognizedRelation("p".into()), |p| {
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("p0", 1),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("p0", 1),)), b))?;
+
+            Ok(p)
         });
     }
 
@@ -221,7 +241,11 @@ mod tests {
     fn test_duplicate_input_declaration_column() {
         assert_compile_err!(
             &Error::DuplicateDeclarationCol("p".into(), "x".into()),
-            |p| { p.input("p", |h| h.column::<i32>("x").column::<i32>("x")) }
+            |p| {
+                p.input("p", |h| h.column::<i32>("x").column::<i32>("x"))?;
+
+                Ok(p)
+            }
         );
     }
 
@@ -229,7 +253,11 @@ mod tests {
     fn test_duplicate_output_declaration_column() {
         assert_compile_err!(
             &Error::DuplicateDeclarationCol("q".into(), "y".into()),
-            |p| { p.output("q", |h| h.column::<i32>("y").column::<i32>("y")) }
+            |p| {
+                p.output("q", |h| h.column::<i32>("y").column::<i32>("y"))?;
+
+                Ok(p)
+            }
         );
     }
 
@@ -237,22 +265,30 @@ mod tests {
     fn test_conflicting_declaration() {
         assert_compile_err!(&Error::ConflictingRelationDeclaration("p".into()), |p| {
             p.input("p", |h| h.column::<i32>("x"))?;
-            p.input("p", |h| h.column::<i32>("x"))
+            p.input("p", |h| h.column::<i32>("x"))?;
+
+            Ok(p)
         });
 
         assert_compile_err!(&Error::ConflictingRelationDeclaration("p".into()), |p| {
             p.input("p", |h| h.column::<i32>("x"))?;
-            p.output("p", |h| h.column::<i32>("x"))
+            p.output("p", |h| h.column::<i32>("x"))?;
+
+            Ok(p)
         });
 
         assert_compile_err!(&Error::ConflictingRelationDeclaration("p".into()), |p| {
             p.output("p", |h| h.column::<i32>("x"))?;
-            p.input("p", |h| h.column::<i32>("x"))
+            p.input("p", |h| h.column::<i32>("x"))?;
+
+            Ok(p)
         });
 
         assert_compile_err!(&Error::ConflictingRelationDeclaration("p".into()), |p| {
             p.output("p", |h| h.column::<i32>("x"))?;
-            p.output("p", |h| h.column::<i32>("x"))
+            p.output("p", |h| h.column::<i32>("x"))?;
+
+            Ok(p)
         });
     }
 
@@ -263,7 +299,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", 1), ("x", 1))))
+                p.fact("p", |f| f.bind((("x", 1), ("x", 1))))?;
+
+                Ok(p)
             }
         );
 
@@ -272,7 +310,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", 1), ("x", 2))))
+                p.fact("p", |f| f.bind((("x", 1), ("x", 2))))?;
+
+                Ok(p)
             }
         );
 
@@ -281,7 +321,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-                p.fact("p", |f| f.bind((("x", 1), ("y", 2), ("x", 1))))
+                p.fact("p", |f| f.bind((("x", 1), ("y", 2), ("x", 1))))?;
+
+                Ok(p)
             }
         );
 
@@ -290,7 +332,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-                p.fact("p", |f| f.bind((("y", 2), ("x", 1), ("x", 3))))
+                p.fact("p", |f| f.bind((("y", 2), ("x", 1), ("x", 3))))?;
+
+                Ok(p)
             }
         );
     }
@@ -302,7 +346,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("x", 1))), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("x", 1))), b))?;
+
+                Ok(p)
             }
         );
 
@@ -311,7 +357,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("x", 2))), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("x", 2))), b))?;
+
+                Ok(p)
             }
         );
 
@@ -320,7 +368,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("y", 1), ("x", 1))), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("y", 1), ("x", 1))), b))?;
+
+                Ok(p)
             }
         );
 
@@ -329,7 +379,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 2), ("x", 1), ("x", 3))), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 2), ("x", 1), ("x", 3))), b))?;
+
+                Ok(p)
             }
         );
     }
@@ -341,7 +393,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("y", 1),)))
+                p.fact("p", |f| f.bind((("y", 1),)))?;
+
+                Ok(p)
             }
         );
 
@@ -350,7 +404,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", 1), ("y", 2))))
+                p.fact("p", |f| f.bind((("x", 1), ("y", 2))))?;
+
+                Ok(p)
             }
         );
 
@@ -359,7 +415,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("y", 2), ("x", 1))))
+                p.fact("p", |f| f.bind((("y", 2), ("x", 1))))?;
+
+                Ok(p)
             }
         );
     }
@@ -371,7 +429,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 1),)), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 1),)), b))?;
+
+                Ok(p)
             }
         );
 
@@ -380,7 +440,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("y", 2))), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1), ("y", 2))), b))?;
+
+                Ok(p)
             }
         );
 
@@ -389,7 +451,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 2), ("x", 1))), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 2), ("x", 1))), b))?;
+
+                Ok(p)
             }
         );
     }
@@ -401,7 +465,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", &TypedVar::<i32>::new("foo")),)))
+                p.fact("p", |f| f.bind((("x", &TypedVar::<i32>::new("foo")),)))?;
+
+                Ok(p)
             }
         );
 
@@ -412,7 +478,9 @@ mod tests {
 
                 p.fact("p", |f| {
                     f.bind((("x", 1), ("y", &TypedVar::<i32>::new("foo"))))
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
@@ -422,19 +490,25 @@ mod tests {
         assert_compile_err!(&Error::ColumnMissing("p".into(), "x".into()), |p| {
             p.output("p", |h| h.column::<i32>("x"))?;
 
-            p.fact("p", |f| f)
+            p.fact("p", |f| f)?;
+
+            Ok(p)
         });
 
         assert_compile_err!(&Error::ColumnMissing("p".into(), "x".into()), |p| {
             p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-            p.fact("p", |f| f.bind((("y", 1),)))
+            p.fact("p", |f| f.bind((("y", 1),)))?;
+
+            Ok(p)
         });
 
         assert_compile_err!(&Error::ColumnMissing("p".into(), "y".into()), |p| {
             p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-            p.fact("p", |f| f.bind((("x", 1),)))
+            p.fact("p", |f| f.bind((("x", 1),)))?;
+
+            Ok(p)
         });
     }
 
@@ -443,19 +517,25 @@ mod tests {
         assert_compile_err!(&Error::ColumnMissing("p".into(), "x".into()), |p| {
             p.output("p", |h| h.column::<i32>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h, b))
+            p.rule::<()>("p", &|h, b, ()| (h, b))?;
+
+            Ok(p)
         });
 
         assert_compile_err!(&Error::ColumnMissing("p".into(), "x".into()), |p| {
             p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 1),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("y", 1),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile_err!(&Error::ColumnMissing("p".into(), "y".into()), |p| {
             p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1),)), b))?;
+
+            Ok(p)
         });
     }
 
@@ -469,15 +549,16 @@ mod tests {
 
                 p.rule::<(i32, Cid)>("p", &|h, b, (x, y)| {
                     (h.bind((("x", x),)), b.get_link(x, "link", y))
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
 
     #[test]
-    fn test_var_type_conflict_get_link_value() {
-        let cid =
-            Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily").unwrap();
+    fn test_var_type_conflict_get_link_value() -> Result<()> {
+        let cid = Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")?;
 
         assert_compile_err!(
             &Error::VarTypeConflict(Var::new::<i32>("x0"), Type::Cid),
@@ -487,9 +568,13 @@ mod tests {
 
                 p.rule::<(i32,)>("p", &|h, b, (x,)| {
                     (h.bind((("x", x),)), b.get_link(cid, "link", x))
-                })
+                })?;
+
+                Ok(p)
             }
         );
+
+        Ok(())
     }
 
     #[test]
@@ -504,7 +589,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", 5_i8),)))
+                p.fact("p", |f| f.bind((("x", 5_i8),)))?;
+
+                Ok(p)
             }
         );
 
@@ -518,7 +605,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<Cid>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", "foo"),)))
+                p.fact("p", |f| f.bind((("x", "foo"),)))?;
+
+                Ok(p)
             }
         );
 
@@ -532,7 +621,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<&str>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", 'f'),)))
+                p.fact("p", |f| f.bind((("x", 'f'),)))?;
+
+                Ok(p)
             }
         );
     }
@@ -549,7 +640,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<bool>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 8_u16),)), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 8_u16),)), b))?;
+
+                Ok(p)
             }
         );
 
@@ -563,7 +656,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<u32>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", true),)), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", true),)), b))?;
+
+                Ok(p)
             }
         );
 
@@ -577,7 +672,9 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<char>("x"))?;
 
-                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", "b"),)), b))
+                p.rule::<()>("p", &|h, b, ()| (h.bind((("x", "b"),)), b))?;
+
+                Ok(p)
             }
         );
     }
@@ -597,7 +694,9 @@ mod tests {
 
                 p.rule::<(bool,)>("p", &|h, b, (x,)| {
                     (h.bind((("y", x),)), b.search("q", (("x", 8_u16),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
 
@@ -614,7 +713,9 @@ mod tests {
 
                 p.rule::<(u32,)>("p", &|h, b, (x,)| {
                     (h.bind((("y", x),)), b.search("q", (("x", true),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
 
@@ -631,7 +732,9 @@ mod tests {
 
                 p.rule::<(char,)>("p", &|h, b, (x,)| {
                     (h.bind((("y", x),)), b.search("q", (("x", "b"),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
@@ -651,7 +754,9 @@ mod tests {
 
                 p.rule::<(u32,)>("p", &|h, b, (x,)| {
                     (h.bind((("y", x),)), b.search("q", (("x", x),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
@@ -671,7 +776,9 @@ mod tests {
 
                 p.rule::<(bool,)>("p", &|h, b, (x,)| {
                     (h.bind((("y", x),)), b.search("q", (("x", x),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
@@ -691,7 +798,9 @@ mod tests {
 
                 p.rule::<(bool,)>("p", &|h, b, (x,)| {
                     (h.bind((("y", x),)), b.search("q", (("x", x), ("y", x))))
-                })
+                })?;
+
+                Ok(p)
             }
         );
 
@@ -708,7 +817,9 @@ mod tests {
 
                 p.rule::<(bool,)>("p", &|h, b, (x,)| {
                     (h.bind((("y", x),)), b.search("q", (("y", x), ("x", x))))
-                })
+                })?;
+
+                Ok(p)
             }
         );
 
@@ -725,7 +836,9 @@ mod tests {
 
                 p.rule::<(bool,)>("p", &|h, b, (x,)| {
                     (h.bind((("x", x), ("y", x))), b.search("q", (("x", x),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
 
@@ -742,176 +855,217 @@ mod tests {
 
                 p.rule::<(u32,)>("p", &|h, b, (x,)| {
                     (h.bind((("x", x), ("y", x))), b.search("q", (("x", x),)))
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
 
     #[test]
-    fn test_fact_literal_types() {
+    fn test_fact_literal_types() -> Result<()> {
         assert_compile!(|p| {
             p.output("p", |h| h.column::<bool>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", true),)))
+            p.fact("p", |f| f.bind((("x", true),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i8>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_i8),)))
+            p.fact("p", |f| f.bind((("x", 1_i8),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u8>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_u8),)))
+            p.fact("p", |f| f.bind((("x", 1_u8),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i16>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_i16),)))
+            p.fact("p", |f| f.bind((("x", 1_i16),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u16>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_u16),)))
+            p.fact("p", |f| f.bind((("x", 1_u16),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i32>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_i32),)))
+            p.fact("p", |f| f.bind((("x", 1_i32),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u32>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_u32),)))
+            p.fact("p", |f| f.bind((("x", 1_u32),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i64>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_i64),)))
+            p.fact("p", |f| f.bind((("x", 1_i64),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u64>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 1_u64),)))
+            p.fact("p", |f| f.bind((("x", 1_u64),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<char>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", 'c'),)))
+            p.fact("p", |f| f.bind((("x", 'c'),)))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<&str>("x"))?;
 
-            p.fact("p", |f| f.bind((("x", "test"),)))
+            p.fact("p", |f| f.bind((("x", "test"),)))?;
+
+            Ok(p)
         });
+
+        let cid = Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")?;
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<Cid>("x"))?;
 
-            p.fact("p", |f| {
-                f.bind(((
-                    "x",
-                    Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")
-                        .unwrap(),
-                ),))
-            })
+            p.fact("p", |f| f.bind((("x", cid),)))?;
+
+            Ok(p)
         });
+
+        Ok(())
     }
 
     #[test]
-    fn test_rule_head_literal_types() {
+    fn test_rule_head_literal_types() -> Result<()> {
         assert_compile!(|p| {
             p.output("p", |h| h.column::<bool>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", true),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", true),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i8>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i8),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i8),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u8>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u8),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u8),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i16>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i16),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i16),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u16>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u16),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u16),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i32>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i32),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i32),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u32>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u32),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u32),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<i64>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i64),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_i64),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<u64>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u64),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 1_u64),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<char>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 'c'),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", 'c'),)), b))?;
+
+            Ok(p)
         });
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<&str>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", "test"),)), b))
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", "test"),)), b))?;
+
+            Ok(p)
         });
+
+        let cid = Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")?;
 
         assert_compile!(|p| {
             p.output("p", |h| h.column::<Cid>("x"))?;
 
-            p.rule::<()>("p", &|h, b, ()| {
-                (
-                    h.bind(((
-                        "x",
-                        Cid::try_from(
-                            "bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily",
-                        )
-                        .unwrap(),
-                    ),)),
-                    b,
-                )
-            })
+            p.rule::<()>("p", &|h, b, ()| (h.bind((("x", cid),)), b))?;
+
+            Ok(p)
         });
+
+        Ok(())
     }
 
     #[test]
@@ -922,7 +1076,9 @@ mod tests {
 
             p.rule::<(u32,)>("p", &|h, b, (x,)| {
                 (h.bind((("x", x),)), b.search("q", (("x", x),)))
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -934,7 +1090,9 @@ mod tests {
 
             p.rule::<(u32,)>("p", &|h, b, (x,)| {
                 (h.bind((("x", x),)), b.search("q", (("x", x),)))
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -954,7 +1112,9 @@ mod tests {
                         .search("num", (("n", z),))
                         .predicate((x, y, z), |(x, y, z)| x + y < z),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -969,7 +1129,9 @@ mod tests {
                     h.bind((("n", sum),)),
                     b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -991,7 +1153,9 @@ mod tests {
                         |acc, (x, y)| acc + cmp::min(x, y),
                     ),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -1026,7 +1190,9 @@ mod tests {
                         |acc, (x,)| acc + x,
                     ),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -1061,7 +1227,9 @@ mod tests {
                         |acc, (x,)| acc + x,
                     ),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -1080,7 +1248,9 @@ mod tests {
                             acc + y
                         }),
                     )
-                })
+                })?;
+
+                Ok(p)
             }
         );
     }
@@ -1103,7 +1273,9 @@ mod tests {
                         |acc, (x,)| acc + x,
                     ),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 
@@ -1118,7 +1290,9 @@ mod tests {
                     h.bind((("n", n),)),
                     b.reduce(n, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x),
                 )
-            })
+            })?;
+
+            Ok(p)
         });
     }
 }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc, sync::Arc};
 
 use crate::{
     error::{error, Error},
@@ -21,23 +21,23 @@ use super::{
     typed_vars_tuple::{TypedVarsTuple, VarRefTuple},
 };
 
-pub struct RuleBodyBuilder<'a> {
+pub struct RuleBodyBuilder {
     rel_predicates: Vec<(String, RelPredicateBuilder)>,
     negations: Vec<(String, NegationBuilder)>,
     get_links: Vec<(CidValue, LinkId, CidValue)>,
     var_predicates: Vec<(Vec<Var>, Arc<dyn VarClosure>)>,
     reduces: Vec<(String, ReduceBuilder)>,
-    relations: &'a HashMap<String, Arc<Declaration>>,
+    relations: Rc<RefCell<HashMap<String, Arc<Declaration>>>>,
 }
 
-impl<'a> Debug for RuleBodyBuilder<'a> {
+impl Debug for RuleBodyBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuleBodyBuilder").finish()
     }
 }
 
-impl<'a> RuleBodyBuilder<'a> {
-    pub fn new(relations: &'a HashMap<String, Arc<Declaration>>) -> Self {
+impl RuleBodyBuilder {
+    pub fn new(relations: Rc<RefCell<HashMap<String, Arc<Declaration>>>>) -> Self {
         Self {
             rel_predicates: Vec::default(),
             negations: Vec::default(),
@@ -52,11 +52,11 @@ impl<'a> RuleBodyBuilder<'a> {
         let mut body_terms = Vec::default();
 
         for (id, builder) in self.rel_predicates {
-            let Some(declaration) = self.relations.get(&id) else {
+            let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
-            let predicate = builder.finalize(Arc::clone(declaration), bound_vars)?;
+            let predicate = builder.finalize(declaration, bound_vars)?;
             let term = BodyTerm::RelPredicate(predicate);
 
             body_terms.push(term);
@@ -89,7 +89,7 @@ impl<'a> RuleBodyBuilder<'a> {
                 }
             }
 
-            let term = BodyTerm::GetLink(GetLink::new(cid, vec![(link_id, value)]));
+            let term = BodyTerm::GetLink(GetLink::new(cid, vec![(link_id, value)])?);
 
             body_terms.push(term);
         }
@@ -107,11 +107,11 @@ impl<'a> RuleBodyBuilder<'a> {
         }
 
         for (id, builder) in self.negations {
-            let Some(declaration) = self.relations.get(&id) else {
+            let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
-            let negation = builder.finalize(Arc::clone(declaration))?;
+            let negation = builder.finalize(declaration)?;
 
             for var in negation.vars() {
                 if !bound_vars.contains_key(var) {
@@ -125,11 +125,11 @@ impl<'a> RuleBodyBuilder<'a> {
         }
 
         for (id, builder) in self.reduces {
-            let Some(declaration) = self.relations.get(&id) else {
+            let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
-            let reduce = builder.finalize(Arc::clone(declaration), bound_vars)?;
+            let reduce = builder.finalize(declaration, bound_vars)?;
             let term = BodyTerm::Reduce(reduce);
 
             body_terms.push(term);
@@ -217,9 +217,9 @@ impl<'a> RuleBodyBuilder<'a> {
         let vars_vec = owned.vars();
 
         let f: Arc<dyn VarClosure> = Arc::new(move |bindings| {
-            let args = owned.args(bindings);
+            let args = owned.args(bindings)?;
 
-            f(args)
+            Ok(f(args))
         });
 
         self.var_predicates.push((vars_vec, f));
@@ -249,10 +249,13 @@ impl<'a> RuleBodyBuilder<'a> {
         let vars_vec = owned.vars();
 
         let f: Arc<dyn ReduceClosure> = Arc::new(move |acc, bindings| {
-            let acc = acc.try_into().unwrap();
-            let args = owned.args(bindings);
+            let acc = acc.try_into().map_err(|_| {
+                Error::InternalRhizomeError("failed to downcast reduce accumulator".to_owned())
+            })?;
 
-            f(acc, args).into()
+            let args = owned.args(bindings)?;
+
+            Ok(f(acc, args).into())
         });
 
         let mut builder = ReduceBuilder::new(init.into(), (*target).clone().into(), f);

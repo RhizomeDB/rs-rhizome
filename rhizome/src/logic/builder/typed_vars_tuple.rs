@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use crate::{
     types::{FromType, Type},
     var::{TypedVar, Var},
@@ -35,7 +37,7 @@ pub trait TypedVarsTuple<O> {
     type Output;
 
     fn vars(&self) -> Vec<Var>;
-    fn args(&self, bindings: Vec<O>) -> Self::Output;
+    fn args(&self, bindings: Vec<O>) -> Result<Self::Output>;
 }
 
 macro_rules! impl_typed_vars_tuple {
@@ -57,12 +59,12 @@ macro_rules! impl_typed_vars_tuple {
 
                 #[allow(unused_variables)]
                 #[allow(clippy::unused_unit)]
-                fn args(&self, bindings: Vec<O>) -> Self::Output {
-                    (
+                fn args(&self, bindings: Vec<O>) -> Result<Self::Output> {
+                    Ok((
                         $(
-                           [< V $Ts >]::try_from(bindings[$Ts].clone()).unwrap(),
+                            [< V $Ts >]::try_from(bindings[$Ts].clone()).map_err(|_| $crate::error::Error::InternalRhizomeError("too few runtime args passed".to_owned()))?,
                         )*
-                    )
+                    ))
                 }
             }
         }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::HashMap, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::{
     error::{error, Error},
@@ -13,97 +13,96 @@ use super::{
     rule_head::RuleHeadBuilder, rule_vars::RuleVars,
 };
 
-type RuleBuilderClosure<'a, T> = dyn Fn(
-        RuleHeadBuilder<'a>,
-        RuleBodyBuilder<'a>,
-        &'_ T,
-    ) -> (RuleHeadBuilder<'a>, RuleBodyBuilder<'a>)
-    + 'a;
+type RuleBuilderClosure<'a, T> =
+    dyn Fn(RuleHeadBuilder, RuleBodyBuilder, &'_ T) -> (RuleHeadBuilder, RuleBodyBuilder) + 'a;
 
 #[derive(Debug, Default)]
 pub struct ProgramBuilder {
-    relations: HashMap<String, Arc<Declaration>>,
-    clauses: Vec<Clause>,
+    relations: Rc<RefCell<HashMap<String, Arc<Declaration>>>>,
+    clauses: RefCell<Vec<Clause>>,
 }
 
 impl ProgramBuilder {
     pub fn build<F>(f: F) -> Result<Program>
     where
-        F: FnOnce(&mut Self) -> Result<()>,
+        F: FnOnce(Self) -> Result<Self>,
     {
-        let mut builder = Self::default();
-
-        f(&mut builder)?;
+        let builder = Self::default();
+        let builder = f(builder)?;
 
         builder.finalize()
     }
 
     pub fn finalize(self) -> Result<Program> {
-        let declarations = self.relations.into_values().collect();
-        let program = Program::new(declarations, self.clauses);
+        let declarations = self.relations.borrow_mut().values().cloned().collect();
+        let program = Program::new(declarations, self.clauses.into_inner());
 
         Ok(program)
     }
 
-    pub fn input<F>(&mut self, id: &str, f: F) -> Result<()>
+    pub fn input<F>(&self, id: &str, f: F) -> Result<()>
     where
         F: FnOnce(DeclarationBuilder) -> DeclarationBuilder,
     {
-        if let Some(relation) = self.relations.get(&id.to_owned()) {
+        if let Some(relation) = self.relations.borrow().get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));
         }
 
         let rel_id = RelationId::new(id);
         let relation = DeclarationBuilder::build(rel_id, Source::Edb, f)?;
 
-        self.relations.insert(id.to_owned(), Arc::new(relation));
+        self.relations
+            .borrow_mut()
+            .insert(id.to_owned(), Arc::new(relation));
 
         Ok(())
     }
 
-    pub fn output<F>(&mut self, id: &str, f: F) -> Result<()>
+    pub fn output<F>(&self, id: &str, f: F) -> Result<()>
     where
         F: FnOnce(DeclarationBuilder) -> DeclarationBuilder,
     {
-        if let Some(relation) = self.relations.get(&id.to_owned()) {
+        if let Some(relation) = self.relations.borrow().get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));
         }
 
         let rel_id = RelationId::new(id);
         let relation = DeclarationBuilder::build(rel_id, Source::Idb, f)?;
 
-        self.relations.insert(id.to_owned(), Arc::new(relation));
+        self.relations
+            .borrow_mut()
+            .insert(id.to_owned(), Arc::new(relation));
 
         Ok(())
     }
 
-    pub fn fact<'b, F>(&'b mut self, id: &str, f: F) -> Result<()>
+    pub fn fact<F>(&self, id: &str, f: F) -> Result<()>
     where
-        F: FnOnce(FactBuilder<'b>) -> FactBuilder<'b>,
+        F: FnOnce(FactBuilder) -> FactBuilder,
     {
-        let Some(declaration) = self.relations.get(id) else {
+        let Some(declaration) = self.relations.borrow().get(id).cloned() else {
             return error(Error::UnrecognizedRelation(id.to_string()));
         };
 
         let fact = FactBuilder::build(declaration, f)?;
         let clause = Clause::Fact(fact);
 
-        self.clauses.push(clause);
+        self.clauses.borrow_mut().push(clause);
 
         Ok(())
     }
 
-    pub fn rule<'a, T>(&'a mut self, id: &str, f: &RuleBuilderClosure<'a, T::Vars>) -> Result<()>
+    pub fn rule<'a, T>(&self, id: &str, f: &RuleBuilderClosure<'a, T::Vars>) -> Result<()>
     where
         T: RuleVars,
     {
-        let Some(declaration) = self.relations.get(id) else {
+        let Some(declaration) = self.relations.borrow().get(id).cloned() else {
                 return error(Error::UnrecognizedRelation(id.to_string()));
             };
 
         let mut bound_vars = HashMap::default();
-        let head_builder = RuleHeadBuilder::new(declaration);
-        let body_builder = RuleBodyBuilder::new(&self.relations);
+        let head_builder = RuleHeadBuilder::new(Arc::clone(&declaration));
+        let body_builder = RuleBodyBuilder::new(Rc::clone(&self.relations));
 
         let (h, b) = f(head_builder, body_builder, &T::into_vars());
 
@@ -116,7 +115,7 @@ impl ProgramBuilder {
                 let rule = Rule::new(declaration.id(), head, body);
                 let clause = Clause::Rule(rule);
 
-                self.clauses.push(clause);
+                self.clauses.borrow_mut().push(clause);
 
                 Ok(())
             }

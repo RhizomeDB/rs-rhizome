@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     col_val::ColVal,
@@ -13,20 +13,20 @@ use crate::{
 use super::atom_args::{AtomArg, AtomArgs};
 
 #[derive(Debug)]
-pub struct FactBuilder<'a> {
-    relation: &'a Declaration,
+pub struct FactBuilder {
+    relation: Arc<Declaration>,
     bindings: Vec<(ColId, ColVal)>,
 }
 
-impl<'a> FactBuilder<'a> {
-    fn new(relation: &'a Declaration) -> Self {
+impl FactBuilder {
+    fn new(relation: Arc<Declaration>) -> Self {
         Self {
             relation,
             bindings: Vec::default(),
         }
     }
 
-    pub fn build<F>(relation: &'a Declaration, f: F) -> Result<Fact>
+    pub fn build<F>(relation: Arc<Declaration>, f: F) -> Result<Fact>
     where
         F: FnOnce(Self) -> Self,
     {

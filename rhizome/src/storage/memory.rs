@@ -35,32 +35,32 @@ impl Blockstore for MemoryBlockstore {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
+
     use crate::storage::{block::Block, codec::DagCbor};
 
     use super::*;
 
     #[test]
-    fn test_bs() {
+    fn test_bs() -> Result<()> {
         let mut bs = MemoryBlockstore::default();
 
-        let cid1 = bs
-            .put(
-                cid::multihash::Code::Sha2_256,
-                &Block::new(DagCbor, "Hello"),
-            )
-            .unwrap();
+        let cid1 = bs.put(
+            cid::multihash::Code::Sha2_256,
+            &Block::new(DagCbor, "Hello"),
+        )?;
 
-        let cid2 = bs
-            .put(
-                cid::multihash::Code::Sha2_256,
-                &Block::new(DagCbor, b"World"),
-            )
-            .unwrap();
+        let cid2 = bs.put(
+            cid::multihash::Code::Sha2_256,
+            &Block::new(DagCbor, b"World"),
+        )?;
 
-        let block1 = bs.get(&cid1).unwrap().unwrap();
-        let block2 = bs.get(&cid2).unwrap().unwrap();
+        let block1 = bs.get(&cid1)?.unwrap();
+        let block2 = bs.get(&cid2)?.unwrap();
 
         assert_eq!(block1, b"Hello");
         assert_eq!(block2, b"World");
+
+        Ok(())
     }
 }
