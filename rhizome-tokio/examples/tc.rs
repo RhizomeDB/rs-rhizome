@@ -45,7 +45,9 @@ async fn main() -> Result<()> {
                         b.search("edge", (("from", x), ("to", y)))
                             .search("path", (("from", y), ("to", z))),
                     )
-                })
+                })?;
+
+                Ok(p)
             })
             .await
     });
@@ -74,10 +76,18 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    client.insert_fact(EDBFact::new(0, "to", 1, vec![])).await?;
-    client.insert_fact(EDBFact::new(1, "to", 2, vec![])).await?;
-    client.insert_fact(EDBFact::new(2, "to", 3, vec![])).await?;
-    client.insert_fact(EDBFact::new(3, "to", 4, vec![])).await?;
+    client
+        .insert_fact(EDBFact::new(0, "to", 1, vec![])?)
+        .await?;
+    client
+        .insert_fact(EDBFact::new(1, "to", 2, vec![])?)
+        .await?;
+    client
+        .insert_fact(EDBFact::new(2, "to", 3, vec![])?)
+        .await?;
+    client
+        .insert_fact(EDBFact::new(3, "to", 4, vec![])?)
+        .await?;
     client.flush().await?;
 
     Ok(())

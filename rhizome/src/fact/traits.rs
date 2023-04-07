@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Result;
 use cid::Cid;
 
 use crate::{
@@ -26,10 +27,10 @@ pub trait EDBFact: Fact<Marker = EdbMarker> + ContentAddressable {
         attr: impl Into<Val>,
         val: impl Into<Val>,
         links: Vec<(&str, Cid)>,
-    ) -> Self;
+    ) -> Result<Self>;
 
     fn id(&self) -> RelationId;
-    fn cid(&self) -> Cid;
+    fn cid(&self) -> Result<Cid>;
     fn link(&self, id: LinkId) -> Option<Arc<Val>>;
 }
 pub trait IDBFact: Fact<Marker = IdbMarker> {

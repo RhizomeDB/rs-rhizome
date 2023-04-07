@@ -1,8 +1,10 @@
+use anyhow::Result;
 use std::sync::{Arc, RwLock};
 
 use pretty::RcDoc;
 
 use crate::{
+    error::{error, Error},
     fact::traits::{EDBFact, IDBFact},
     id::RelationId,
     pretty::Pretty,
@@ -29,11 +31,25 @@ where
     ER: Relation<Fact = EF>,
     IR: Relation<Fact = IF>,
 {
-    pub(crate) fn apply(&self) {
+    pub(crate) fn apply(&self) -> Result<()> {
         match self {
-            PurgeRelation::Edb(relation) => *relation.write().unwrap() = ER::default(),
-            PurgeRelation::Idb(relation) => *relation.write().unwrap() = IR::default(),
+            PurgeRelation::Edb(relation) => {
+                *relation.write().or_else(|_| {
+                    error(Error::InternalRhizomeError(
+                        "relation lock poisoned".to_owned(),
+                    ))
+                })? = ER::default()
+            }
+            PurgeRelation::Idb(relation) => {
+                *relation.write().or_else(|_| {
+                    error(Error::InternalRhizomeError(
+                        "relation lock poisoned".to_owned(),
+                    ))
+                })? = IR::default()
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -69,8 +85,8 @@ where
         }
     }
 
-    pub(crate) fn apply(&self) {
-        self.relation.apply();
+    pub(crate) fn apply(&self) -> Result<()> {
+        self.relation.apply()
     }
 }
 

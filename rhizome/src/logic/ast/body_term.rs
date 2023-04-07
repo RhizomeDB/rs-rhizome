@@ -4,9 +4,11 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Result;
 use derive_more::{From, IsVariant};
 
 use crate::{
+    error::Error,
     id::{ColId, LinkId},
     logic::{ReduceClosure, VarClosure},
     value::Val,
@@ -119,20 +121,21 @@ pub struct GetLink {
 }
 
 impl GetLink {
-    pub fn new(cid: CidValue, args: Vec<(LinkId, CidValue)>) -> Self {
+    pub fn new(cid: CidValue, args: Vec<(LinkId, CidValue)>) -> Result<Self> {
         let links: Vec<_> = args.into_iter().collect();
 
         // TODO: Support multiple links
         assert!(links.len() == 1);
 
-        let link_id = links.get(0).unwrap().0;
-        let link_value = links.get(0).unwrap().1;
+        let link = links
+            .get(0)
+            .ok_or_else(|| Error::InternalRhizomeError("link not found".to_owned()))?;
 
-        Self {
+        Ok(Self {
             cid,
-            link_id,
-            link_value,
-        }
+            link_id: link.0,
+            link_value: link.1,
+        })
     }
 
     pub fn cid(&self) -> CidValue {

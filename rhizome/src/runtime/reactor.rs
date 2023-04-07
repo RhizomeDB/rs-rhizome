@@ -12,6 +12,7 @@ use futures::{
 
 use crate::{
     build,
+    error::Error,
     fact::{
         traits::{EDBFact, IDBFact},
         DefaultEDBFact, DefaultIDBFact,
@@ -82,7 +83,7 @@ where {
 
     pub async fn async_run<F>(mut self, f: F) -> Result<()>
     where
-        F: FnOnce(&mut ProgramBuilder) -> Result<()>,
+        F: FnOnce(ProgramBuilder) -> Result<ProgramBuilder>,
     {
         let program = build(f)?;
         let mut vm = VM::<T, E, I, ER, IR>::new(program);
@@ -90,10 +91,10 @@ where {
         loop {
             select! {
                 command = self.command_rx.next() => if let Some(c) = command {
-                    self.handle_command(&mut vm, c).await.unwrap();
+                    self.handle_command(&mut vm, c).await?;
                 },
                 event = self.stream_rx.next() => if let Some(e) = event {
-                    self.handle_event(&mut vm, e).await.unwrap();
+                    self.handle_event(&mut vm, e).await?;
                 }
             }
 
@@ -137,7 +138,9 @@ where {
                     handle.await?;
                 }
 
-                sender.send(()).unwrap();
+                sender
+                    .send(())
+                    .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
             ClientCommand::InsertFact(fact, sender) => {
                 self.blockstore.put_serializable(
@@ -148,7 +151,9 @@ where {
 
                 vm.push(fact)?;
 
-                sender.send(()).unwrap();
+                sender
+                    .send(())
+                    .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
             ClientCommand::RegisterStream(_, create_stream, sender) => {
                 let mut tx = self.stream_tx.clone();
@@ -156,13 +161,17 @@ where {
                     let mut stream = Box::into_pin(create_stream());
 
                     while let Some(fact) = stream.next().await {
-                        tx.send(StreamEvent::Fact(fact)).await.unwrap();
+                        tx.send(StreamEvent::Fact(fact))
+                            .await
+                            .expect("stream channel closed");
                     }
                 };
 
                 self.runtime.spawn_pinned(create_task);
 
-                sender.send(()).unwrap();
+                sender
+                    .send(())
+                    .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
             ClientCommand::RegisterSink(id, create_sink, sender) => {
                 let (tx, mut rx) = mpsc::channel(1);
@@ -171,8 +180,12 @@ where {
 
                     loop {
                         match rx.next().await {
-                            Some(SinkCommand::Flush(sender)) => sender.send(()).unwrap(),
-                            Some(SinkCommand::ProcessFact(fact)) => sink.send(fact).await.unwrap(),
+                            Some(SinkCommand::Flush(sender)) => {
+                                sender.send(()).expect("reactor channel closed")
+                            }
+                            Some(SinkCommand::ProcessFact(fact)) => {
+                                sink.send(fact).await.expect("reactor channel closed")
+                            }
                             None => break,
                         };
                     }
@@ -181,7 +194,9 @@ where {
                 self.runtime.spawn_pinned(create_task);
                 self.sinks.push((id, tx));
 
-                sender.send(()).unwrap();
+                sender
+                    .send(())
+                    .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
         };
 

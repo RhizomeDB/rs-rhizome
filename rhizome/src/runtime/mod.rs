@@ -85,6 +85,7 @@ mod tests {
 
     use std::cmp;
 
+    use anyhow::Result;
     use cid::Cid;
 
     use crate::{
@@ -121,7 +122,9 @@ mod tests {
                         b.search("edge", (("from", x), ("to", y)))
                             .search("path", (("from", y), ("to", z))),
                     )
-                })
+                })?;
+
+                Ok(p)
             },
             [(
                 "path",
@@ -142,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn test_source_transitive_closure() {
+    fn test_source_transitive_closure() -> Result<()> {
         assert_derives!(
             |p| {
                 p.input("evac", |h| {
@@ -172,13 +175,15 @@ mod tests {
                         b.search("edge", (("from", x), ("to", y)))
                             .search("path", (("from", y), ("to", z))),
                     )
-                })
+                })?;
+
+                Ok(p)
             },
             [
-                EVACFact::new(0, "to", 1, vec![]),
-                EVACFact::new(1, "to", 2, vec![]),
-                EVACFact::new(2, "to", 3, vec![]),
-                EVACFact::new(3, "to", 4, vec![]),
+                EVACFact::new(0, "to", 1, vec![])?,
+                EVACFact::new(1, "to", 2, vec![])?,
+                EVACFact::new(2, "to", 3, vec![])?,
+                EVACFact::new(3, "to", 4, vec![])?,
             ],
             [(
                 "path",
@@ -196,25 +201,33 @@ mod tests {
                 ]
             )]
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_get_link() {
-        let f00 = EVACFact::new(0, "node", 0, vec![]);
-        let f01 = EVACFact::new(0, "node", 0, vec![("parent", f00.cid())]);
-        let f02 = EVACFact::new(0, "node", 0, vec![("parent", f01.cid())]);
-        let f03 = EVACFact::new(0, "node", 0, vec![("parent", f02.cid())]);
-        let f04 = EVACFact::new(0, "node", 1, vec![("parent", f02.cid())]);
-        let f10 = EVACFact::new(1, "node", 0, vec![("parent", f00.cid())]);
-        let f11 = EVACFact::new(1, "node", 0, vec![("parent", f10.cid())]);
-        let f12 = EVACFact::new(1, "node", 0, vec![("parent", f11.cid())]);
+    fn test_get_link() -> Result<()> {
+        let f00 = EVACFact::new(0, "node", 0, vec![])?;
+        let f01 = EVACFact::new(0, "node", 0, vec![("parent", f00.cid()?)])?;
+        let f02 = EVACFact::new(0, "node", 0, vec![("parent", f01.cid()?)])?;
+        let f03 = EVACFact::new(0, "node", 0, vec![("parent", f02.cid()?)])?;
+        let f04 = EVACFact::new(0, "node", 1, vec![("parent", f02.cid()?)])?;
+        let f10 = EVACFact::new(1, "node", 0, vec![("parent", f00.cid()?)])?;
+        let f11 = EVACFact::new(1, "node", 0, vec![("parent", f10.cid()?)])?;
+        let f12 = EVACFact::new(1, "node", 0, vec![("parent", f11.cid()?)])?;
 
         let idb = [
             (
                 "root",
                 vec![
-                    BTreeFact::new("root", [("tree", Val::S32(0)), ("id", Val::Cid(f00.cid()))]),
-                    BTreeFact::new("root", [("tree", Val::S32(1)), ("id", Val::Cid(f10.cid()))]),
+                    BTreeFact::new(
+                        "root",
+                        [("tree", Val::S32(0)), ("id", Val::Cid(f00.cid()?))],
+                    ),
+                    BTreeFact::new(
+                        "root",
+                        [("tree", Val::S32(1)), ("id", Val::Cid(f10.cid()?))],
+                    ),
                 ],
             ),
             (
@@ -224,48 +237,48 @@ mod tests {
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f00.cid())),
-                            ("child", Val::Cid(f01.cid())),
+                            ("parent", Val::Cid(f00.cid()?)),
+                            ("child", Val::Cid(f01.cid()?)),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f01.cid())),
-                            ("child", Val::Cid(f02.cid())),
+                            ("parent", Val::Cid(f01.cid()?)),
+                            ("child", Val::Cid(f02.cid()?)),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f02.cid())),
-                            ("child", Val::Cid(f03.cid())),
+                            ("parent", Val::Cid(f02.cid()?)),
+                            ("child", Val::Cid(f03.cid()?)),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f02.cid())),
-                            ("child", Val::Cid(f04.cid())),
+                            ("parent", Val::Cid(f02.cid()?)),
+                            ("child", Val::Cid(f04.cid()?)),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(1)),
-                            ("parent", Val::Cid(f10.cid())),
-                            ("child", Val::Cid(f11.cid())),
+                            ("parent", Val::Cid(f10.cid()?)),
+                            ("child", Val::Cid(f11.cid()?)),
                         ],
                     ),
                     BTreeFact::new(
                         "parent",
                         [
                             ("tree", Val::S32(1)),
-                            ("parent", Val::Cid(f11.cid())),
-                            ("child", Val::Cid(f12.cid())),
+                            ("parent", Val::Cid(f11.cid()?)),
+                            ("child", Val::Cid(f12.cid()?)),
                         ],
                     ),
                 ],
@@ -304,15 +317,19 @@ mod tests {
                         b.search("evac", (("cid", root), ("entity", tree)))
                             .except("parent", (("child", root), ("tree", tree))),
                     )
-                })
+                })?;
+
+                Ok(p)
             },
             [f00, f01, f02, f03, f04, f10, f11, f12,],
             idb
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_user_defined_predicate() {
+    fn test_user_defined_predicate() -> Result<()> {
         assert_derives!(
             |p| {
                 p.input("evac", |h| {
@@ -334,14 +351,16 @@ mod tests {
                             .search("evac", (("value", z),))
                             .predicate((x, y, z), |(x, y, z)| x + y < z),
                     )
-                })
+                })?;
+
+                Ok(p)
             },
             [
-                EVACFact::new(0, "n", 1, vec![]),
-                EVACFact::new(0, "n", 2, vec![]),
-                EVACFact::new(0, "n", 3, vec![]),
-                EVACFact::new(0, "n", 4, vec![]),
-                EVACFact::new(0, "n", 5, vec![]),
+                EVACFact::new(0, "n", 1, vec![])?,
+                EVACFact::new(0, "n", 2, vec![])?,
+                EVACFact::new(0, "n", 3, vec![])?,
+                EVACFact::new(0, "n", 4, vec![])?,
+                EVACFact::new(0, "n", 5, vec![])?,
             ],
             [(
                 "triangle",
@@ -359,10 +378,12 @@ mod tests {
                 ]
             )]
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_reduce() {
+    fn test_reduce() -> Result<()> {
         assert_derives!(
             |p| {
                 p.input("evac", |h| {
@@ -416,14 +437,16 @@ mod tests {
                             cmp::max(acc, x)
                         }),
                     )
-                })
+                })?;
+
+                Ok(p)
             },
             [
-                EVACFact::new(0, "n", 1, vec![]),
-                EVACFact::new(0, "n", 2, vec![]),
-                EVACFact::new(0, "n", 3, vec![]),
-                EVACFact::new(0, "n", 4, vec![]),
-                EVACFact::new(0, "n", 5, vec![]),
+                EVACFact::new(0, "n", 1, vec![])?,
+                EVACFact::new(0, "n", 2, vec![])?,
+                EVACFact::new(0, "n", 3, vec![])?,
+                EVACFact::new(0, "n", 4, vec![])?,
+                EVACFact::new(0, "n", 5, vec![])?,
             ],
             [
                 ("count", [BTreeFact::new("count", [("n", 5),],),]),
@@ -432,6 +455,8 @@ mod tests {
                 ("max", [BTreeFact::new("max", [("n", 5),],),]),
             ]
         );
+
+        Ok(())
     }
 
     #[test]
@@ -462,7 +487,9 @@ mod tests {
                             acc + x * y
                         }),
                     )
-                })
+                })?;
+
+                Ok(p)
             },
             [("product", [BTreeFact::new("product", [("z", 225),],),]),]
         );
@@ -503,7 +530,9 @@ mod tests {
                             |_, (x, y)| x * y,
                         ),
                     )
-                })
+                })?;
+
+                Ok(p)
             },
             [(
                 "product",

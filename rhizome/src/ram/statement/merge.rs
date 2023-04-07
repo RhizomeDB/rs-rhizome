@@ -1,9 +1,15 @@
+use anyhow::Result;
 use std::sync::{Arc, RwLock};
 
 use pretty::RcDoc;
 
 use crate::{
-    fact::traits::Fact, id::RelationId, pretty::Pretty, ram::RelationVersion, relation::Relation,
+    error::{error, Error},
+    fact::traits::Fact,
+    id::RelationId,
+    pretty::Pretty,
+    ram::RelationVersion,
+    relation::Relation,
 };
 
 #[derive(Clone, Debug)]
@@ -43,13 +49,24 @@ where
         }
     }
 
-    pub(crate) fn apply(&self) {
-        let mut merge_into = self.merge_into.write().unwrap();
-        let merge_from = self.merge_from.read().unwrap();
+    pub(crate) fn apply(&self) -> Result<()> {
+        let mut merge_into = self.merge_into.write().or_else(|_| {
+            error(Error::InternalRhizomeError(
+                "relation lock poisoned".to_owned(),
+            ))
+        })?;
+
+        let merge_from = self.merge_from.read().or_else(|_| {
+            error(Error::InternalRhizomeError(
+                "relation lock poisoned".to_owned(),
+            ))
+        })?;
 
         merge_into.merge(&merge_from);
 
         debug_assert!(merge_into.len() >= merge_from.len());
+
+        Ok(())
     }
 }
 
