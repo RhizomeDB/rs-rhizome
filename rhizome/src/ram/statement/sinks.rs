@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     collections::{HashMap, VecDeque},
     sync::{Arc, RwLock},
@@ -5,7 +6,13 @@ use std::{
 
 use pretty::RcDoc;
 
-use crate::{fact::traits::IDBFact, id::RelationId, pretty::Pretty, relation::Relation};
+use crate::{
+    error::{error, Error},
+    fact::traits::IDBFact,
+    id::RelationId,
+    pretty::Pretty,
+    relation::Relation,
+};
 
 #[derive(Debug)]
 pub(crate) struct SinksBuilder<F, R>
@@ -58,12 +65,22 @@ where
     F: IDBFact,
     R: Relation<Fact = F>,
 {
-    pub(crate) fn apply(&self, output: &mut VecDeque<F>) {
+    pub(crate) fn apply(&self, output: &mut VecDeque<F>) -> Result<()> {
         for relation in self.relations.values() {
-            for fact in relation.read().unwrap().iter() {
+            for fact in relation
+                .read()
+                .or_else(|_| {
+                    error(Error::InternalRhizomeError(
+                        "relation lock poisoned".to_owned(),
+                    ))
+                })?
+                .iter()
+            {
                 output.push_back(fact.clone());
             }
         }
+
+        Ok(())
     }
 }
 

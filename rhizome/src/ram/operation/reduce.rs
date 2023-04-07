@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
@@ -7,6 +8,7 @@ use std::{
 use pretty::RcDoc;
 
 use crate::{
+    error::{error, Error},
     fact::traits::{EDBFact, Fact, IDBFact},
     id::{ColId, RelationId},
     logic::ReduceClosure,
@@ -90,7 +92,7 @@ where
         &self.operation
     }
 
-    pub(crate) fn apply<BS>(&self, blockstore: &BS, bindings: &Bindings) -> Option<Bindings>
+    pub(crate) fn apply<BS>(&self, blockstore: &BS, bindings: &Bindings) -> Result<Option<Bindings>>
     where
         BS: Blockstore,
     {
@@ -105,7 +107,7 @@ where
         blockstore: &BS,
         bindings: &Bindings,
         relation: &Arc<RwLock<R>>,
-    ) -> Option<Bindings>
+    ) -> Result<Option<Bindings>>
     where
         BS: Blockstore,
         F: Fact,
@@ -113,20 +115,34 @@ where
     {
         let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
         for (col_id, col_term) in &self.group_by_cols {
-            if let Some(col_val) = bindings.resolve::<BS, EF>(col_term, blockstore) {
-                group_by_vals.insert(*col_id, col_val);
-            } else {
-                panic!();
-            };
+            let col_val = bindings
+                .resolve::<BS, EF>(col_term, blockstore)?
+                .ok_or_else(|| {
+                    Error::InternalRhizomeError("expected term to resolve".to_owned())
+                })?;
+
+            group_by_vals.insert(*col_id, col_val);
         }
 
         let mut any = false;
         let mut result = self.init.clone();
 
-        for fact in relation.read().unwrap().iter() {
+        for fact in relation
+            .read()
+            .or_else(|_| {
+                error(Error::InternalRhizomeError(
+                    "relation lock poisoned".to_owned(),
+                ))
+            })?
+            .iter()
+        {
             let mut matches = true;
             for (col_id, col_val) in &group_by_vals {
-                if *col_val != fact.col(col_id).unwrap() {
+                let fact_val = fact.col(col_id).ok_or_else(|| {
+                    Error::InternalRhizomeError("expected column not found".to_owned())
+                })?;
+
+                if *col_val != fact_val {
                     matches = false;
 
                     break;
@@ -139,22 +155,32 @@ where
                 let mut match_bindings = bindings.clone();
 
                 for k in fact.cols() {
-                    if let Some(v) = fact.col(&k) {
-                        match_bindings
-                            .insert(BindingKey::Relation(self.id, self.alias, k), v.clone());
-                    } else {
-                        panic!("expected column missing: {k}");
-                    }
+                    let fact_val = fact.col(&k).ok_or_else(|| {
+                        Error::InternalRhizomeError("expected column not found".to_owned())
+                    })?;
+
+                    match_bindings.insert(
+                        BindingKey::Relation(self.id, self.alias, k),
+                        fact_val.clone(),
+                    );
                 }
 
-                let args = self
-                    .args
-                    .iter()
-                    .map(|t| match_bindings.resolve::<BS, EF>(t, blockstore).unwrap())
-                    .map(|v| Arc::try_unwrap(v).unwrap_or_else(|arc| (*arc).clone()))
-                    .collect::<Vec<_>>();
+                let mut args = Vec::default();
+                for term in self.args.iter() {
+                    let resolved = match_bindings
+                        .resolve::<BS, EF>(term, blockstore)?
+                        .ok_or_else(|| {
+                            Error::InternalRhizomeError(
+                                "argument to reduce failed to resolve".to_owned(),
+                            )
+                        })?;
 
-                result = self.do_reduce(result, args);
+                    let inner_val = Arc::try_unwrap(resolved).unwrap_or_else(|arc| (*arc).clone());
+
+                    args.push(inner_val);
+                }
+
+                result = self.do_reduce(result, args)?;
             }
         }
 
@@ -165,13 +191,13 @@ where
                 Arc::new(result),
             );
 
-            Some(next_bindings)
+            Ok(Some(next_bindings))
         } else {
-            None
+            Ok(None)
         }
     }
 
-    fn do_reduce(&self, acc: Val, args: Vec<Val>) -> Val {
+    fn do_reduce(&self, acc: Val, args: Vec<Val>) -> Result<Val> {
         (self.f)(acc, args)
     }
 }

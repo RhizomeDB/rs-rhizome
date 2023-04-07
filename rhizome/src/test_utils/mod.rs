@@ -23,7 +23,7 @@ pub(crate) fn build_easy<F>(
     >,
 >
 where
-    F: FnOnce(&mut ProgramBuilder) -> Result<()>,
+    F: FnOnce(ProgramBuilder) -> Result<ProgramBuilder>,
 {
     crate::build::<
         DefaultEDBFact,

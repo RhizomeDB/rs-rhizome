@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     collections::{HashMap, VecDeque},
     sync::{Arc, RwLock},
@@ -5,7 +6,13 @@ use std::{
 
 use pretty::RcDoc;
 
-use crate::{fact::traits::EDBFact, id::RelationId, pretty::Pretty, relation::Relation};
+use crate::{
+    error::{error, Error},
+    fact::traits::EDBFact,
+    id::RelationId,
+    pretty::Pretty,
+    relation::Relation,
+};
 
 #[derive(Debug)]
 pub(crate) struct SourcesBuilder<F, R>
@@ -58,19 +65,29 @@ where
     F: EDBFact,
     R: Relation<Fact = F>,
 {
-    pub(crate) fn apply(&self, input: &mut VecDeque<F>) -> bool {
+    pub(crate) fn apply(&self, input: &mut VecDeque<F>) -> Result<bool> {
         let mut has_new_facts = false;
 
         while let Some(fact) = input.pop_front() {
             let id = fact.id();
-            let relation = self.relations.get(&id).unwrap();
+            let relation = self
+                .relations
+                .get(&id)
+                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?;
 
-            relation.write().unwrap().insert(fact);
+            relation
+                .write()
+                .or_else(|_| {
+                    error(Error::InternalRhizomeError(
+                        "relation lock poisoned".to_owned(),
+                    ))
+                })?
+                .insert(fact);
 
             has_new_facts = true;
         }
 
-        has_new_facts
+        Ok(has_new_facts)
     }
 }
 

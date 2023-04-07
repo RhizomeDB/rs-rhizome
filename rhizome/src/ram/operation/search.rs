@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use pretty::RcDoc;
 
 use crate::{
+    error::{error, Error},
     fact::traits::{EDBFact, Fact, IDBFact},
     id::RelationId,
     pretty::Pretty,
@@ -101,22 +102,35 @@ where
         R: Relation<Fact = F>,
         WithBindings: Fn(Bindings) -> Result<bool>,
     {
-        for fact in relation.read().unwrap().iter() {
+        for fact in relation
+            .read()
+            .or_else(|_| {
+                error(Error::InternalRhizomeError(
+                    "relation lock poisoned".to_owned(),
+                ))
+            })?
+            .iter()
+        {
             let mut next_bindings = bindings.clone();
 
             for k in fact.cols() {
-                if let Some(v) = fact.col(&k) {
-                    next_bindings.insert(BindingKey::Relation(self.id, self.alias, k), v.clone());
-                } else {
-                    panic!("expected column missing: {k}");
+                let v = fact.col(&k).ok_or_else(|| {
+                    Error::InternalRhizomeError("expected column not found".to_owned())
+                })?;
+
+                next_bindings.insert(BindingKey::Relation(self.id, self.alias, k), v.clone());
+            }
+
+            let mut satisfied = true;
+            for formula in self.when.iter() {
+                if !next_bindings
+                    .is_formula_satisfied::<BS, EF, IF, ER, IR>(formula, blockstore)?
+                {
+                    satisfied = false;
                 }
             }
 
-            if !self
-                .when
-                .iter()
-                .all(|f| next_bindings.is_formula_satisfied::<BS, EF, IF, ER, IR>(f, blockstore))
-            {
+            if !satisfied {
                 continue;
             }
 

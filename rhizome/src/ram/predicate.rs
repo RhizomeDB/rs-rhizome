@@ -1,3 +1,4 @@
+use anyhow::Result;
 use pretty::RcDoc;
 use std::{
     fmt::{self, Debug},
@@ -22,7 +23,7 @@ impl Predicate {
         &self.args
     }
 
-    pub(crate) fn is_satisfied(&self, args: Vec<Val>) -> bool {
+    pub(crate) fn is_satisfied(&self, args: Vec<Val>) -> Result<bool> {
         (self.f)(args)
     }
 }

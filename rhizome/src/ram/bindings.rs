@@ -1,6 +1,8 @@
+use anyhow::Result;
 use std::sync::Arc;
 
 use crate::{
+    error::{error, Error},
     fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId},
     relation::Relation,
@@ -27,39 +29,41 @@ impl Bindings {
         self.0.insert(key, term);
     }
 
-    pub(crate) fn resolve<BS, EF>(&self, term: &Term, blockstore: &BS) -> Option<Arc<Val>>
+    pub(crate) fn resolve<BS, EF>(&self, term: &Term, blockstore: &BS) -> Result<Option<Arc<Val>>>
     where
         BS: Blockstore,
         EF: EDBFact,
     {
         match term {
             Term::Link(link_id, cid_term) => {
-                let Some(cid_val) = self.resolve::<BS, EF>(cid_term, blockstore) else {
-                    panic!();
-                };
+                let cid_val = self
+                    .resolve::<BS, EF>(cid_term, blockstore)?
+                    .ok_or_else(|| {
+                        Error::InternalRhizomeError("CID could not be resolved".to_owned())
+                    })?;
 
                 let Val::Cid(cid) = &*cid_val else {
-                    panic!();
+                   return error(Error::InternalRhizomeError("expected term to resolve to CID".to_owned()));
                 };
 
                 let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(cid) else {
-                        return None;
+                        return Ok(None);
                     };
 
-                fact.link(*link_id)
+                Ok(fact.link(*link_id))
             }
 
-            Term::Col(relation_id, alias, col_id) => self
+            Term::Col(relation_id, alias, col_id) => Ok(self
                 .0
                 .get(&BindingKey::Relation(*relation_id, *alias, *col_id))
-                .map(Arc::clone),
+                .map(Arc::clone)),
 
-            Term::Lit(val) => Some(val).map(Arc::clone),
+            Term::Lit(val) => Ok(Some(val).map(Arc::clone)),
 
-            Term::Agg(relation_id, alias, var) => self
+            Term::Agg(relation_id, alias, var) => Ok(self
                 .0
                 .get(&BindingKey::Agg(*relation_id, *alias, *var))
-                .map(Arc::clone),
+                .map(Arc::clone)),
         }
     }
 
@@ -67,7 +71,7 @@ impl Bindings {
         &self,
         formula: &Formula<EF, IF, ER, IR>,
         blockstore: &BS,
-    ) -> bool
+    ) -> Result<bool>
     where
         BS: Blockstore,
         EF: EDBFact,
@@ -77,19 +81,25 @@ impl Bindings {
     {
         match formula {
             Formula::Equality(inner) => {
-                let left = self.resolve::<BS, EF>(inner.left(), blockstore);
-                let right = self.resolve::<BS, EF>(inner.right(), blockstore);
+                let left = self.resolve::<BS, EF>(inner.left(), blockstore)?;
+                let right = self.resolve::<BS, EF>(inner.right(), blockstore)?;
 
-                left == right
+                Ok(left == right)
             }
             Formula::NotIn(inner) => inner.is_satisfied(blockstore, self),
             Formula::Predicate(inner) => {
-                let args = inner
-                    .args()
-                    .iter()
-                    .map(|t| self.resolve::<BS, EF>(t, blockstore).unwrap())
-                    .map(|v| Arc::try_unwrap(v).unwrap_or_else(|arc| (*arc).clone()))
-                    .collect::<Vec<_>>();
+                let mut args = Vec::default();
+                for term in inner.args() {
+                    let resolved = self.resolve::<BS, EF>(term, blockstore)?.ok_or_else(|| {
+                        Error::InternalRhizomeError(
+                            "argument to predicate failed to resolve".to_owned(),
+                        )
+                    })?;
+
+                    let inner_val = Arc::try_unwrap(resolved).unwrap_or_else(|arc| (*arc).clone());
+
+                    args.push(inner_val);
+                }
 
                 inner.is_satisfied(args)
             }

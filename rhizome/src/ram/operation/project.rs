@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     collections::HashMap,
     marker::PhantomData,
@@ -7,6 +8,7 @@ use std::{
 use pretty::RcDoc;
 
 use crate::{
+    error::{error, Error},
     fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId},
     pretty::Pretty,
@@ -60,23 +62,34 @@ where
         }
     }
 
-    pub(crate) fn apply<BS>(&self, blockstore: &BS, bindings: &Bindings)
+    pub(crate) fn apply<BS>(&self, blockstore: &BS, bindings: &Bindings) -> Result<()>
     where
         BS: Blockstore,
     {
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in &self.cols {
-            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore) {
-                bound.push((*id, <Val>::clone(&val)));
-            } else {
-                panic!();
-            }
+            let val = bindings
+                .resolve::<BS, EF>(term, blockstore)?
+                .ok_or_else(|| {
+                    Error::InternalRhizomeError("expected term to resolve".to_owned())
+                })?;
+
+            bound.push((*id, <Val>::clone(&val)));
         }
 
         let fact = IF::new(self.id, bound);
 
-        self.relation.write().unwrap().insert(fact);
+        self.relation
+            .write()
+            .or_else(|_| {
+                error(Error::InternalRhizomeError(
+                    "relation lock poisoned".to_owned(),
+                ))
+            })?
+            .insert(fact);
+
+        Ok(())
     }
 }
 

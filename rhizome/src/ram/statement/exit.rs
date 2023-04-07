@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -6,7 +7,12 @@ use std::{
 use pretty::RcDoc;
 
 use crate::{
-    fact::traits::Fact, id::RelationId, pretty::Pretty, ram::RelationVersion, relation::Relation,
+    error::{error, Error},
+    fact::traits::Fact,
+    id::RelationId,
+    pretty::Pretty,
+    ram::RelationVersion,
+    relation::Relation,
 };
 
 #[derive(Debug)]
@@ -65,10 +71,23 @@ where
     F: Fact,
     R: Relation<Fact = F>,
 {
-    pub(crate) fn apply(&self) -> bool {
-        self.relations
-            .values()
-            .all(|r| r.read().unwrap().is_empty())
+    pub(crate) fn apply(&self) -> Result<bool> {
+        for relation in self.relations.values() {
+            let is_empty = relation
+                .read()
+                .or_else(|_| {
+                    error(Error::InternalRhizomeError(
+                        "relation lock poisoned".to_owned(),
+                    ))
+                })?
+                .is_empty();
+
+            if !is_empty {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 }
 

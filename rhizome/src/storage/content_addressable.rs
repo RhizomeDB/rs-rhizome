@@ -1,15 +1,16 @@
+use anyhow::Result;
 use cid::Cid;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::{block::Block, codec::Codec, DefaultCodec, DEFAULT_MULTIHASH};
 
 pub trait ContentAddressable: Serialize + DeserializeOwned {
-    fn cid(&self) -> Cid {
+    fn cid(&self) -> Result<Cid> {
         let codec = DefaultCodec::default();
-        let bytes = DefaultCodec::to_vec(self).unwrap();
+        let bytes = DefaultCodec::to_vec(self)?;
         let block = Block::new(codec, &bytes);
 
-        block.cid(DEFAULT_MULTIHASH)
+        Ok(block.cid(DEFAULT_MULTIHASH))
     }
 }
 
