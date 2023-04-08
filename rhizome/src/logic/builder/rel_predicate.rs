@@ -1,35 +1,36 @@
 use anyhow::Result;
-use std::{collections::HashMap, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use crate::{
     col_val::ColVal,
     error::{error, Error},
     id::ColId,
     logic::ast::{Declaration, RelPredicate},
-    types::Type,
-    value::Val,
+    types::ColType,
     var::Var,
 };
 
+use super::atom_args::AtomArg;
+
 #[derive(Debug, Default)]
 pub struct RelPredicateBuilder {
-    pub(super) bindings: Vec<(ColId, ColVal)>,
+    pub(super) bindings: RefCell<Vec<(ColId, ColVal)>>,
 }
 
 impl RelPredicateBuilder {
     pub fn new() -> Self {
         Self {
-            bindings: Vec::default(),
+            bindings: RefCell::default(),
         }
     }
     pub fn finalize(
         self,
         relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<Var, Type>,
+        bound_vars: &mut HashMap<Var, ColType>,
     ) -> Result<RelPredicate> {
         let mut cols = HashMap::default();
 
-        for (col_id, col_val) in self.bindings {
+        for (col_id, col_val) in self.bindings.into_inner() {
             let schema = relation.schema();
 
             let Some(col) = schema.get_col(&col_id) else {
@@ -52,8 +53,8 @@ impl RelPredicateBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if let Some(downcasted) = col.col_type().downcast(&var.typ()) {
-                        bound_vars.insert(*var, downcasted);
+                    if let Ok(unified) = col.col_type().unify(&var.typ()) {
+                        bound_vars.insert(*var, unified);
                     } else {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
@@ -73,27 +74,14 @@ impl RelPredicateBuilder {
         Ok(predicate)
     }
 
-    pub fn bind<S>(mut self, col_id: S, var: &Var) -> Self
+    pub fn bind_one<T, A>(&self, binding: T) -> Result<()>
     where
-        S: AsRef<str>,
+        T: AtomArg<A>,
     {
-        let col_id = ColId::new(col_id);
+        let (id, value) = binding.into_col();
 
-        self.bindings.push((col_id, ColVal::Binding(*var)));
+        self.bindings.borrow_mut().push((id, value));
 
-        self
-    }
-
-    pub fn when<S, T>(mut self, col_id: S, val: T) -> Self
-    where
-        S: AsRef<str>,
-        T: Into<Val>,
-    {
-        let col_id = ColId::new(col_id);
-        let val = Arc::new(val.into());
-
-        self.bindings.push((col_id, ColVal::Lit(val)));
-
-        self
+        Ok(())
     }
 }

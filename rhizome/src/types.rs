@@ -33,6 +33,15 @@ impl ColType {
         }
     }
 
+    pub fn unify(&self, other: &ColType) -> Result<ColType> {
+        match (self, other) {
+            (ColType::Any, ColType::Any) => Ok(ColType::Any),
+            (ColType::Any, ColType::Type(t)) => Ok(ColType::Type(*t)),
+            (ColType::Type(t), ColType::Any) => Ok(ColType::Type(*t)),
+            (ColType::Type(t1), ColType::Type(t2)) => t1.unify(t2).map(|t| ColType::Type(t)),
+        }
+    }
+
     pub fn check(&self, value: &Val) -> Result<()> {
         match self {
             ColType::Any => Ok(()),
@@ -49,7 +58,7 @@ impl ColType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Any {}
 
 pub trait FromType<T> {
@@ -168,6 +177,7 @@ pub enum Type {
     Char,
     String,
     Cid,
+    Js,
 }
 
 impl Type {
@@ -181,8 +191,12 @@ impl Type {
     pub fn check(&self, value: &Val) -> Result<()> {
         let other = &value.type_of();
 
+        self.unify(other).and(Ok(()))
+    }
+
+    pub fn unify(&self, other: &Type) -> Result<Type> {
         if self == other {
-            Ok(())
+            Ok(*self)
         } else if mem::discriminant(self) != mem::discriminant(other) {
             error(Error::TypeMismatch(*self, *other))
         } else {
@@ -208,6 +222,7 @@ impl Display for Type {
             Type::Char => "char",
             Type::String => "string",
             Type::Cid => "CID",
+            Type::Js => "Js",
         };
 
         f.write_str(s)

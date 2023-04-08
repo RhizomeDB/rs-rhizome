@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    types::{FromType, Type},
+    types::{ColType, FromType},
     value::Val,
     var::{TypedVar, Var},
 };
@@ -41,7 +41,7 @@ impl From<&Var> for ColVal {
 
 impl<T> From<TypedVar<T>> for ColVal
 where
-    Type: FromType<T>,
+    ColType: FromType<T>,
 {
     fn from(value: TypedVar<T>) -> Self {
         Self::Binding(value.into())
@@ -50,7 +50,7 @@ where
 
 impl<T> From<&TypedVar<T>> for ColVal
 where
-    Type: FromType<T>,
+    ColType: FromType<T>,
     T: Copy,
 {
     fn from(value: &TypedVar<T>) -> Self {

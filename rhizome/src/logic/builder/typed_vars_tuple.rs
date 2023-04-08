@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::{
-    types::{FromType, Type},
+    types::{ColType, FromType, Type},
     var::{TypedVar, Var},
 };
 
@@ -18,7 +18,7 @@ macro_rules! impl_var_ref_tuple {
             where
                 O: Clone,
                 $(
-                    Type: FromType<[< V $Ts >]>,
+                    ColType: FromType<[< V $Ts >]>,
                     [< V $Ts >]: Copy + TryFrom<O, Error = &'static str>,
                 )*
             {
