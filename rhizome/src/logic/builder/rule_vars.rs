@@ -1,18 +1,139 @@
 use crate::{
-    types::{FromType, Type},
+    types::{ColType, FromType, Type},
     var::TypedVar,
 };
 
 pub trait RuleVars {
     type Vars;
 
-    fn into_vars() -> Self::Vars;
+    fn into_vars(idx: usize) -> Self::Vars;
+}
+
+impl<T> RuleVars for [T; 0]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 0];
+
+    fn into_vars(_idx: usize) -> Self::Vars {
+        []
+    }
+}
+
+impl<T> RuleVars for [T; 1]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 1];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 2]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 2];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 3]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 3];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1, 2].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 4]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 4];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1, 2, 3].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 5]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 5];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1, 2, 3, 4].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 6]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 6];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1, 2, 3, 4, 5].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 7]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 7];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1, 2, 3, 4, 5, 6].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 8]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 8];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1, 2, 3, 4, 5, 6, 7].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
+}
+
+impl<T> RuleVars for [T; 9]
+where
+    ColType: FromType<T>,
+{
+    type Vars = [TypedVar<T>; 9];
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        [0, 1, 2, 3, 4, 5, 6, 7, 8].map(|i| TypedVar::<T>::new(format!("x{}", idx + i).as_ref()))
+    }
 }
 
 impl RuleVars for () {
     type Vars = ();
 
-    fn into_vars() -> Self::Vars {}
+    fn into_vars(_idx: usize) -> Self::Vars {}
+}
+
+impl<V0> RuleVars for V0
+where
+    Type: FromType<V0>,
+{
+    type Vars = TypedVar<V0>;
+
+    fn into_vars(idx: usize) -> Self::Vars {
+        TypedVar::<V0>::new(format!("x{idx}").as_ref())
+    }
 }
 
 impl<V0> RuleVars for (V0,)
@@ -21,8 +142,8 @@ where
 {
     type Vars = (TypedVar<V0>,);
 
-    fn into_vars() -> Self::Vars {
-        (TypedVar::<V0>::new("x0"),)
+    fn into_vars(idx: usize) -> Self::Vars {
+        (TypedVar::<V0>::new(format!("x{idx}").as_ref()),)
     }
 }
 
@@ -33,8 +154,11 @@ where
 {
     type Vars = (TypedVar<V0>, TypedVar<V1>);
 
-    fn into_vars() -> Self::Vars {
-        (TypedVar::<V0>::new("x0"), TypedVar::<V1>::new("x1"))
+    fn into_vars(idx: usize) -> Self::Vars {
+        (
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+        )
     }
 }
 
@@ -46,11 +170,11 @@ where
 {
     type Vars = (TypedVar<V0>, TypedVar<V1>, TypedVar<V2>);
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
         )
     }
 }
@@ -64,12 +188,12 @@ where
 {
     type Vars = (TypedVar<V0>, TypedVar<V1>, TypedVar<V2>, TypedVar<V3>);
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
-            TypedVar::<V3>::new("x3"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
+            TypedVar::<V3>::new(format!("x{}", idx + 3).as_ref()),
         )
     }
 }
@@ -90,13 +214,13 @@ where
         TypedVar<V4>,
     );
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
-            TypedVar::<V3>::new("x3"),
-            TypedVar::<V4>::new("x4"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
+            TypedVar::<V3>::new(format!("x{}", idx + 3).as_ref()),
+            TypedVar::<V4>::new(format!("x{}", idx + 4).as_ref()),
         )
     }
 }
@@ -119,14 +243,14 @@ where
         TypedVar<V5>,
     );
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
-            TypedVar::<V3>::new("x3"),
-            TypedVar::<V4>::new("x4"),
-            TypedVar::<V5>::new("x5"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
+            TypedVar::<V3>::new(format!("x{}", idx + 3).as_ref()),
+            TypedVar::<V4>::new(format!("x{}", idx + 4).as_ref()),
+            TypedVar::<V5>::new(format!("x{}", idx + 5).as_ref()),
         )
     }
 }
@@ -151,15 +275,15 @@ where
         TypedVar<V6>,
     );
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
-            TypedVar::<V3>::new("x3"),
-            TypedVar::<V4>::new("x4"),
-            TypedVar::<V5>::new("x5"),
-            TypedVar::<V6>::new("x6"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
+            TypedVar::<V3>::new(format!("x{}", idx + 3).as_ref()),
+            TypedVar::<V4>::new(format!("x{}", idx + 4).as_ref()),
+            TypedVar::<V5>::new(format!("x{}", idx + 5).as_ref()),
+            TypedVar::<V6>::new(format!("x{}", idx + 6).as_ref()),
         )
     }
 }
@@ -186,16 +310,16 @@ where
         TypedVar<V7>,
     );
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
-            TypedVar::<V3>::new("x3"),
-            TypedVar::<V4>::new("x4"),
-            TypedVar::<V5>::new("x5"),
-            TypedVar::<V6>::new("x6"),
-            TypedVar::<V7>::new("x7"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
+            TypedVar::<V3>::new(format!("x{}", idx + 3).as_ref()),
+            TypedVar::<V4>::new(format!("x{}", idx + 4).as_ref()),
+            TypedVar::<V5>::new(format!("x{}", idx + 5).as_ref()),
+            TypedVar::<V6>::new(format!("x{}", idx + 6).as_ref()),
+            TypedVar::<V7>::new(format!("x{}", idx + 7).as_ref()),
         )
     }
 }
@@ -224,17 +348,17 @@ where
         TypedVar<V8>,
     );
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
-            TypedVar::<V3>::new("x3"),
-            TypedVar::<V4>::new("x4"),
-            TypedVar::<V5>::new("x5"),
-            TypedVar::<V6>::new("x6"),
-            TypedVar::<V7>::new("x7"),
-            TypedVar::<V8>::new("x8"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
+            TypedVar::<V3>::new(format!("x{}", idx + 3).as_ref()),
+            TypedVar::<V4>::new(format!("x{}", idx + 4).as_ref()),
+            TypedVar::<V5>::new(format!("x{}", idx + 5).as_ref()),
+            TypedVar::<V6>::new(format!("x{}", idx + 6).as_ref()),
+            TypedVar::<V7>::new(format!("x{}", idx + 7).as_ref()),
+            TypedVar::<V8>::new(format!("x{}", idx + 8).as_ref()),
         )
     }
 }
@@ -265,18 +389,18 @@ where
         TypedVar<V9>,
     );
 
-    fn into_vars() -> Self::Vars {
+    fn into_vars(idx: usize) -> Self::Vars {
         (
-            TypedVar::<V0>::new("x0"),
-            TypedVar::<V1>::new("x1"),
-            TypedVar::<V2>::new("x2"),
-            TypedVar::<V3>::new("x3"),
-            TypedVar::<V4>::new("x4"),
-            TypedVar::<V5>::new("x5"),
-            TypedVar::<V6>::new("x6"),
-            TypedVar::<V7>::new("x7"),
-            TypedVar::<V8>::new("x8"),
-            TypedVar::<V9>::new("x9"),
+            TypedVar::<V0>::new(format!("x{idx}").as_ref()),
+            TypedVar::<V1>::new(format!("x{}", idx + 1).as_ref()),
+            TypedVar::<V2>::new(format!("x{}", idx + 2).as_ref()),
+            TypedVar::<V3>::new(format!("x{}", idx + 3).as_ref()),
+            TypedVar::<V4>::new(format!("x{}", idx + 4).as_ref()),
+            TypedVar::<V5>::new(format!("x{}", idx + 5).as_ref()),
+            TypedVar::<V6>::new(format!("x{}", idx + 6).as_ref()),
+            TypedVar::<V7>::new(format!("x{}", idx + 7).as_ref()),
+            TypedVar::<V8>::new(format!("x{}", idx + 8).as_ref()),
+            TypedVar::<V9>::new(format!("x{}", idx + 9).as_ref()),
         )
     }
 }

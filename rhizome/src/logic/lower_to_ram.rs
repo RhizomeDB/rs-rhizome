@@ -58,38 +58,20 @@ where
             Source::Edb => {
                 inputs.push(declaration);
 
-                edb.insert(
-                    (declaration.id(), RelationVersion::New),
-                    Arc::new(RwLock::new(ER::default())),
-                );
+                edb.insert((declaration.id(), RelationVersion::New), Arc::default());
 
-                edb.insert(
-                    (declaration.id(), RelationVersion::Delta),
-                    Arc::new(RwLock::new(ER::default())),
-                );
+                edb.insert((declaration.id(), RelationVersion::Delta), Arc::default());
 
-                edb.insert(
-                    (declaration.id(), RelationVersion::Total),
-                    Arc::new(RwLock::new(ER::default())),
-                );
+                edb.insert((declaration.id(), RelationVersion::Total), Arc::default());
             }
             Source::Idb => {
                 outputs.push(declaration);
 
-                idb.insert(
-                    (declaration.id(), RelationVersion::New),
-                    Arc::new(RwLock::new(IR::default())),
-                );
+                idb.insert((declaration.id(), RelationVersion::New), Arc::default());
 
-                idb.insert(
-                    (declaration.id(), RelationVersion::Delta),
-                    Arc::new(RwLock::new(IR::default())),
-                );
+                idb.insert((declaration.id(), RelationVersion::Delta), Arc::default());
 
-                idb.insert(
-                    (declaration.id(), RelationVersion::Total),
-                    Arc::new(RwLock::new(IR::default())),
-                );
+                idb.insert((declaration.id(), RelationVersion::Total), Arc::default());
             }
         }
     }

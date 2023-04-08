@@ -1,12 +1,12 @@
 use anyhow::Result;
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
     col_val::ColVal,
     error::{error, Error},
     id::ColId,
     logic::ast::Declaration,
-    types::Type,
+    types::ColType,
     value::Val,
     var::Var,
 };
@@ -16,22 +16,25 @@ use super::atom_args::{AtomArg, AtomArgs};
 #[derive(Debug)]
 pub struct RuleHeadBuilder {
     relation: Arc<Declaration>,
-    bindings: Vec<(ColId, ColVal)>,
+    bindings: RefCell<Vec<(ColId, ColVal)>>,
 }
 
 impl RuleHeadBuilder {
     pub fn new(relation: Arc<Declaration>) -> Self {
         Self {
             relation,
-            bindings: Vec::default(),
+            bindings: RefCell::default(),
         }
     }
 
-    pub fn finalize(self, bound_vars: &HashMap<Var, Type>) -> Result<HashMap<ColId, ColVal>> {
+    pub fn finalize(
+        self,
+        bound_vars: &mut HashMap<Var, ColType>,
+    ) -> Result<HashMap<ColId, ColVal>> {
         let schema = self.relation.schema();
         let mut cols = HashMap::default();
 
-        for (col_id, col_val) in self.bindings {
+        for (col_id, col_val) in self.bindings.into_inner() {
             let Some(col) = schema.get_col(&col_id) else {
                 return error(Error::UnrecognizedColumnBinding(self.relation.id(), col_id));
             };
@@ -52,13 +55,26 @@ impl RuleHeadBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if col.col_type().downcast(&var.typ()).is_none() {
-                        return error(Error::ColumnValueTypeConflict(
-                            self.relation.id(),
-                            col_id,
-                            ColVal::Binding(*var),
-                            *col.col_type(),
-                        ));
+                    if let Some(bound_type) = bound_vars.get(&var) {
+                        if let Ok(unified_type) = bound_type
+                            .unify(col.col_type())
+                            .and_then(|t| t.unify(&var.typ()))
+                        {
+                            bound_vars.insert(*var, unified_type);
+                        } else {
+                            return error(Error::ColumnValueTypeConflict(
+                                self.relation.id(),
+                                col_id,
+                                ColVal::Binding(*var),
+                                *col.col_type(),
+                            ));
+                        }
+                    } else {
+                        return error(Error::ClauseNotRangeRestricted(col_id, var.id()));
+                    }
+
+                    if !bound_vars.contains_key(var) {
+                        return error(Error::ClauseNotRangeRestricted(col_id, var.id()));
                     }
                 }
             }
@@ -72,18 +88,10 @@ impl RuleHeadBuilder {
             }
         }
 
-        for (col_id, val) in &cols {
-            if let ColVal::Binding(var) = val {
-                if !bound_vars.contains_key(var) {
-                    return error(Error::ClauseNotRangeRestricted(*col_id, var.id()));
-                }
-            }
-        }
-
         Ok(cols)
     }
 
-    pub fn set<S, T>(mut self, id: S, value: T) -> Self
+    pub fn set<S, T>(&self, id: S, value: T) -> Result<()>
     where
         S: AsRef<str>,
         T: Into<Val>,
@@ -91,30 +99,30 @@ impl RuleHeadBuilder {
         let id = ColId::new(id);
         let value = Arc::new(value.into());
 
-        self.bindings.push((id, ColVal::Lit(value)));
+        self.bindings.borrow_mut().push((id, ColVal::Lit(value)));
 
-        self
+        Ok(())
     }
 
-    pub fn bind<T, A>(mut self, bindings: T) -> Self
+    pub fn bind<T, A>(&self, bindings: T) -> Result<()>
     where
         T: AtomArgs<A>,
     {
         for (id, value) in T::into_cols(bindings) {
-            self.bindings.push((id, value));
+            self.bindings.borrow_mut().push((id, value));
         }
 
-        self
+        Ok(())
     }
 
-    pub fn bind_one<T, A>(mut self, binding: T) -> Self
+    pub fn bind_one<T, A>(&self, binding: T) -> Result<()>
     where
         T: AtomArg<A>,
     {
         let (id, value) = binding.into_col();
 
-        self.bindings.push((id, value));
+        self.bindings.borrow_mut().push((id, value));
 
-        self
+        Ok(())
     }
 }

@@ -8,7 +8,7 @@ use crate::{
         ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
         ReduceClosure, VarClosure,
     },
-    types::{FromType, Type},
+    types::{ColType, FromType, Type},
     value::Val,
     var::{TypedVar, Var},
 };
@@ -22,11 +22,11 @@ use super::{
 };
 
 pub struct RuleBodyBuilder {
-    rel_predicates: Vec<(String, RelPredicateBuilder)>,
-    negations: Vec<(String, NegationBuilder)>,
-    get_links: Vec<(CidValue, LinkId, CidValue)>,
-    var_predicates: Vec<(Vec<Var>, Arc<dyn VarClosure>)>,
-    reduces: Vec<(String, ReduceBuilder)>,
+    rel_predicates: RefCell<Vec<(String, RelPredicateBuilder)>>,
+    negations: RefCell<Vec<(String, NegationBuilder)>>,
+    get_links: RefCell<Vec<(CidValue, LinkId, CidValue)>>,
+    var_predicates: RefCell<Vec<(Vec<Var>, Arc<dyn VarClosure>)>>,
+    reduces: RefCell<Vec<(String, ReduceBuilder)>>,
     relations: Rc<RefCell<HashMap<String, Arc<Declaration>>>>,
 }
 
@@ -39,19 +39,19 @@ impl Debug for RuleBodyBuilder {
 impl RuleBodyBuilder {
     pub fn new(relations: Rc<RefCell<HashMap<String, Arc<Declaration>>>>) -> Self {
         Self {
-            rel_predicates: Vec::default(),
-            negations: Vec::default(),
-            get_links: Vec::default(),
-            var_predicates: Vec::default(),
-            reduces: Vec::default(),
+            rel_predicates: RefCell::default(),
+            negations: RefCell::default(),
+            get_links: RefCell::default(),
+            var_predicates: RefCell::default(),
+            reduces: RefCell::default(),
             relations,
         }
     }
 
-    pub fn finalize(self, bound_vars: &mut HashMap<Var, Type>) -> Result<Vec<BodyTerm>> {
+    pub fn finalize(self, bound_vars: &mut HashMap<Var, ColType>) -> Result<Vec<BodyTerm>> {
         let mut body_terms = Vec::default();
 
-        for (id, builder) in self.rel_predicates {
+        for (id, builder) in self.rel_predicates.into_inner() {
             let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
                     return error(Error::UnrecognizedRelation(id));
                 };
@@ -62,14 +62,14 @@ impl RuleBodyBuilder {
             body_terms.push(term);
         }
 
-        for (cid, link_id, value) in self.get_links {
+        for (cid, link_id, value) in self.get_links.into_inner() {
             if let CidValue::Var(var) = cid {
-                if var.typ() != Type::Cid {
+                if var.typ().unify(&ColType::Type(Type::Cid)).is_err() {
                     return error(Error::VarTypeConflict(var, Type::Cid));
                 }
 
-                if let Some(bound_type) = bound_vars.insert(var, Type::Cid) {
-                    if bound_type != Type::Cid {
+                if let Some(bound_type) = bound_vars.insert(var, ColType::Type(Type::Cid)) {
+                    if bound_type.unify(&ColType::Type(Type::Cid)).is_err() {
                         return error(Error::VarTypeConflict(var, Type::Cid));
                     }
                 } else {
@@ -78,12 +78,12 @@ impl RuleBodyBuilder {
             }
 
             if let CidValue::Var(var) = value {
-                if var.typ() != Type::Cid {
+                if var.typ().unify(&ColType::Type(Type::Cid)).is_err() {
                     return error(Error::VarTypeConflict(var, Type::Cid));
                 }
 
-                if let Some(bound_type) = bound_vars.insert(var, Type::Cid) {
-                    if bound_type != Type::Cid {
+                if let Some(bound_type) = bound_vars.insert(var, ColType::Type(Type::Cid)) {
+                    if bound_type.unify(&ColType::Type(Type::Cid)).is_err() {
                         return error(Error::VarTypeConflict(var, Type::Cid));
                     }
                 }
@@ -94,7 +94,7 @@ impl RuleBodyBuilder {
             body_terms.push(term);
         }
 
-        for (vars, f) in self.var_predicates {
+        for (vars, f) in self.var_predicates.into_inner() {
             for var in &vars {
                 if !bound_vars.contains_key(var) {
                     return error(Error::ClauseNotDomainIndependent(var.id()));
@@ -106,7 +106,7 @@ impl RuleBodyBuilder {
             body_terms.push(term);
         }
 
-        for (id, builder) in self.negations {
+        for (id, builder) in self.negations.into_inner() {
             let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
                     return error(Error::UnrecognizedRelation(id));
                 };
@@ -124,7 +124,7 @@ impl RuleBodyBuilder {
             body_terms.push(term);
         }
 
-        for (id, builder) in self.reduces {
+        for (id, builder) in self.reduces.into_inner() {
             let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
                     return error(Error::UnrecognizedRelation(id));
                 };
@@ -138,34 +138,39 @@ impl RuleBodyBuilder {
         Ok(body_terms)
     }
 
-    pub fn search<T, A>(mut self, id: &str, t: T) -> Self
+    pub fn search<T, A>(&self, id: &str, t: T) -> Result<()>
     where
         T: AtomArgs<A>,
     {
-        let mut builder = RelPredicateBuilder::new();
+        let builder = RelPredicateBuilder::new();
 
         for (col_id, col_val) in T::into_cols(t) {
-            builder.bindings.push((col_id, col_val));
+            builder.bindings.borrow_mut().push((col_id, col_val));
         }
 
-        self.rel_predicates.push((id.to_string(), builder));
+        self.rel_predicates
+            .borrow_mut()
+            .push((id.to_string(), builder));
 
-        self
+        Ok(())
     }
 
-    pub fn build_search<F>(mut self, id: &str, f: F) -> Self
+    pub fn build_search<F>(&self, id: &str, f: F) -> Result<()>
     where
-        F: Fn(RelPredicateBuilder) -> RelPredicateBuilder,
+        F: Fn(&'_ RelPredicateBuilder) -> Result<()>,
     {
         let builder = RelPredicateBuilder::new();
-        let builder = f(builder);
 
-        self.rel_predicates.push((id.to_string(), builder));
+        f(&builder)?;
 
-        self
+        self.rel_predicates
+            .borrow_mut()
+            .push((id.to_string(), builder));
+
+        Ok(())
     }
 
-    pub fn except<T, A>(mut self, id: &str, t: T) -> Self
+    pub fn except<T, A>(&self, id: &str, t: T) -> Result<()>
     where
         T: AtomArgs<A>,
     {
@@ -175,24 +180,24 @@ impl RuleBodyBuilder {
             builder.bindings.push((col_id, col_val));
         }
 
-        self.negations.push((id.to_string(), builder));
+        self.negations.borrow_mut().push((id.to_string(), builder));
 
-        self
+        Ok(())
     }
 
-    pub fn build_except<F>(mut self, id: &str, f: F) -> Self
+    pub fn build_except<F>(&self, id: &str, f: F) -> Result<()>
     where
         F: Fn(NegationBuilder) -> NegationBuilder,
     {
         let builder = NegationBuilder::default();
         let builder = f(builder);
 
-        self.negations.push((id.to_string(), builder));
+        self.negations.borrow_mut().push((id.to_string(), builder));
 
-        self
+        Ok(())
     }
 
-    pub fn get_link<C, L, V>(mut self, cid: C, link_id: L, value: V) -> Self
+    pub fn get_link<C, L, V>(&self, cid: C, link_id: L, value: V) -> Result<()>
     where
         C: Into<CidValue>,
         L: AsRef<str>,
@@ -202,12 +207,12 @@ impl RuleBodyBuilder {
         let link_id = LinkId::new(link_id);
         let value = value.into();
 
-        self.get_links.push((cid, link_id, value));
+        self.get_links.borrow_mut().push((cid, link_id, value));
 
-        self
+        Ok(())
     }
 
-    pub fn predicate<VarsRef, VarArgs, F>(mut self, vars: VarsRef, f: F) -> Self
+    pub fn predicate<VarsRef, VarArgs, F>(&self, vars: VarsRef, f: F) -> Result<()>
     where
         VarsRef: VarRefTuple<Val, Target = VarArgs>,
         VarArgs: TypedVarsTuple<Val> + Send + Sync + 'static,
@@ -222,20 +227,20 @@ impl RuleBodyBuilder {
             Ok(f(args))
         });
 
-        self.var_predicates.push((vars_vec, f));
+        self.var_predicates.borrow_mut().push((vars_vec, f));
 
-        self
+        Ok(())
     }
 
     pub fn reduce<Target, VarsRef, VarArgs, Args, Arg, F>(
-        mut self,
+        &self,
         target: &TypedVar<Target>,
         vars: VarsRef,
         id: &str,
         args: Args,
         init: Target,
         f: F,
-    ) -> Self
+    ) -> Result<()>
     where
         Val: TryInto<Target, Error = &'static str>,
         Target: Into<Val> + Clone,
@@ -268,8 +273,8 @@ impl RuleBodyBuilder {
             builder.bindings.push((col_id, col_val));
         }
 
-        self.reduces.push((id.to_string(), builder));
+        self.reduces.borrow_mut().push((id.to_string(), builder));
 
-        self
+        Ok(())
     }
 }

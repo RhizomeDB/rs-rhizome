@@ -14,7 +14,6 @@ pub(crate) mod ram;
 pub(crate) mod relation;
 pub(crate) mod timestamp;
 pub(crate) mod value;
-pub(crate) mod var;
 
 pub mod error;
 pub mod fact;
@@ -22,9 +21,10 @@ pub mod pretty;
 pub mod runtime;
 pub mod storage;
 pub mod types;
+pub mod var;
 
 pub(crate) use logic::build;
-pub use logic::ProgramBuilder;
+pub use logic::{ProgramBuilder, RuleVars};
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

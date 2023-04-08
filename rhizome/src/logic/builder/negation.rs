@@ -42,7 +42,7 @@ impl NegationBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if col.col_type().downcast(&var.typ()).is_none() {
+                    if col.col_type().unify(&var.typ()).is_err() {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
                             col_id,

@@ -110,18 +110,19 @@ mod tests {
                 p.fact("edge", |f| f.bind((("from", 3), ("to", 4))))?;
 
                 p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
-                    (
-                        h.bind((("from", x), ("to", y))),
-                        b.search("edge", (("from", x), ("to", y))),
-                    )
+                    h.bind((("from", x), ("to", y)))?;
+                    b.search("edge", (("from", x), ("to", y)))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
-                    (
-                        h.bind((("from", x), ("to", z))),
-                        b.search("edge", (("from", x), ("to", y)))
-                            .search("path", (("from", y), ("to", z))),
-                    )
+                    h.bind((("from", x), ("to", z)))?;
+
+                    b.search("edge", (("from", x), ("to", y)))?;
+                    b.search("path", (("from", y), ("to", z)))?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)
@@ -163,18 +164,19 @@ mod tests {
                 p.fact("edge", |f| f.bind((("from", 3), ("to", 4))))?;
 
                 p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
-                    (
-                        h.bind((("from", x), ("to", y))),
-                        b.search("edge", (("from", x), ("to", y))),
-                    )
+                    h.bind((("from", x), ("to", y)))?;
+                    b.search("edge", (("from", x), ("to", y)))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
-                    (
-                        h.bind((("from", x), ("to", z))),
-                        b.search("edge", (("from", x), ("to", y)))
-                            .search("path", (("from", y), ("to", z))),
-                    )
+                    h.bind((("from", x), ("to", z)))?;
+
+                    b.search("edge", (("from", x), ("to", y)))?;
+                    b.search("path", (("from", y), ("to", z)))?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)
@@ -303,20 +305,22 @@ mod tests {
                 p.output("root", |h| h.column::<i32>("tree").column::<Cid>("id"))?;
 
                 p.rule::<(i32, Cid, Cid)>("parent", &|h, b, (tree, parent, child)| {
-                    (
-                        h.bind((("tree", tree), ("parent", parent), ("child", child))),
-                        b.search("evac", (("cid", parent), ("entity", tree)))
-                            .search("evac", (("cid", child), ("entity", tree)))
-                            .get_link(child, "parent", parent),
-                    )
+                    h.bind((("tree", tree), ("parent", parent), ("child", child)))?;
+
+                    b.search("evac", (("cid", parent), ("entity", tree)))?;
+                    b.search("evac", (("cid", child), ("entity", tree)))?;
+                    b.get_link(child, "parent", parent)?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, Cid)>("root", &|h, b, (tree, root)| {
-                    (
-                        h.bind((("tree", tree), ("id", root))),
-                        b.search("evac", (("cid", root), ("entity", tree)))
-                            .except("parent", (("child", root), ("tree", tree))),
-                    )
+                    h.bind((("tree", tree), ("id", root)))?;
+
+                    b.search("evac", (("cid", root), ("entity", tree)))?;
+                    b.except("parent", (("child", root), ("tree", tree)))?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)
@@ -344,13 +348,14 @@ mod tests {
                 })?;
 
                 p.rule::<(i32, i32, i32)>("triangle", &|h, b, (x, y, z)| {
-                    (
-                        h.bind((("a", x), ("b", y), ("c", z))),
-                        b.search("evac", (("value", x),))
-                            .search("evac", (("value", y),))
-                            .search("evac", (("value", z),))
-                            .predicate((x, y, z), |(x, y, z)| x + y < z),
-                    )
+                    h.bind((("a", x), ("b", y), ("c", z)))?;
+
+                    b.search("evac", (("value", x),))?;
+                    b.search("evac", (("value", y),))?;
+                    b.search("evac", (("value", z),))?;
+                    b.predicate((x, y, z), |(x, y, z)| x + y < z)?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)
@@ -404,39 +409,44 @@ mod tests {
                 p.output("product", |h| h.column::<i32>("z"))?;
 
                 p.rule::<(i32,)>("num", &|h, b, (x,)| {
-                    (h.bind((("n", x),)), b.search("evac", (("value", x),)))
+                    h.bind((("n", x),))?;
+                    b.search("evac", (("value", x),))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("count", &|h, b, (count, n)| {
-                    (
-                        h.bind((("n", count),)),
-                        b.reduce(count, (n,), "num", (("n", n),), 0, |acc, (_,)| acc + 1),
-                    )
+                    h.bind((("n", count),))?;
+                    b.reduce(count, (n,), "num", (("n", n),), 0, |acc, (_,)| acc + 1)?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
-                    (
-                        h.bind((("n", sum),)),
-                        b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x),
-                    )
+                    h.bind((("n", sum),))?;
+                    b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("min", &|h, b, (min, n)| {
-                    (
-                        h.bind((("n", min),)),
-                        b.reduce(min, (n,), "num", (("n", n),), i32::MAX, |acc, (x,)| {
-                            cmp::min(acc, x)
-                        }),
-                    )
+                    h.bind((("n", min),))?;
+
+                    b.reduce(min, (n,), "num", (("n", n),), i32::MAX, |acc, (x,)| {
+                        cmp::min(acc, x)
+                    })?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("max", &|h, b, (max, n)| {
-                    (
-                        h.bind((("n", max),)),
-                        b.reduce(max, (n,), "num", (("n", n),), i32::MIN, |acc, (x,)| {
-                            cmp::max(acc, x)
-                        }),
-                    )
+                    h.bind((("n", max),))?;
+
+                    b.reduce(max, (n,), "num", (("n", n),), i32::MIN, |acc, (x,)| {
+                        cmp::max(acc, x)
+                    })?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)
@@ -474,19 +484,22 @@ mod tests {
                 p.fact("num", |f| f.bind((("n", 5),)))?;
 
                 p.rule::<(i32, i32)>("pair", &|h, b, (x, y)| {
-                    (
-                        h.bind((("x", x), ("y", y))),
-                        b.search("num", (("n", x),)).search("num", (("n", y),)),
-                    )
+                    h.bind((("x", x), ("y", y)))?;
+
+                    b.search("num", (("n", x),))?;
+                    b.search("num", (("n", y),))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32, i32)>("product", &|h, b, (x, y, z)| {
-                    (
-                        h.bind((("z", z),)),
-                        b.reduce(z, (x, y), "pair", (("x", x), ("y", y)), 0, |acc, (x, y)| {
-                            acc + x * y
-                        }),
-                    )
+                    h.bind((("z", z),))?;
+
+                    b.reduce(z, (x, y), "pair", (("x", x), ("y", y)), 0, |acc, (x, y)| {
+                        acc + x * y
+                    })?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)
@@ -512,24 +525,23 @@ mod tests {
                 p.fact("num", |f| f.bind((("n", 5),)))?;
 
                 p.rule::<(i32, i32)>("pair", &|h, b, (x, y)| {
-                    (
-                        h.bind((("x", x), ("y", y))),
-                        b.search("num", (("n", x),)).search("num", (("n", y),)),
-                    )
+                    h.bind((("x", x), ("y", y)))?;
+
+                    b.search("num", (("n", x),))?;
+                    b.search("num", (("n", y),))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(i32, i32, i32)>("product", &|h, b, (x, y, z)| {
-                    (
-                        h.bind((("x", x), ("y", y), ("z", z))),
-                        b.search("pair", (("x", x), ("y", y))).reduce(
-                            z,
-                            (x, y),
-                            "pair",
-                            (("x", x), ("y", y)),
-                            0,
-                            |_, (x, y)| x * y,
-                        ),
-                    )
+                    h.bind((("x", x), ("y", y), ("z", z)))?;
+
+                    b.search("pair", (("x", x), ("y", y)))?;
+                    b.reduce(z, (x, y), "pair", (("x", x), ("y", y)), 0, |_, (x, y)| {
+                        x * y
+                    })?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)

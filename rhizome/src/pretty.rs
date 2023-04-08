@@ -56,7 +56,7 @@ mod tests {
             "person".into(),
             RelationVersion::Total,
             hashmap! {"age" => Term::Lit(Arc::new(Val::S32(29)))},
-            Arc::new(RwLock::new(DefaultRelation::default())),
+            Arc::default(),
         ));
 
         let ast = Operation::Search(Search::new(

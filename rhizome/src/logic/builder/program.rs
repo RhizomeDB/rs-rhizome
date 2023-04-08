@@ -6,6 +6,7 @@ use crate::{
     id::RelationId,
     logic::ast::{Clause, Declaration, Program, Rule},
     relation::Source,
+    types::ColType,
 };
 
 use super::{
@@ -14,7 +15,7 @@ use super::{
 };
 
 type RuleBuilderClosure<'a, T> =
-    dyn Fn(RuleHeadBuilder, RuleBodyBuilder, &'_ T) -> (RuleHeadBuilder, RuleBodyBuilder) + 'a;
+    dyn Fn(&'_ RuleHeadBuilder, &'_ RuleBodyBuilder, &'_ T) -> Result<()> + 'a;
 
 #[derive(Debug, Default)]
 pub struct ProgramBuilder {
@@ -104,10 +105,16 @@ impl ProgramBuilder {
         let head_builder = RuleHeadBuilder::new(Arc::clone(&declaration));
         let body_builder = RuleBodyBuilder::new(Rc::clone(&self.relations));
 
-        let (h, b) = f(head_builder, body_builder, &T::into_vars());
+        f(&head_builder, &body_builder, &T::into_vars(0))?;
 
-        let body = b.finalize(&mut bound_vars)?;
-        let head = h.finalize(&bound_vars)?;
+        let body = body_builder.finalize(&mut bound_vars)?;
+        let head = head_builder.finalize(&mut bound_vars)?;
+
+        for (var, bound_type) in bound_vars {
+            if bound_type == ColType::Any {
+                return error(Error::UnconstrainedVar(var));
+            }
+        }
 
         match declaration.source() {
             Source::Edb => error(Error::ClauseHeadEDB(declaration.id())),

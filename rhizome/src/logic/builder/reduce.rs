@@ -9,7 +9,7 @@ use crate::{
         ast::{Declaration, Reduce},
         ReduceClosure,
     },
-    types::Type,
+    types::ColType,
     value::Val,
     var::Var,
 };
@@ -35,7 +35,7 @@ impl ReduceBuilder {
     pub(crate) fn finalize(
         self,
         relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<Var, Type>,
+        bound_vars: &mut HashMap<Var, ColType>,
     ) -> Result<Reduce> {
         if bound_vars.insert(self.target, self.target.typ()).is_some() {
             return error(Error::ReduceBoundTarget(self.target.id()));
@@ -74,7 +74,7 @@ impl ReduceBuilder {
                         return error(Error::ReduceUnboundGroupBy(var.id(), col_id, relation.id()));
                     }
 
-                    if col.col_type().downcast(&var.typ()).is_none() {
+                    if col.col_type().unify(&var.typ()).is_err() {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
                             col_id,
