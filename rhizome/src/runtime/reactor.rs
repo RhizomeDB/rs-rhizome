@@ -89,12 +89,25 @@ where {
         let mut vm = VM::<T, E, I, ER, IR>::new(program);
 
         loop {
+            // Poll for any future and then run all ready futures
             select! {
                 command = self.command_rx.next() => if let Some(c) = command {
                     self.handle_command(&mut vm, c).await?;
                 },
                 event = self.stream_rx.next() => if let Some(e) = event {
                     self.handle_event(&mut vm, e).await?;
+                },
+            }
+
+            loop {
+                select! {
+                    command = self.command_rx.next() => if let Some(c) = command {
+                        self.handle_command(&mut vm, c).await?;
+                    },
+                    event = self.stream_rx.next() => if let Some(e) = event {
+                        self.handle_event(&mut vm, e).await?;
+                    },
+                    default => break
                 }
             }
 
