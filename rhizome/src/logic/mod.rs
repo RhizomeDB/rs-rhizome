@@ -4,8 +4,8 @@ mod builder;
 pub(crate) mod lower_to_ram;
 
 use anyhow::Result;
-pub(crate) use builder::build;
 
+pub use builder::build;
 pub use builder::{ProgramBuilder, RuleVars};
 
 use crate::value::Val;

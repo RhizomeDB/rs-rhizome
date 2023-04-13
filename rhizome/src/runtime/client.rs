@@ -57,15 +57,16 @@ impl Client {
         Ok(())
     }
 
-    pub async fn register_stream<F>(&mut self, id: &str, f: F) -> Result<()>
-    where
-        F: CreateStream<DefaultEDBFact> + 'static,
-    {
+    pub async fn register_stream(
+        &mut self,
+        id: &str,
+        f: Box<dyn CreateStream<DefaultEDBFact>>,
+    ) -> Result<()> {
         let id = RelationId::new(id);
         let (tx, rx) = oneshot::channel();
 
         self.command_tx
-            .send(ClientCommand::RegisterStream(id, Box::new(f), tx))
+            .send(ClientCommand::RegisterStream(id, f, tx))
             .await?;
 
         rx.await?;

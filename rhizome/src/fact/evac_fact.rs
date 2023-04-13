@@ -32,7 +32,7 @@ impl EDBFact for EVACFact {
         entity: impl Into<Val>,
         attr: impl Into<Val>,
         val: impl Into<Val>,
-        links: Vec<(&str, Cid)>,
+        links: Vec<(LinkId, Cid)>,
     ) -> Result<Self> {
         let entity = Arc::new(entity.into());
         let attr = Arc::new(attr.into());
@@ -40,7 +40,7 @@ impl EDBFact for EVACFact {
 
         let causal_links = links
             .into_iter()
-            .map(|(k, v)| (k.into(), Arc::new(Val::Cid(v))))
+            .map(|(k, v)| (k, Arc::new(Val::Cid(v))))
             .collect();
 
         let mut fact = Self {

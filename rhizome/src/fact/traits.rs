@@ -26,7 +26,7 @@ pub trait EDBFact: Fact<Marker = EdbMarker> + ContentAddressable {
         entity: impl Into<Val>,
         attr: impl Into<Val>,
         val: impl Into<Val>,
-        links: Vec<(&str, Cid)>,
+        links: Vec<(LinkId, Cid)>,
     ) -> Result<Self>;
 
     fn id(&self) -> RelationId;

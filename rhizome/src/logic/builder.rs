@@ -23,7 +23,7 @@ mod rule_head;
 mod rule_vars;
 mod typed_vars_tuple;
 
-pub(crate) fn build<E, I, ER, IR, F>(f: F) -> Result<Program<E, I, ER, IR>>
+pub fn build<E, I, ER, IR, F>(f: F) -> Result<Program<E, I, ER, IR>>
 where
     E: EDBFact,
     I: IDBFact,

@@ -210,13 +210,13 @@ mod tests {
     #[test]
     fn test_get_link() -> Result<()> {
         let f00 = EVACFact::new(0, "node", 0, vec![])?;
-        let f01 = EVACFact::new(0, "node", 0, vec![("parent", f00.cid()?)])?;
-        let f02 = EVACFact::new(0, "node", 0, vec![("parent", f01.cid()?)])?;
-        let f03 = EVACFact::new(0, "node", 0, vec![("parent", f02.cid()?)])?;
-        let f04 = EVACFact::new(0, "node", 1, vec![("parent", f02.cid()?)])?;
-        let f10 = EVACFact::new(1, "node", 0, vec![("parent", f00.cid()?)])?;
-        let f11 = EVACFact::new(1, "node", 0, vec![("parent", f10.cid()?)])?;
-        let f12 = EVACFact::new(1, "node", 0, vec![("parent", f11.cid()?)])?;
+        let f01 = EVACFact::new(0, "node", 0, vec![("parent".into(), f00.cid()?)])?;
+        let f02 = EVACFact::new(0, "node", 0, vec![("parent".into(), f01.cid()?)])?;
+        let f03 = EVACFact::new(0, "node", 0, vec![("parent".into(), f02.cid()?)])?;
+        let f04 = EVACFact::new(0, "node", 1, vec![("parent".into(), f02.cid()?)])?;
+        let f10 = EVACFact::new(1, "node", 0, vec![("parent".into(), f00.cid()?)])?;
+        let f11 = EVACFact::new(1, "node", 0, vec![("parent".into(), f10.cid()?)])?;
+        let f12 = EVACFact::new(1, "node", 0, vec![("parent".into(), f11.cid()?)])?;
 
         let idb = [
             (
