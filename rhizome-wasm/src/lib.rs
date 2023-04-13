@@ -4,19 +4,125 @@
 
 //! rhizome
 
-use wasm_bindgen::prelude::wasm_bindgen;
+use futures::{channel::mpsc::Receiver, sink::unfold, StreamExt};
+use gloo_console::console_dbg;
+use js_sys::AsyncIterator;
+use rhizome::{runtime::ClientEvent, timestamp::PairTimestamp};
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen_downcast::DowncastJS;
+use wasm_bindgen_futures::{spawn_local, stream::JsStream};
 
-pub mod channel;
-pub mod datum;
+pub mod builder;
 pub mod fact;
-pub mod program;
-pub mod reactor;
 
-pub use channel::*;
-pub use datum::*;
-pub use fact::*;
-pub use program::*;
-pub use reactor::*;
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{builder::ProgramBuilder, fact::InputFact};
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Cid(cid::Cid);
+
+impl Cid {
+    pub fn inner(&self) -> cid::Cid {
+        self.0
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, DowncastJS)]
+pub struct Rhizome {
+    client: Rc<RefCell<rhizome::runtime::client::Client>>,
+    // event_rx: Rc<RefCell<Receiver<ClientEvent<PairTimestamp>>>>,
+}
+
+#[wasm_bindgen]
+impl Rhizome {
+    #[wasm_bindgen(constructor)]
+    pub fn new(f: js_sys::Function) -> Self {
+        let (client, mut rx, reactor) = rhizome::runtime::client::Client::new();
+
+        spawn_local(async move {
+            reactor
+                .async_run(move |p| {
+                    let builder = ProgramBuilder::new(p);
+                    let f_builder = builder.clone();
+
+                    f.call1(&JsValue::NULL, &JsValue::from(f_builder)).unwrap();
+
+                    Ok(builder.take())
+                })
+                .await
+                .unwrap();
+        });
+
+        spawn_local(async move {
+            loop {
+                let _ = rx.next().await;
+            }
+        });
+
+        Self {
+            client: Rc::new(RefCell::new(client)),
+            // event_rx: Rc::new(RefCell::new(rx)),
+        }
+    }
+
+    pub async fn flush(&self) -> Result<(), JsValue> {
+        self.client.borrow_mut().flush().await.map_or_else(
+            |err: anyhow::Error| Err(serde_wasm_bindgen::to_value(&err.to_string())?),
+            |_| Ok(()),
+        )
+    }
+
+    #[wasm_bindgen(js_name = registerStream)]
+    pub async fn register_stream(
+        &self,
+        id: &str,
+        async_iterator: AsyncIterator,
+    ) -> Result<(), JsValue> {
+        self.client
+            .borrow_mut()
+            .register_stream(
+                id,
+                Box::new(move || {
+                    Box::new(JsStream::from(async_iterator).map(|fact| {
+                        let fact = fact.unwrap();
+                        let fact = InputFact::downcast_js_ref(&fact).unwrap();
+
+                        fact.clone().into_inner()
+                    }))
+                }),
+            )
+            .await
+            .map_or_else(
+                |err: anyhow::Error| Err(serde_wasm_bindgen::to_value(&err.to_string())?),
+                |_| Ok(()),
+            )
+    }
+
+    #[wasm_bindgen(js_name = registerSink)]
+    pub async fn register_sink(&self, id: &str, f: js_sys::Function) -> Result<(), JsValue> {
+        self.client
+            .borrow_mut()
+            .register_sink(
+                id,
+                Box::new(move || {
+                    Box::new(unfold((), move |(), fact| async move {
+                        console_log!("{}", fact);
+
+                        Ok(())
+                    }))
+                }),
+            )
+            .await
+            .map_or_else(
+                |err: anyhow::Error| Err(serde_wasm_bindgen::to_value(&err.to_string())?),
+                |_| Ok(()),
+            )
+    }
+}
 
 //------------------------------------------------------------------------------
 // Utilities
