@@ -23,6 +23,7 @@ path = "src/lib.rs"
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 anyhow = "1.0"
+cid = { version = "0.10.0", features = ["serde-codec"] }
 console_error_panic_hook = { version = "0.1", optional = true }
 derive_more = "0.99"
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }

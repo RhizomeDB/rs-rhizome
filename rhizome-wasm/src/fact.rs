@@ -1,66 +1,53 @@
-use js_sys::{Map, Reflect};
-use rhizome::{
-    fact::Fact as RhizomeFact,
-    id::{AttributeId, RelationId},
-};
+use std::rc::Rc;
 
+use rhizome::fact::{traits::EDBFact, DefaultEDBFact, DefaultIDBFact};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
 
-use crate::Datum;
+use crate::Cid;
 
 #[wasm_bindgen]
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, DowncastJS)]
-pub struct Fact(RhizomeFact);
+#[derive(Debug, Clone, DowncastJS)]
+pub struct InputFact(DefaultEDBFact);
 
 #[wasm_bindgen]
-impl Fact {
+#[derive(Debug, Clone, DowncastJS)]
+pub struct OutputFact(Rc<DefaultIDBFact>);
+
+impl InputFact {
+    pub fn into_inner(self) -> DefaultEDBFact {
+        self.0
+    }
+}
+
+#[wasm_bindgen]
+impl InputFact {
     #[wasm_bindgen(constructor)]
-    pub fn new(id: String, attributes: &Map) -> Result<Fact, JsValue> {
-        let mut attrs = Vec::new();
-        for entry in attributes.entries() {
-            let entry = entry?;
-            let key = Reflect::get(&entry, &0.into())?;
-            let value = Reflect::get(&entry, &1.into())?;
-            let datum: Datum = serde_wasm_bindgen::from_value(value).unwrap();
-            let attr = (AttributeId::new(key.as_string().unwrap()), datum.inner());
+    pub fn new(entity: i64, attribute: &str, value: JsValue, links_obj: &js_sys::Object) -> Self {
+        let mut links = Vec::default();
+        let keys = js_sys::Reflect::own_keys(links_obj).unwrap();
 
-            attrs.push(attr);
+        for key in keys.iter() {
+            let link_key = key.as_string().unwrap();
+            let link_val = js_sys::Reflect::get(links_obj, &key).unwrap();
+
+            if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(link_val) {
+                links.push((link_key.into(), val.inner()));
+            } else {
+                panic!("expected CID")
+            }
         }
 
-        let inner = RhizomeFact::new(RelationId::new(id), attrs);
-
-        Ok(Self(inner))
-    }
-
-    pub fn id(&self) -> String {
-        self.inner().id().resolve()
-    }
-
-    pub fn attributes(&self) -> Map {
-        let attrs = Map::new();
-
-        for (k, v) in self.inner().attributes() {
-            let v: Datum = (*v).into();
-
-            attrs.set(
-                &JsValue::from(k.resolve()),
-                &serde_wasm_bindgen::to_value(&v).unwrap(),
-            );
+        if let Some(val) = value.as_bool() {
+            Self(DefaultEDBFact::new(entity, attribute, val, links).unwrap())
+        } else if let Some(val) = value.as_f64() {
+            Self(DefaultEDBFact::new(entity, attribute, val as i64, links).unwrap())
+        } else if let Some(val) = value.as_string() {
+            Self(DefaultEDBFact::new(entity, attribute, val.as_ref(), links).unwrap())
+        } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(value.clone()) {
+            Self(DefaultEDBFact::new(entity, attribute, val.inner(), links).unwrap())
+        } else {
+            panic!("unknown type")
         }
-
-        attrs
-    }
-}
-
-impl Fact {
-    pub fn inner(&self) -> &RhizomeFact {
-        &self.0
-    }
-}
-
-impl From<RhizomeFact> for Fact {
-    fn from(f: RhizomeFact) -> Self {
-        Self(f)
     }
 }
