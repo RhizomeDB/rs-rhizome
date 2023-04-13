@@ -10,7 +10,7 @@ readme = "README.md"
 edition = "2021"
 rust-version = "1.64"
 documentation = "https://docs.rs/rhizome"
-repository = "https://github.com/fission-codes/rs-rhizome/tree/main/rhizome"
+repository = "https://github.com/rhizomedb/rs-rhizome/tree/main/rhizome"
 authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
 
 [lib]

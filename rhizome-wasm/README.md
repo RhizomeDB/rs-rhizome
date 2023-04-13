@@ -1,6 +1,6 @@
 <div align="center">
-  <a href="https://github.com/fission-codes/rs-rhizome" target="_blank">
-    <img src="https://raw.githubusercontent.com/fission-codes/rs-rhizome/main/assets/a_logo.png" alt="rhizome Logo" width="100"></img>
+  <a href="https://github.com/rhizomedb/rs-rhizome" target="_blank">
+    <img src="https://raw.githubusercontent.com/rhizomedb/rs-rhizome/main/assets/a_logo.png" alt="rhizome Logo" width="100"></img>
   </a>
 
   <h1 align="center">rhizome-wasm</h1>
@@ -12,16 +12,16 @@
     <a href="https://npmjs.com/package/rhizome">
       <img src="https://img.shields.io/npm/v/rhizome" alt="npm">
     </a>
-    <a href="https://codecov.io/gh/fission-codes/rs-rhizome">
-      <img src="https://codecov.io/gh/fission-codes/rs-rhizome/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
+    <a href="https://codecov.io/gh/rhizomedb/rs-rhizome">
+      <img src="https://codecov.io/gh/rhizomedb/rs-rhizome/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
     </a>
-    <a href="https://github.com/fission-codes/rs-rhizome/actions?query=">
-      <img src="https://github.com/fission-codes/rs-rhizome/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
+    <a href="https://github.com/rhizomedb/rs-rhizome/actions?query=">
+      <img src="https://github.com/rhizomedb/rs-rhizome/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
     </a>
-    <a href="https://github.com/fission-codes/rs-rhizome/blob/main/LICENSE-APACHE">
+    <a href="https://github.com/rhizomedb/rs-rhizome/blob/main/LICENSE-APACHE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License-Apache">
     </a>
-    <a href="https://github.com/fission-codes/rs-rhizome/blob/main/LICENSE-MIT">
+    <a href="https://github.com/rhizomedb/rs-rhizome/blob/main/LICENSE-MIT">
       <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License-MIT">
     </a>
     <a href="https://docs.rs/rhizome">
@@ -41,6 +41,7 @@ WebAssembly bindings for Rhizome.
 
 ## Outline
 
+- [rhizome-wasm](#rhizome-wasm)
 - [Outline](#outline)
 - [Set-up](#set-up)
   - [Build for Javascript](#build-for-javascript)
