@@ -11,7 +11,7 @@ use crate::{
 use super::Statement;
 
 #[derive(Debug)]
-pub(crate) struct Program<EF, IF, ER, IR>
+pub struct Program<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,

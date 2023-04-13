@@ -42,78 +42,81 @@ async fn main() -> Result<()> {
                 })?;
 
                 p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, e, i)| {
-                    (
-                        h.bind((("cid", cid), ("entity", e), ("initial", i))),
-                        b.search(
-                            "evac",
-                            (
-                                ("cid", cid),
-                                ("entity", e),
-                                ("attribute", "initial"),
-                                ("value", i),
-                            ),
+                    h.bind((("cid", cid), ("entity", e), ("initial", i)))?;
+                    b.search(
+                        "evac",
+                        (
+                            ("cid", cid),
+                            ("entity", e),
+                            ("attribute", "initial"),
+                            ("value", i),
                         ),
-                    )
+                    )?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
-                    (
-                        h.bind((
+                    h.bind((
+                        ("cid", cid),
+                        ("entity", e),
+                        ("value", v),
+                        ("parent", parent),
+                    ))?;
+
+                    b.search(
+                        "evac",
+                        (
                             ("cid", cid),
                             ("entity", e),
+                            ("attribute", "write"),
                             ("value", v),
-                            ("parent", parent),
-                        )),
-                        b.search(
-                            "evac",
-                            (
-                                ("cid", cid),
-                                ("entity", e),
-                                ("attribute", "write"),
-                                ("value", v),
-                            ),
-                        )
-                        .get_link(cid, "parent", parent)
-                        .search("create", (("cid", parent), ("entity", e))),
-                    )
+                        ),
+                    )?;
+                    b.get_link(cid, "parent", parent)?;
+                    b.search("create", (("cid", parent), ("entity", e)))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, e, v, parent)| {
-                    (
-                        h.bind((
+                    h.bind((
+                        ("cid", cid),
+                        ("entity", e),
+                        ("value", v),
+                        ("parent", parent),
+                    ))?;
+
+                    b.search(
+                        "evac",
+                        (
                             ("cid", cid),
                             ("entity", e),
+                            ("attribute", "write"),
                             ("value", v),
-                            ("parent", parent),
-                        )),
-                        b.search(
-                            "evac",
-                            (
-                                ("cid", cid),
-                                ("entity", e),
-                                ("attribute", "write"),
-                                ("value", v),
-                            ),
-                        )
-                        .get_link(cid, "parent", parent)
-                        .search("update", (("cid", parent), ("entity", e))),
-                    )
+                        ),
+                    )?;
+                    b.get_link(cid, "parent", parent)?;
+                    b.search("update", (("cid", parent), ("entity", e)))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
-                    (
-                        h.bind((("cid", cid), ("entity", e), ("value", v))),
-                        b.search("create", (("cid", cid), ("entity", e), ("initial", v)))
-                            .except("update", (("entity", e), ("parent", cid))),
-                    )
+                    h.bind((("cid", cid), ("entity", e), ("value", v)))?;
+                    b.search("create", (("cid", cid), ("entity", e), ("initial", v)))?;
+                    b.except("update", (("entity", e), ("parent", cid)))?;
+
+                    Ok(())
                 })?;
 
                 p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, e, v)| {
-                    (
-                        h.bind((("cid", cid), ("entity", e), ("value", v))),
-                        b.search("update", (("cid", cid), ("entity", e), ("value", v)))
-                            .except("update", (("entity", e), ("parent", cid))),
-                    )
+                    h.bind((("cid", cid), ("entity", e), ("value", v)))?;
+
+                    b.search("update", (("cid", cid), ("entity", e), ("value", v)))?;
+                    b.except("update", (("entity", e), ("parent", cid)))?;
+
+                    Ok(())
                 })?;
 
                 Ok(p)
@@ -128,9 +131,9 @@ async fn main() -> Result<()> {
     });
 
     let e0 = EVACFact::new(0, "initial", 0, vec![])?;
-    let e1 = EVACFact::new(0, "write", 1, vec![("parent", e0.cid()?)])?;
-    let e2 = EVACFact::new(0, "write", 5, vec![("parent", e1.cid()?)])?;
-    let e3 = EVACFact::new(0, "write", 3, vec![("parent", e1.cid()?)])?;
+    let e1 = EVACFact::new(0, "write", 1, vec![("parent".into(), e0.cid()?)])?;
+    let e2 = EVACFact::new(0, "write", 5, vec![("parent".into(), e1.cid()?)])?;
+    let e3 = EVACFact::new(0, "write", 3, vec![("parent".into(), e1.cid()?)])?;
     let e4 = EVACFact::new(1, "initial", 4, vec![])?;
 
     client

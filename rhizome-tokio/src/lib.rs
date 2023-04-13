@@ -38,25 +38,26 @@ mod tests {
                     p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
                     p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
-                        (
-                            h.bind((("from", x), ("to", y))),
-                            b.search("evac", (("entity", x), ("attribute", "to"), ("value", y))),
-                        )
+                        h.bind((("from", x), ("to", y)))?;
+                        b.search("evac", (("entity", x), ("attribute", "to"), ("value", y)))?;
+
+                        Ok(())
                     })?;
 
                     p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
-                        (
-                            h.bind((("from", x), ("to", y))),
-                            b.search("edge", (("from", x), ("to", y))),
-                        )
+                        h.bind((("from", x), ("to", y)))?;
+                        b.search("edge", (("from", x), ("to", y)))?;
+
+                        Ok(())
                     })?;
 
                     p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
-                        (
-                            h.bind((("from", x), ("to", z))),
-                            b.search("edge", (("from", x), ("to", y)))
-                                .search("path", (("from", y), ("to", z))),
-                        )
+                        h.bind((("from", x), ("to", z)))?;
+
+                        b.search("edge", (("from", x), ("to", y)))?;
+                        b.search("path", (("from", y), ("to", z)))?;
+
+                        Ok(())
                     })?;
 
                     Ok(p)
