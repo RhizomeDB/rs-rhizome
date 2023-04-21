@@ -46,7 +46,7 @@ impl Rhizome {
         spawn_local(async move {
             reactor
                 .async_run(move |p| {
-                    let builder = ProgramBuilder::new(p);
+                    let builder = ProgramBuilder::new(p).unwrap();
                     let f_builder = builder.clone();
 
                     f.call1(&JsValue::NULL, &JsValue::from(f_builder)).unwrap();

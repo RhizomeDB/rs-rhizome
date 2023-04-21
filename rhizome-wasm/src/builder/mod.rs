@@ -26,13 +26,26 @@ pub struct Var {
 }
 
 impl ProgramBuilder {
-    pub fn new(p: rhizome::ProgramBuilder) -> Self {
-        Self {
+    pub fn new(p: rhizome::ProgramBuilder) -> Result<Self> {
+        Self::install_preamble(&p)?;
+
+        Ok(Self {
             inner: Rc::new(RefCell::new(p)),
-        }
+        })
     }
     pub fn take(self) -> rhizome::ProgramBuilder {
         self.inner.take()
+    }
+
+    fn install_preamble(p: &rhizome::ProgramBuilder) -> Result<()> {
+        p.input("evac", |h| {
+            h.column::<cid::Cid>("cid")
+                .column::<Any>("entity")
+                .column::<Any>("attribute")
+                .column::<Any>("value")
+        })?;
+
+        Ok(())
     }
 }
 
