@@ -123,9 +123,7 @@ where
 
             let mut satisfied = true;
             for formula in self.when.iter() {
-                if !next_bindings
-                    .is_formula_satisfied::<BS, EF, IF, ER, IR>(formula, blockstore)?
-                {
+                if !next_bindings.is_formula_satisfied::<BS, EF, IF, ER, IR>(formula, blockstore)? {
                     satisfied = false;
                 }
             }

@@ -6,8 +6,7 @@ use crate::{
     relation::Relation,
 };
 
-pub use self::program::ProgramBuilder;
-pub use self::rule_vars::RuleVars;
+pub use self::{program::ProgramBuilder, rule_vars::RuleVars};
 
 use super::lower_to_ram;
 

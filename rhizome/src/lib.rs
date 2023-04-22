@@ -23,8 +23,7 @@ pub mod timestamp;
 pub mod types;
 pub mod var;
 
-pub use logic::build;
-pub use logic::{ProgramBuilder, RuleVars};
+pub use logic::{build, ProgramBuilder, RuleVars};
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
