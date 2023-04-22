@@ -5,8 +5,7 @@ pub(crate) mod lower_to_ram;
 
 use anyhow::Result;
 
-pub use builder::build;
-pub use builder::{ProgramBuilder, RuleVars};
+pub use builder::{build, ProgramBuilder, RuleVars};
 
 use crate::value::Val;
 
