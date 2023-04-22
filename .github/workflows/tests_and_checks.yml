@@ -21,7 +21,7 @@ jobs:
           - stable
           - nightly
           # minimum version
-          - 1.64
+          - 1.67
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
