@@ -36,7 +36,7 @@ where
     IR: Relation<Fact = IF>,
 {
     Insert(Insert<EF, IF, ER, IR>),
-    Merge(Merge<IF, IR>),
+    Merge(Merge<EF, IF, ER, IR>),
     Swap(Swap<IR>),
     Purge(Purge<EF, IF, ER, IR>),
     Loop(Loop<EF, IF, ER, IR>),

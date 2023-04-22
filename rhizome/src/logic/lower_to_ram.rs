@@ -16,8 +16,8 @@ use crate::{
     fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId},
     ram::{
-        self, AliasId, ExitBuilder, Formula, Insert, Loop, Merge, NotInRelation, Operation,
-        Project, Purge, PurgeRelation, Reduce, ReduceRelation, RelationVersion, Search,
+        self, AliasId, ExitBuilder, Formula, Insert, Loop, Merge, MergeRelations, NotInRelation,
+        Operation, Project, Purge, PurgeRelation, Reduce, ReduceRelation, RelationVersion, Search,
         SearchRelation, SinksBuilder, SourcesBuilder, Statement, Swap, Term,
     },
     relation::{Relation, Source},
@@ -99,18 +99,49 @@ where
         statements.append(&mut lowered);
     }
 
-    // Purge all newly received input facts
+    // Merge all newly received input fact into Total and then purge Delta
     for input in &inputs {
         let id = input.id();
-        let relation = Arc::clone(
+
+        let delta_relation = Arc::clone(
             edb.get(&(id, RelationVersion::Delta))
+                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+        );
+
+        let total_relation = Arc::clone(
+            edb.get(&(id, RelationVersion::Total))
+                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+        );
+
+        let merge = Merge::new(
+            id,
+            RelationVersion::Delta,
+            id,
+            RelationVersion::Total,
+            MergeRelations::Edb(Arc::clone(&delta_relation), total_relation),
+        );
+
+        statements.push(Statement::Merge(merge));
+
+        statements.push(Statement::Purge(Purge::new(
+            id,
+            RelationVersion::Delta,
+            PurgeRelation::Edb(delta_relation),
+        )));
+    }
+
+    // Purge Delta for all outputs
+    for output in &outputs {
+        let id = output.id();
+        let relation = Arc::clone(
+            idb.get(&(id, RelationVersion::Delta))
                 .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
         );
 
         statements.push(Statement::Purge(Purge::new(
             id,
             RelationVersion::Delta,
-            PurgeRelation::Edb(relation),
+            PurgeRelation::Idb(relation),
         )));
     }
 
@@ -178,8 +209,7 @@ where
                 RelationVersion::Delta,
                 relation,
                 RelationVersion::Total,
-                from_relation,
-                into_relation,
+                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
             );
 
             statements.push(Statement::Merge(merge));
@@ -259,8 +289,7 @@ where
                 RelationVersion::New,
                 relation,
                 RelationVersion::Total,
-                from_relation,
-                into_relation,
+                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
             );
 
             loop_body.push(Statement::Merge(merge));
@@ -312,17 +341,10 @@ where
                 RelationVersion::Total,
                 relation,
                 RelationVersion::Delta,
-                from_relation,
-                into_relation,
+                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
             );
 
             statements.push(Statement::Merge(merge));
-
-            // statements.push(Statement::Purge(Purge::new(RelationRef::new(
-            //     *relation,
-            //     RelationSource::IDB,
-            //     RelationVersion::Delta,
-            // ))));
         }
     } else {
         // Merge facts into delta
@@ -357,8 +379,7 @@ where
                 RelationVersion::Delta,
                 relation,
                 RelationVersion::Total,
-                from_relation,
-                into_relation,
+                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
             );
 
             statements.push(Statement::Merge(merge));
