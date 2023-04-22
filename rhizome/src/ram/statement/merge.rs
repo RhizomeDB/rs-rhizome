@@ -5,7 +5,7 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::Fact,
+    fact::traits::{EDBFact, Fact, IDBFact},
     id::RelationId,
     pretty::Pretty,
     ram::RelationVersion,
@@ -13,50 +13,43 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub(crate) struct Merge<F, R>
+pub(crate) enum MergeRelations<EF, IF, ER, IR>
 where
-    F: Fact,
-    R: Relation<Fact = F>,
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
-    from_id: RelationId,
-    into_id: RelationId,
-    from_version: RelationVersion,
-    into_version: RelationVersion,
-    merge_from: Arc<RwLock<R>>,
-    merge_into: Arc<RwLock<R>>,
+    Edb(Arc<RwLock<ER>>, Arc<RwLock<ER>>),
+    Idb(Arc<RwLock<IR>>, Arc<RwLock<IR>>),
 }
 
-impl<F, R> Merge<F, R>
+impl<EF, IF, ER, IR> MergeRelations<EF, IF, ER, IR>
 where
-    F: Fact,
-    R: Relation<Fact = F>,
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
-    pub(crate) fn new(
-        from_id: RelationId,
-        from_version: RelationVersion,
-        into_id: RelationId,
-        into_version: RelationVersion,
-        from: Arc<RwLock<R>>,
-        into: Arc<RwLock<R>>,
-    ) -> Self {
-        Self {
-            from_id,
-            into_id,
-            from_version,
-            into_version,
-            merge_from: from,
-            merge_into: into,
+    pub(crate) fn apply(&self) -> Result<()> {
+        match self {
+            MergeRelations::Edb(from, into) => Self::do_apply(from, into),
+            MergeRelations::Idb(from, into) => Self::do_apply(from, into),
         }
     }
 
-    pub(crate) fn apply(&self) -> Result<()> {
-        let mut merge_into = self.merge_into.write().or_else(|_| {
+    fn do_apply<F, R>(from: &Arc<RwLock<R>>, into: &Arc<RwLock<R>>) -> Result<()>
+    where
+        F: Fact,
+        R: Relation<Fact = F>,
+    {
+        let mut merge_into = into.write().or_else(|_| {
             error(Error::InternalRhizomeError(
                 "relation lock poisoned".to_owned(),
             ))
         })?;
 
-        let merge_from = self.merge_from.read().or_else(|_| {
+        let merge_from = from.read().or_else(|_| {
             error(Error::InternalRhizomeError(
                 "relation lock poisoned".to_owned(),
             ))
@@ -70,10 +63,57 @@ where
     }
 }
 
-impl<F, R> Pretty for Merge<F, R>
+#[derive(Clone, Debug)]
+pub(crate) struct Merge<EF, IF, ER, IR>
 where
-    F: Fact,
-    R: Relation<Fact = F>,
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
+{
+    from_id: RelationId,
+    into_id: RelationId,
+    from_version: RelationVersion,
+    into_version: RelationVersion,
+    relations: MergeRelations<EF, IF, ER, IR>,
+}
+
+impl<EF, IF, ER, IR> Merge<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
+{
+    pub(crate) fn new(
+        from_id: RelationId,
+        from_version: RelationVersion,
+        into_id: RelationId,
+        into_version: RelationVersion,
+        relations: MergeRelations<EF, IF, ER, IR>,
+    ) -> Self {
+        Self {
+            from_id,
+            into_id,
+            from_version,
+            into_version,
+            relations,
+        }
+    }
+
+    pub(crate) fn apply(&self) -> Result<()> {
+        self.relations.apply()?;
+
+        Ok(())
+    }
+}
+
+impl<EF, IF, ER, IR> Pretty for Merge<EF, IF, ER, IR>
+where
+    EF: EDBFact,
+    IF: IDBFact,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::concat([

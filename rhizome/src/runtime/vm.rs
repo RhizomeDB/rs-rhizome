@@ -295,7 +295,7 @@ where
         Ok(true)
     }
 
-    fn handle_merge(&self, merge: &Merge<IF, IR>) -> Result<bool> {
+    fn handle_merge(&self, merge: &Merge<EF, IF, ER, IR>) -> Result<bool> {
         merge.apply()?;
 
         Ok(true)

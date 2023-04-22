@@ -578,4 +578,46 @@ mod tests {
             ),]
         );
     }
+
+    #[test]
+    fn test_self_join_str() {
+        assert_derives!(
+            |p| {
+                p.output("pair1", |h| {
+                    h.column::<&str>("id")
+                        .column::<&str>("x")
+                        .column::<&str>("y")
+                })?;
+                p.output("pair2", |h| {
+                    h.column::<&str>("id")
+                        .column::<&str>("x")
+                        .column::<&str>("y")
+                })?;
+
+                p.fact("pair1", |f| f.bind((("id", "a"), ("x", "1"), ("y", "2"))))?;
+                p.fact("pair1", |f| f.bind((("id", "b"), ("x", "3"), ("y", "4"))))?;
+                p.fact("pair1", |f| f.bind((("id", "a"), ("x", "5"), ("y", "6"))))?;
+
+                p.rule::<(&str, &str, &str)>("pair2", &|h, b, (id, x, y)| {
+                    h.bind((("id", id), ("x", x), ("y", y)))?;
+                    b.search("pair1", (("id", id), ("x", x)))?;
+                    b.search("pair1", (("id", id), ("y", y)))?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [(
+                "pair2",
+                [
+                    BTreeFact::new("pair2", [("id", "a"), ("x", "1"), ("y", "2")],),
+                    BTreeFact::new("pair2", [("id", "a"), ("x", "1"), ("y", "6")],),
+                    BTreeFact::new("pair2", [("id", "a"), ("x", "5"), ("y", "2")],),
+                    BTreeFact::new("pair2", [("id", "a"), ("x", "5"), ("y", "6")],),
+                    BTreeFact::new("pair2", [("id", "b"), ("x", "3"), ("y", "4")],),
+                ]
+            )]
+        );
+    }
 }
