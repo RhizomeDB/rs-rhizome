@@ -45,7 +45,7 @@ impl Fact for BTreeFact {
     }
 
     fn cols(&self) -> Vec<ColId> {
-        self.cols.keys().into_iter().copied().collect()
+        self.cols.keys().copied().collect()
     }
 }
 
