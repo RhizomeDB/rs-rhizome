@@ -60,6 +60,8 @@ where
     ER: Relation<Fact = EF>,
     IR: Relation<Fact = IF>,
 {
+    // TODO: This struct is a mess and needs to be cleaned up.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         args: Vec<Term>,
         init: Val,
