@@ -223,7 +223,9 @@ where
             sinks_builder.add_relation(id, relation);
         }
 
-        loop_body.push(Statement::Sinks(sinks_builder.finalize()));
+        if !sinks_builder.relations.is_empty() {
+            loop_body.push(Statement::Sinks(sinks_builder.finalize()));
+        }
 
         // Exit the loop if all of the dynamic relations have reached a fixed point
         let mut exit_builder = ExitBuilder::default();
@@ -374,7 +376,9 @@ where
             sinks_builder.add_relation(id, relation);
         }
 
-        statements.push(Statement::Sinks(sinks_builder.finalize()));
+        if !sinks_builder.relations.is_empty() {
+            statements.push(Statement::Sinks(sinks_builder.finalize()));
+        }
     };
 
     Ok(statements)

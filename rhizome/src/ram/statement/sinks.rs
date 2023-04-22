@@ -20,7 +20,7 @@ where
     F: IDBFact,
     R: Relation<Fact = F>,
 {
-    relations: HashMap<RelationId, Arc<RwLock<R>>>,
+    pub(crate) relations: HashMap<RelationId, Arc<RwLock<R>>>,
 }
 
 impl<F, R> Default for SinksBuilder<F, R>
