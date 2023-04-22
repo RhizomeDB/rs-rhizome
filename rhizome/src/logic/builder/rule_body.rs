@@ -21,13 +21,20 @@ use super::{
     typed_vars_tuple::{TypedVarsTuple, VarRefTuple},
 };
 
+type RelPredicates = Vec<(String, RelPredicateBuilder)>;
+type Negations = Vec<(String, NegationBuilder)>;
+type GetLinks = Vec<(CidValue, LinkId, CidValue)>;
+type VarPredicates = Vec<(Vec<Var>, Arc<dyn VarClosure>)>;
+type Reduces = Vec<(String, ReduceBuilder)>;
+type Relations = HashMap<String, Arc<Declaration>>;
+
 pub struct RuleBodyBuilder {
-    rel_predicates: RefCell<Vec<(String, RelPredicateBuilder)>>,
-    negations: RefCell<Vec<(String, NegationBuilder)>>,
-    get_links: RefCell<Vec<(CidValue, LinkId, CidValue)>>,
-    var_predicates: RefCell<Vec<(Vec<Var>, Arc<dyn VarClosure>)>>,
-    reduces: RefCell<Vec<(String, ReduceBuilder)>>,
-    relations: Rc<RefCell<HashMap<String, Arc<Declaration>>>>,
+    rel_predicates: RefCell<RelPredicates>,
+    negations: RefCell<Negations>,
+    get_links: RefCell<GetLinks>,
+    var_predicates: RefCell<VarPredicates>,
+    reduces: RefCell<Reduces>,
+    relations: Rc<RefCell<Relations>>,
 }
 
 impl Debug for RuleBodyBuilder {
