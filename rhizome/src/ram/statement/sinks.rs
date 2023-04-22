@@ -91,7 +91,7 @@ where
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relations_doc = RcDoc::intersperse(
-            self.relations.keys().into_iter().map(RcDoc::as_string),
+            self.relations.keys().map(RcDoc::as_string),
             RcDoc::text(", "),
         );
 

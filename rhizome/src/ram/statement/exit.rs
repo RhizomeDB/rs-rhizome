@@ -98,7 +98,7 @@ where
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relations_doc = RcDoc::intersperse(
-            self.relations.keys().into_iter().map(|(id, version)| {
+            self.relations.keys().map(|(id, version)| {
                 RcDoc::concat([
                     RcDoc::text("count("),
                     RcDoc::as_string(id),
