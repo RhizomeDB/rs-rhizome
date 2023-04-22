@@ -93,7 +93,7 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    pub fn rule<'a, T>(&self, id: &str, f: &RuleBuilderClosure<'a, T::Vars>) -> Result<()>
+    pub fn rule<T>(&self, id: &str, f: &RuleBuilderClosure<'_, T::Vars>) -> Result<()>
     where
         T: RuleVars,
     {
