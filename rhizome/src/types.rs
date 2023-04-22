@@ -38,7 +38,7 @@ impl ColType {
             (ColType::Any, ColType::Any) => Ok(ColType::Any),
             (ColType::Any, ColType::Type(t)) => Ok(ColType::Type(*t)),
             (ColType::Type(t), ColType::Any) => Ok(ColType::Type(*t)),
-            (ColType::Type(t1), ColType::Type(t2)) => t1.unify(t2).map(|t| ColType::Type(t)),
+            (ColType::Type(t1), ColType::Type(t2)) => t1.unify(t2).map(ColType::Type),
         }
     }
 

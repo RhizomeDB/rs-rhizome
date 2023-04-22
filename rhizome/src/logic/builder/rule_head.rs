@@ -55,7 +55,7 @@ impl RuleHeadBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if let Some(bound_type) = bound_vars.get(&var) {
+                    if let Some(bound_type) = bound_vars.get(var) {
                         if let Ok(unified_type) = bound_type
                             .unify(col.col_type())
                             .and_then(|t| t.unify(&var.typ()))
