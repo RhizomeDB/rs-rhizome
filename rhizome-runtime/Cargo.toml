@@ -2,6 +2,7 @@
 name = "rhizome-runtime"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0 or MIT"
 
 [dependencies]
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
