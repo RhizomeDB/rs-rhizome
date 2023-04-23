@@ -1,6 +1,6 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1674590931573,
-  "repoUrl": "https://github.com/fission-codes/rs-rhizome",
+  "lastUpdate": 1682209167817,
+  "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
       {
@@ -269,6 +269,36 @@ window.BENCHMARK_DATA = {
             "name": "add",
             "value": 18808,
             "range": "± 51",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "d32bfa75e2b8ad25d01674294bc758245578c6f3",
+          "message": "chore: specify license for rhizome-runtime and rhizome-tokio",
+          "timestamp": "2023-04-22T20:16:29-04:00",
+          "tree_id": "697c3c86bcd36c584a8cfebc9e8e4507ba19123c",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/d32bfa75e2b8ad25d01674294bc758245578c6f3"
+        },
+        "date": 1682209167125,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
             "unit": "ns/iter"
           }
         ]
