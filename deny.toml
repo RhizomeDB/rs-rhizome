@@ -74,6 +74,7 @@ allow = [
     "MIT",
     "BSD-3-Clause",
     "MPL-2.0",
+    "BSD-2-Clause",
     "BSD-2-Clause-Patent",
     "Zlib"
 ]
