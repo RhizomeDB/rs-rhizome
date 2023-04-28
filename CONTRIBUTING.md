@@ -20,9 +20,7 @@ with others and follow our [code of conduct](./CODE_OF_CONDUCT.md).
 ## How to Contribute
 
 If the code adds a feature that is not already present in an issue, you can
-create a new issue for the feature and add the pull request to it. If the code
-adds a feature that is not already present in an issue, you can create a new
-issue for the feature and add the pull request to it.
+create a new issue for the feature and add the pull request to it.
 
 ### Contributing by Adding a Topic for Discussion
 
