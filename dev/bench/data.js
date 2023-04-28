@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1682209167817,
+  "lastUpdate": 1682711024925,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -293,6 +293,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/d32bfa75e2b8ad25d01674294bc758245578c6f3"
         },
         "date": 1682209167125,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "25114018+natronium@users.noreply.github.com",
+            "name": "Na",
+            "username": "natronium"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "31af291682fe49e4591d5bc679f1fde3961acbd7",
+          "message": "docs: remove duplicate sentence from contribution docs",
+          "timestamp": "2023-04-28T15:42:08-04:00",
+          "tree_id": "0b3eb74d7a9bb28d7531e0eea4ad9d13466d8366",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/31af291682fe49e4591d5bc679f1fde3961acbd7"
+        },
+        "date": 1682711024207,
         "tool": "cargo",
         "benches": [
           {
