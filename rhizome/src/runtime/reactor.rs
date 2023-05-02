@@ -187,7 +187,7 @@ where {
                     .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
             ClientCommand::RegisterSink(id, create_sink, sender) => {
-                let (tx, mut rx) = mpsc::channel(1);
+                let (tx, mut rx) = mpsc::channel(100);
                 let create_task = move || async move {
                     let mut sink = Box::into_pin(create_sink());
 
