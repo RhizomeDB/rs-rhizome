@@ -23,7 +23,7 @@ impl InputFact {
 #[wasm_bindgen]
 impl InputFact {
     #[wasm_bindgen(constructor)]
-    pub fn new(entity: i64, attribute: &str, value: JsValue, links_obj: &js_sys::Object) -> Self {
+    pub fn new(entity: &str, attribute: &str, value: JsValue, links_obj: &js_sys::Object) -> Self {
         let mut links = Vec::default();
         let keys = js_sys::Reflect::own_keys(links_obj).unwrap();
 
@@ -44,7 +44,7 @@ impl InputFact {
             Self(DefaultEDBFact::new(entity, attribute, val as i64, links).unwrap())
         } else if let Some(val) = value.as_string() {
             Self(DefaultEDBFact::new(entity, attribute, val.as_ref(), links).unwrap())
-        } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(value.clone()) {
+        } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(value) {
             Self(DefaultEDBFact::new(entity, attribute, val.inner(), links).unwrap())
         } else {
             panic!("unknown type")

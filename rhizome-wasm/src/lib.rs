@@ -4,10 +4,13 @@
 
 //! rhizome
 
-use futures::{channel::mpsc::Receiver, sink::unfold, StreamExt};
-use gloo_console::console_dbg;
+use futures::{sink::unfold, StreamExt};
+
 use js_sys::AsyncIterator;
-use rhizome::{runtime::ClientEvent, timestamp::PairTimestamp};
+use rhizome::{
+    fact::{traits::Fact, DefaultIDBFact},
+    value::Val,
+};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
@@ -21,7 +24,7 @@ use std::{cell::RefCell, rc::Rc};
 use crate::{builder::ProgramBuilder, fact::InputFact};
 
 #[wasm_bindgen]
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, DowncastJS)]
 pub struct Cid(cid::Cid);
 
 impl Cid {
@@ -109,10 +112,42 @@ impl Rhizome {
             .register_sink(
                 id,
                 Box::new(move || {
-                    Box::new(unfold((), move |(), fact| async move {
-                        console_log!("{}", fact);
+                    Box::new(unfold(f, move |f, fact: DefaultIDBFact| async move {
+                        let js_fact = js_sys::Object::new();
 
-                        Ok(())
+                        for col in fact.cols() {
+                            match &*fact.col(&col).unwrap() {
+                                Val::Bool(v) => js_sys::Reflect::set(
+                                    &js_fact,
+                                    &col.resolve().into(),
+                                    &serde_wasm_bindgen::to_value(&v).unwrap(),
+                                )
+                                .unwrap(),
+                                Val::S64(v) => js_sys::Reflect::set(
+                                    &js_fact,
+                                    &col.resolve().into(),
+                                    &serde_wasm_bindgen::to_value(&v).unwrap(),
+                                )
+                                .unwrap(),
+                                Val::String(v) => js_sys::Reflect::set(
+                                    &js_fact,
+                                    &col.resolve().into(),
+                                    &serde_wasm_bindgen::to_value(&v).unwrap(),
+                                )
+                                .unwrap(),
+                                Val::Cid(v) => js_sys::Reflect::set(
+                                    &js_fact,
+                                    &col.resolve().into(),
+                                    &serde_wasm_bindgen::to_value(&Cid(*v)).unwrap(),
+                                )
+                                .unwrap(),
+                                _ => panic!("unsupported type"),
+                            };
+                        }
+
+                        f.call1(&JsValue::NULL, &js_fact).unwrap();
+
+                        Ok(f)
                     }))
                 }),
             )
