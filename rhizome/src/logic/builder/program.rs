@@ -6,7 +6,6 @@ use crate::{
     id::RelationId,
     logic::ast::{Clause, Declaration, Program, Rule},
     relation::Source,
-    types::ColType,
 };
 
 use super::{
@@ -109,12 +108,6 @@ impl ProgramBuilder {
 
         let body = body_builder.finalize(&mut bound_vars)?;
         let head = head_builder.finalize(&mut bound_vars)?;
-
-        for (var, bound_type) in bound_vars {
-            if bound_type == ColType::Any {
-                return error(Error::UnconstrainedVar(var));
-            }
-        }
 
         match declaration.source() {
             Source::Edb => error(Error::ClauseHeadEDB(declaration.id())),

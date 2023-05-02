@@ -14,7 +14,7 @@ use crate::{
     col_val::ColVal,
     error::{error, Error},
     fact::traits::{EDBFact, IDBFact},
-    id::{ColId, RelationId},
+    id::{ColId, RelationId, VarId},
     ram::{
         self, AliasId, ExitBuilder, Formula, Insert, Loop, Merge, MergeRelations, NotInRelation,
         Operation, Project, Purge, PurgeRelation, Reduce, ReduceRelation, RelationVersion, Search,
@@ -439,16 +439,16 @@ where
 
 struct TermMetadata {
     alias: Option<AliasId>,
-    bindings: im::HashMap<Var, Term>,
+    bindings: im::HashMap<VarId, Term>,
 }
 
 impl TermMetadata {
-    fn new(alias: Option<AliasId>, bindings: im::HashMap<Var, Term>) -> Self {
+    fn new(alias: Option<AliasId>, bindings: im::HashMap<VarId, Term>) -> Self {
         Self { alias, bindings }
     }
 
     fn is_bound(&self, var: &Var) -> bool {
-        self.bindings.contains_key(var)
+        self.bindings.contains_key(&var.id())
     }
 }
 
@@ -467,7 +467,7 @@ where
     IF: IDBFact,
 {
     let mut next_alias = im::HashMap::<RelationId, AliasId>::default();
-    let mut bindings = im::HashMap::<Var, Term>::default();
+    let mut bindings = im::HashMap::<VarId, Term>::default();
     let mut term_metadata = Vec::<(&BodyTerm, TermMetadata)>::default();
 
     for body_term in rule.body() {
@@ -484,8 +484,11 @@ where
                 for (col_id, col_val) in predicate.args() {
                     match col_val {
                         ColVal::Lit(_) => continue,
-                        ColVal::Binding(var) if !bindings.contains_key(var) => bindings
-                            .insert(*var, Term::Col(predicate.relation().id(), alias, *col_id)),
+                        ColVal::Binding(var) if !bindings.contains_key(&var.id()) => bindings
+                            .insert(
+                                var.id(),
+                                Term::Col(predicate.relation().id(), alias, *col_id),
+                            ),
                         _ => continue,
                     };
                 }
@@ -495,11 +498,11 @@ where
             BodyTerm::Negation(_) => continue,
             BodyTerm::GetLink(inner) => {
                 if let CidValue::Var(val_var) = inner.link_value() {
-                    if !bindings.contains_key(&val_var) {
+                    if !bindings.contains_key(&val_var.id()) {
                         match inner.cid() {
                             CidValue::Cid(cid) => {
                                 bindings.insert(
-                                    val_var,
+                                    val_var.id(),
                                     Term::Link(
                                         inner.link_id(),
                                         Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
@@ -507,9 +510,9 @@ where
                                 );
                             }
                             CidValue::Var(var) => {
-                                if let Some(term) = bindings.get(&var) {
+                                if let Some(term) = bindings.get(&var.id()) {
                                     bindings.insert(
-                                        val_var,
+                                        val_var.id(),
                                         Term::Link(inner.link_id(), Box::new(term.clone())),
                                     );
                                 } else {
@@ -522,7 +525,7 @@ where
             }
             BodyTerm::VarPredicate(_) => continue,
             BodyTerm::Reduce(inner) => {
-                if !bindings.contains_key(inner.target()) {
+                if !bindings.contains_key(&inner.target().id()) {
                     let alias = next_alias.get(&inner.relation().id()).copied();
 
                     next_alias = next_alias.update_with(
@@ -532,7 +535,7 @@ where
                     );
 
                     bindings.insert(
-                        *inner.target(),
+                        inner.target().id(),
                         Term::Agg(inner.relation().id(), alias, *inner.target()),
                     );
 
@@ -552,7 +555,7 @@ where
         let term = match v {
             ColVal::Lit(c) => Term::Lit(Arc::clone(c)),
             ColVal::Binding(v) => bindings
-                .get(v)
+                .get(&v.id())
                 .ok_or_else(|| Error::InternalRhizomeError("binding not found".to_owned()))?
                 .clone(),
         };
@@ -620,7 +623,7 @@ where
                                 formulae.push(formula);
                             }
                             ColVal::Binding(var) => {
-                                if let Some(bound) = metadata.bindings.get(var) {
+                                if let Some(bound) = metadata.bindings.get(&var.id()) {
                                     match bound {
                                         Term::Col(rel_id, alias, _)
                                             if *rel_id == predicate.relation().id()
@@ -656,7 +659,7 @@ where
                                 ColVal::Lit(val) => Term::Lit(Arc::clone(val)),
                                 ColVal::Binding(var) => metadata
                                     .bindings
-                                    .get(var)
+                                    .get(&var.id())
                                     .ok_or_else(|| {
                                         Error::InternalRhizomeError("binding not found".to_owned())
                                     })?
@@ -694,7 +697,7 @@ where
                         .into_iter()
                         .partition(|term| match term.cid() {
                             CidValue::Cid(_) => true,
-                            CidValue::Var(var) => bindings.contains_key(&var),
+                            CidValue::Var(var) => bindings.contains_key(&var.id()),
                         });
 
                     get_link_terms = unsatisfied;
@@ -707,7 +710,7 @@ where
                                 Box::new(
                                     metadata
                                         .bindings
-                                        .get(&var)
+                                        .get(&var.id())
                                         .ok_or_else(|| {
                                             Error::InternalRhizomeError(
                                                 "binding not found".to_owned(),
@@ -725,7 +728,7 @@ where
                             ),
                             CidValue::Var(var) => metadata
                                 .bindings
-                                .get(&var)
+                                .get(&var.id())
                                 .ok_or_else(|| {
                                     Error::InternalRhizomeError("binding not found".to_owned())
                                 })?
@@ -748,7 +751,7 @@ where
                             .map(|var| {
                                 Ok(metadata
                                     .bindings
-                                    .get(var)
+                                    .get(&var.id())
                                     .ok_or_else(|| {
                                         Error::InternalRhizomeError("binding not found".to_owned())
                                     })?
@@ -817,7 +820,7 @@ where
                         if let Some(term) = match col_val {
                             ColVal::Lit(lit) => Some(Term::Lit(Arc::clone(lit))),
                             ColVal::Binding(var) => {
-                                if let Some(term) = bindings.get(var) {
+                                if let Some(term) = bindings.get(&var.id()) {
                                     if agg.vars().contains(var) {
                                         args.push(term.clone());
                                     }
@@ -853,7 +856,7 @@ where
                                 ColVal::Lit(val) => Term::Lit(Arc::clone(val)),
                                 ColVal::Binding(var) => metadata
                                     .bindings
-                                    .get(var)
+                                    .get(&var.id())
                                     .ok_or_else(|| {
                                         Error::InternalRhizomeError("binding not found".to_owned())
                                     })?
@@ -890,7 +893,7 @@ where
                         .into_iter()
                         .partition(|term| match term.cid() {
                             CidValue::Cid(_) => true,
-                            CidValue::Var(var) => bindings.contains_key(&var),
+                            CidValue::Var(var) => bindings.contains_key(&var.id()),
                         });
 
                     get_link_terms = unsatisfied;
@@ -903,7 +906,7 @@ where
                                 Box::new(
                                     metadata
                                         .bindings
-                                        .get(&var)
+                                        .get(&var.id())
                                         .ok_or_else(|| {
                                             Error::InternalRhizomeError(
                                                 "binding not found".to_owned(),
@@ -921,7 +924,7 @@ where
                             ),
                             CidValue::Var(var) => metadata
                                 .bindings
-                                .get(&var)
+                                .get(&var.id())
                                 .ok_or_else(|| {
                                     Error::InternalRhizomeError("binding not found".to_owned())
                                 })?
@@ -944,7 +947,7 @@ where
                             .map(|var| {
                                 Ok(metadata
                                     .bindings
-                                    .get(var)
+                                    .get(&var.id())
                                     .ok_or_else(|| {
                                         Error::InternalRhizomeError("binding not found".to_owned())
                                     })?

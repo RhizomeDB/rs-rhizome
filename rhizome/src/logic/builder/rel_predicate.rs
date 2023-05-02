@@ -4,10 +4,9 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 use crate::{
     col_val::ColVal,
     error::{error, Error},
-    id::ColId,
+    id::{ColId, VarId},
     logic::ast::{Declaration, RelPredicate},
     types::ColType,
-    var::Var,
 };
 
 use super::atom_args::AtomArg;
@@ -18,15 +17,10 @@ pub struct RelPredicateBuilder {
 }
 
 impl RelPredicateBuilder {
-    pub fn new() -> Self {
-        Self {
-            bindings: RefCell::default(),
-        }
-    }
     pub fn finalize(
         self,
         relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<Var, ColType>,
+        bound_vars: &mut HashMap<VarId, ColType>,
     ) -> Result<RelPredicate> {
         let mut cols = HashMap::default();
 
@@ -54,7 +48,7 @@ impl RelPredicateBuilder {
                 }
                 ColVal::Binding(var) => {
                     if let Ok(unified) = col.col_type().unify(&var.typ()) {
-                        bound_vars.insert(*var, unified);
+                        bound_vars.insert(var.id(), unified);
                     } else {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
@@ -78,9 +72,9 @@ impl RelPredicateBuilder {
     where
         T: AtomArg<A>,
     {
-        let (id, value) = binding.into_col();
+        let (id, val) = binding.into_col();
 
-        self.bindings.borrow_mut().push((id, value));
+        self.bindings.borrow_mut().push((id, val));
 
         Ok(())
     }

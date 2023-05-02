@@ -4,11 +4,10 @@ use std::{cell::RefCell, collections::HashMap, fmt::Debug, sync::Arc};
 use crate::{
     col_val::ColVal,
     error::{error, Error},
-    id::ColId,
+    id::{ColId, VarId},
     logic::ast::Declaration,
     types::ColType,
     value::Val,
-    var::Var,
 };
 
 use super::atom_args::{AtomArg, AtomArgs};
@@ -29,7 +28,7 @@ impl RuleHeadBuilder {
 
     pub fn finalize(
         self,
-        bound_vars: &mut HashMap<Var, ColType>,
+        bound_vars: &mut HashMap<VarId, ColType>,
     ) -> Result<HashMap<ColId, ColVal>> {
         let schema = self.relation.schema();
         let mut cols = HashMap::default();
@@ -55,12 +54,12 @@ impl RuleHeadBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if let Some(bound_type) = bound_vars.get(var) {
+                    if let Some(bound_type) = bound_vars.get(&var.id()) {
                         if let Ok(unified_type) = bound_type
                             .unify(col.col_type())
                             .and_then(|t| t.unify(&var.typ()))
                         {
-                            bound_vars.insert(*var, unified_type);
+                            bound_vars.insert(var.id(), unified_type);
                         } else {
                             return error(Error::ColumnValueTypeConflict(
                                 self.relation.id(),
@@ -73,7 +72,7 @@ impl RuleHeadBuilder {
                         return error(Error::ClauseNotRangeRestricted(col_id, var.id()));
                     }
 
-                    if !bound_vars.contains_key(var) {
+                    if !bound_vars.contains_key(&var.id()) {
                         return error(Error::ClauseNotRangeRestricted(col_id, var.id()));
                     }
                 }
