@@ -123,7 +123,7 @@ impl ProgramBuilder {
                     } else if let Some(val) = col_val.as_string() {
                         acc.bind_one((col_key.as_ref(), val.as_ref()))
                     } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(col_val) {
-                        acc.bind_one((col_key.as_ref(), val.0))
+                        acc.bind_one((col_key.as_ref(), val.inner()))
                     } else {
                         panic!("unknown type")
                     }
@@ -199,7 +199,7 @@ impl ProgramBuilder {
                     } else if let Some(val) = col_val.as_string() {
                         h.bind_one((col_key.as_ref(), val.as_str())).unwrap()
                     } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(col_val.clone()) {
-                        h.bind_one((col_key.as_ref(), val.0)).unwrap()
+                        h.bind_one((col_key.as_ref(), val.inner())).unwrap()
                     } else if let Some(var) = Var::downcast_js_ref(&col_val) {
                         h.bind_one((col_key.as_ref(), vars.get(var.idx).unwrap()))
                             .unwrap()
@@ -246,7 +246,7 @@ impl ProgramBuilder {
                                     } else if let Ok(val) =
                                         serde_wasm_bindgen::from_value::<Cid>(col_val.clone())
                                     {
-                                        s.bind_one((col_key.as_ref(), val.0)).unwrap()
+                                        s.bind_one((col_key.as_ref(), val.inner())).unwrap()
                                     } else if let Some(var) = Var::downcast_js_ref(&col_val) {
                                         s.bind_one((col_key.as_str(), vars.get(var.idx).unwrap()))
                                             .unwrap();
@@ -258,6 +258,95 @@ impl ProgramBuilder {
                                 Ok(())
                             })
                             .unwrap();
+                        }
+                        "except" => {
+                            let id = js_sys::Reflect::get(&term, &JsValue::from("rel"))
+                                .unwrap()
+                                .as_string()
+                                .unwrap();
+
+                            let bindings =
+                                js_sys::Reflect::get(&term, &JsValue::from("where")).unwrap();
+
+                            let bindings_keys = js_sys::Reflect::own_keys(&bindings).unwrap();
+
+                            b.build_except(id.as_ref(), |s| {
+                                bindings_keys.iter().for_each(|key| {
+                                    let col_key = key.as_string().unwrap();
+                                    let col_val = js_sys::Reflect::get(&bindings, &key).unwrap();
+
+                                    if let Some(val) = col_val.as_bool() {
+                                        s.bind_one((col_key.as_ref(), val)).unwrap();
+                                    } else if let Some(val) = col_val.as_f64() {
+                                        s.bind_one((col_key.as_ref(), val as i64)).unwrap();
+                                    } else if let Some(val) = col_val.as_string() {
+                                        s.bind_one((col_key.as_ref(), val.as_str())).unwrap();
+                                    } else if let Ok(val) =
+                                        serde_wasm_bindgen::from_value::<Cid>(col_val.clone())
+                                    {
+                                        s.bind_one((col_key.as_ref(), val.inner())).unwrap()
+                                    } else if let Some(var) = Var::downcast_js_ref(&col_val) {
+                                        s.bind_one((col_key.as_str(), vars.get(var.idx).unwrap()))
+                                            .unwrap();
+                                    } else {
+                                        panic!("unknown type")
+                                    }
+                                });
+
+                                Ok(())
+                            })
+                            .unwrap();
+                        }
+                        "link" => {
+                            let cid = js_sys::Reflect::get(&term, &JsValue::from("cid")).unwrap();
+
+                            let link_key = js_sys::Reflect::get(&term, &JsValue::from("name"))
+                                .unwrap()
+                                .as_string()
+                                .unwrap();
+
+                            let link_val =
+                                js_sys::Reflect::get(&term, &JsValue::from("value")).unwrap();
+
+                            if let Ok(cid_val) = serde_wasm_bindgen::from_value::<Cid>(cid.clone())
+                            {
+                                if let Ok(val) =
+                                    serde_wasm_bindgen::from_value::<Cid>(link_val.clone())
+                                {
+                                    b.get_link(cid_val.inner(), link_key, val.inner()).unwrap();
+                                } else if let Some(var) = Var::downcast_js_ref(&link_val) {
+                                    b.get_link(
+                                        cid_val.inner(),
+                                        link_key,
+                                        vars.get(var.idx).unwrap(),
+                                    )
+                                    .unwrap();
+                                } else {
+                                    panic!("unexpected type")
+                                }
+                            } else if let Some(cid_var) = Var::downcast_js_ref(&cid) {
+                                if let Ok(val) =
+                                    serde_wasm_bindgen::from_value::<Cid>(link_val.clone())
+                                {
+                                    b.get_link(
+                                        vars.get(cid_var.idx).unwrap(),
+                                        link_key,
+                                        val.inner(),
+                                    )
+                                    .unwrap();
+                                } else if let Some(var) = Var::downcast_js_ref(&link_val) {
+                                    b.get_link(
+                                        vars.get(cid_var.idx).unwrap(),
+                                        link_key,
+                                        vars.get(var.idx).unwrap(),
+                                    )
+                                    .unwrap();
+                                } else {
+                                    panic!("unexpected type")
+                                }
+                            } else {
+                                panic!("unexpected type")
+                            }
                         }
                         _ => panic!("unrecognized op"),
                     };
