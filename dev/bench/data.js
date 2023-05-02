@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1682711024925,
+  "lastUpdate": 1683062100066,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -323,6 +323,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/31af291682fe49e4591d5bc679f1fde3961acbd7"
         },
         "date": 1682711024207,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "acb85dbbabc8f57080c4a274a73cec1f8f8a866c",
+          "message": "refactor: remove unused imports",
+          "timestamp": "2023-05-02T14:12:17-07:00",
+          "tree_id": "70375df306c9250dc8fcea13d2b59a4690d65c4d",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/acb85dbbabc8f57080c4a274a73cec1f8f8a866c"
+        },
+        "date": 1683062099191,
         "tool": "cargo",
         "benches": [
           {
