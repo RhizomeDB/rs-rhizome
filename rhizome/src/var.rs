@@ -74,6 +74,10 @@ where
     pub fn id(&self) -> VarId {
         self.id
     }
+
+    pub fn typ(&self) -> ColType {
+        self.typ
+    }
 }
 
 impl<T> Display for TypedVar<T> {

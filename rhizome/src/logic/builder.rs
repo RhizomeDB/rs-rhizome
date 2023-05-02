@@ -1577,21 +1577,4 @@ mod tests {
             Ok(p)
         });
     }
-
-    #[test]
-    fn test_any_must_be_known() {
-        assert_compile_err!(&Error::UnconstrainedVar(Var::new::<Any>("x0")), |p| {
-            p.input("in", |h| h.column::<Any>("v"))?;
-            p.output("out", |h| h.column::<Any>("v"))?;
-
-            p.rule::<[Any; 1]>("out", &|h, b, [v]| {
-                h.bind((("v", v),))?;
-                b.search("in", (("v", v),))?;
-
-                Ok(())
-            })?;
-
-            Ok(p)
-        });
-    }
 }

@@ -9,7 +9,7 @@ use derive_more::{From, IsVariant};
 
 use crate::{
     error::Error,
-    id::{ColId, LinkId},
+    id::{ColId, LinkId, VarId},
     logic::{ReduceClosure, VarClosure},
     value::Val,
     var::Var,
@@ -98,8 +98,10 @@ impl Negation {
         &self.args
     }
 
-    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<Var, T>) -> bool {
-        self.vars().iter().all(|var| bindings.contains_key(var))
+    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<VarId, T>) -> bool {
+        self.vars()
+            .iter()
+            .all(|var| bindings.contains_key(&var.id()))
     }
 
     pub fn vars(&self) -> HashSet<&Var> {
@@ -169,8 +171,10 @@ impl VarPredicate {
         Arc::clone(&self.f)
     }
 
-    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<Var, T>) -> bool {
-        self.vars.iter().all(|var| bindings.contains_key(var))
+    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<VarId, T>) -> bool {
+        self.vars()
+            .iter()
+            .all(|var| bindings.contains_key(&var.id()))
     }
 }
 
@@ -234,8 +238,10 @@ impl Reduce {
         Arc::clone(&self.f)
     }
 
-    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<Var, T>) -> bool {
-        self.vars.iter().all(|var| bindings.contains_key(var))
+    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<VarId, T>) -> bool {
+        self.vars()
+            .iter()
+            .all(|var| bindings.contains_key(&var.id()))
     }
 }
 

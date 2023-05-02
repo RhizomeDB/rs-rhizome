@@ -12,7 +12,6 @@ pub(crate) mod lattice;
 pub(crate) mod logic;
 pub(crate) mod ram;
 pub(crate) mod relation;
-pub(crate) mod value;
 
 pub mod error;
 pub mod fact;
@@ -21,6 +20,7 @@ pub mod runtime;
 pub mod storage;
 pub mod timestamp;
 pub mod types;
+pub mod value;
 pub mod var;
 
 pub use logic::{build, ProgramBuilder, RuleVars};

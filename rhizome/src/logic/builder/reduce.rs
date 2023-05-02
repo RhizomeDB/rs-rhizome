@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use crate::{
     col_val::ColVal,
     error::{error, Error},
-    id::ColId,
+    id::{ColId, VarId},
     logic::{
         ast::{Declaration, Reduce},
         ReduceClosure,
@@ -35,9 +35,12 @@ impl ReduceBuilder {
     pub(crate) fn finalize(
         self,
         relation: Arc<Declaration>,
-        bound_vars: &mut HashMap<Var, ColType>,
+        bound_vars: &mut HashMap<VarId, ColType>,
     ) -> Result<Reduce> {
-        if bound_vars.insert(self.target, self.target.typ()).is_some() {
+        if bound_vars
+            .insert(self.target.id(), self.target.typ())
+            .is_some()
+        {
             return error(Error::ReduceBoundTarget(self.target.id()));
         }
 
@@ -70,7 +73,7 @@ impl ReduceBuilder {
                         return error(Error::ReduceGroupByTarget(var.id()));
                     }
 
-                    if !bound_vars.contains_key(var) && !self.vars.contains(var) {
+                    if !bound_vars.contains_key(&var.id()) && !self.vars.contains(var) {
                         return error(Error::ReduceUnboundGroupBy(var.id(), col_id, relation.id()));
                     }
 

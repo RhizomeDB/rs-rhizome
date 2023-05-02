@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc, sync::Arc};
 
 use crate::{
     error::{error, Error},
-    id::LinkId,
+    id::{LinkId, VarId},
     logic::{
         ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
         ReduceClosure, VarClosure,
@@ -55,7 +55,7 @@ impl RuleBodyBuilder {
         }
     }
 
-    pub fn finalize(self, bound_vars: &mut HashMap<Var, ColType>) -> Result<Vec<BodyTerm>> {
+    pub fn finalize(self, bound_vars: &mut HashMap<VarId, ColType>) -> Result<Vec<BodyTerm>> {
         let mut body_terms = Vec::default();
 
         for (id, builder) in self.rel_predicates.into_inner() {
@@ -75,7 +75,7 @@ impl RuleBodyBuilder {
                     return error(Error::VarTypeConflict(var, Type::Cid));
                 }
 
-                if let Some(bound_type) = bound_vars.insert(var, ColType::Type(Type::Cid)) {
+                if let Some(bound_type) = bound_vars.insert(var.id(), ColType::Type(Type::Cid)) {
                     if bound_type.unify(&ColType::Type(Type::Cid)).is_err() {
                         return error(Error::VarTypeConflict(var, Type::Cid));
                     }
@@ -89,7 +89,7 @@ impl RuleBodyBuilder {
                     return error(Error::VarTypeConflict(var, Type::Cid));
                 }
 
-                if let Some(bound_type) = bound_vars.insert(var, ColType::Type(Type::Cid)) {
+                if let Some(bound_type) = bound_vars.insert(var.id(), ColType::Type(Type::Cid)) {
                     if bound_type.unify(&ColType::Type(Type::Cid)).is_err() {
                         return error(Error::VarTypeConflict(var, Type::Cid));
                     }
@@ -103,7 +103,7 @@ impl RuleBodyBuilder {
 
         for (vars, f) in self.var_predicates.into_inner() {
             for var in &vars {
-                if !bound_vars.contains_key(var) {
+                if !bound_vars.contains_key(&var.id()) {
                     return error(Error::ClauseNotDomainIndependent(var.id()));
                 }
             }
@@ -121,7 +121,7 @@ impl RuleBodyBuilder {
             let negation = builder.finalize(declaration)?;
 
             for var in negation.vars() {
-                if !bound_vars.contains_key(var) {
+                if !bound_vars.contains_key(&var.id()) {
                     return error(Error::ClauseNotDomainIndependent(var.id()));
                 }
             }
@@ -149,7 +149,7 @@ impl RuleBodyBuilder {
     where
         T: AtomArgs<A>,
     {
-        let builder = RelPredicateBuilder::new();
+        let builder = RelPredicateBuilder::default();
 
         for (col_id, col_val) in T::into_cols(t) {
             builder.bindings.borrow_mut().push((col_id, col_val));
@@ -166,7 +166,7 @@ impl RuleBodyBuilder {
     where
         F: Fn(&'_ RelPredicateBuilder) -> Result<()>,
     {
-        let builder = RelPredicateBuilder::new();
+        let builder = RelPredicateBuilder::default();
 
         f(&builder)?;
 
@@ -181,10 +181,10 @@ impl RuleBodyBuilder {
     where
         T: AtomArgs<A>,
     {
-        let mut builder = NegationBuilder::default();
+        let builder = NegationBuilder::default();
 
         for (col_id, col_val) in T::into_cols(t) {
-            builder.bindings.push((col_id, col_val));
+            builder.bindings.borrow_mut().push((col_id, col_val));
         }
 
         self.negations.borrow_mut().push((id.to_string(), builder));
@@ -194,10 +194,11 @@ impl RuleBodyBuilder {
 
     pub fn build_except<F>(&self, id: &str, f: F) -> Result<()>
     where
-        F: Fn(NegationBuilder) -> NegationBuilder,
+        F: Fn(&'_ NegationBuilder) -> Result<()>,
     {
         let builder = NegationBuilder::default();
-        let builder = f(builder);
+
+        f(&builder)?;
 
         self.negations.borrow_mut().push((id.to_string(), builder));
 
