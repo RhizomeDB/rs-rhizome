@@ -27,7 +27,7 @@ impl Client {
 
         let client = Self {
             command_tx,
-            _marker: PhantomData::default(),
+            _marker: PhantomData,
         };
 
         let reactor = <Reactor>::new(command_rx, event_tx);

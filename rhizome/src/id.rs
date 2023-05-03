@@ -10,7 +10,7 @@ impl<T, U> Id<T, U> {
     pub fn new<S: AsRef<str>>(id: S) -> Self {
         let symbol = Symbol::get_or_intern(id.as_ref());
 
-        Self(symbol, PhantomData::default())
+        Self(symbol, PhantomData)
     }
 
     pub fn resolve(&self) -> String {
