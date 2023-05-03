@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683083819764,
+  "lastUpdate": 1683136289508,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -413,6 +413,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/3ca2b3bf0586dda2dac3ada9cff6c6aaaaafd633"
         },
         "date": 1683083819302,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "e57079b1e9a0c20486accc8476f664e4e61cfddb",
+          "message": "fix: fix tc example not printing any tuples\n\nThis check was a remnant of an earlier version that would\nsometimes infer duplicate tuples.",
+          "timestamp": "2023-05-03T10:48:42-07:00",
+          "tree_id": "63db6cdce41750c3c5ddddc0795a7503de96b409",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/e57079b1e9a0c20486accc8476f664e4e61cfddb"
+        },
+        "date": 1683136288683,
         "tool": "cargo",
         "benches": [
           {
