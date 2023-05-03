@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use anyhow::Result;
 use futures::{sink::unfold, StreamExt};
 use rhizome::{
@@ -63,16 +61,11 @@ async fn main() -> Result<()> {
         .register_sink(
             "path",
             Box::new(|| {
-                Box::new(unfold(
-                    BTreeSet::default(),
-                    move |mut rel, fact: BTreeFact| async move {
-                        if !rel.insert(fact.clone()) {
-                            println!("{fact}");
-                        }
+                Box::new(unfold((), move |(), fact: BTreeFact| async move {
+                    println!("{fact}");
 
-                        Ok(rel)
-                    },
-                ))
+                    Ok(())
+                }))
             }),
         )
         .await?;
