@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683078197665,
+  "lastUpdate": 1683083819764,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -383,6 +383,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/ab485a58d0edd8756ec1d3656234b854b10bab02"
         },
         "date": 1683078196913,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mikayla.c.maki@gmail.com",
+            "name": "Mikayla Maki",
+            "username": "mikayla-maki"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "3ca2b3bf0586dda2dac3ada9cff6c6aaaaafd633",
+          "message": "refactor: Switch the reactor to use a HashMap for sinks",
+          "timestamp": "2023-05-02T20:14:42-07:00",
+          "tree_id": "5cc170fd62a53536c60af6d63cb51dd09727cafa",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/3ca2b3bf0586dda2dac3ada9cff6c6aaaaafd633"
+        },
+        "date": 1683083819302,
         "tool": "cargo",
         "benches": [
           {
