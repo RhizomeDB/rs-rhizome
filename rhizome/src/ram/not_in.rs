@@ -82,10 +82,10 @@ where
     where
         BS: Blockstore,
     {
-        // TODO: Dry up constructing a fact from BTreeMap<ColId, Term>
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in self.cols() {
+            // TODO: Error if term fails to resolve; see https://github.com/RhizomeDB/rs-rhizome/issues/28
             if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore)? {
                 bound.push((*id, <Val>::clone(&val)));
             }
@@ -93,7 +93,8 @@ where
 
         match &self.relation {
             NotInRelation::Edb(_) => {
-                todo!("Oops, apparently negation is only implemented on IDB relations")
+                // See https://github.com/RhizomeDB/rs-rhizome/issues/27
+                todo!("Negation is only implemented on IDB relations")
             }
             NotInRelation::Idb(relation) => {
                 let bound_fact = IF::new(self.id, bound);

@@ -232,7 +232,7 @@ where
     IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        // TODO
+        // TODO: pretty print reduce; see https://github.com/RhizomeDB/rs-rhizome/issues/26
         RcDoc::concat([RcDoc::text("TODO REDUCE "), self.operation().to_doc()])
     }
 }
