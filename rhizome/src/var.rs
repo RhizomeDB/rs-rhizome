@@ -67,7 +67,7 @@ where
         Self {
             id,
             typ,
-            _marker: PhantomData::default(),
+            _marker: PhantomData,
         }
     }
 

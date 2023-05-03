@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rhizome_runtime::Runtime;
-use std::{fmt::Debug, marker::PhantomData};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData};
 
 use futures::{
     channel::{
@@ -42,8 +42,7 @@ pub struct Reactor<
 {
     runtime: Runtime,
     blockstore: BS,
-    // TODO: set of stream IDs?
-    sinks: Vec<(RelationId, mpsc::Sender<SinkCommand<I>>)>,
+    sinks: HashMap<RelationId, Vec<mpsc::Sender<SinkCommand<I>>>>,
     command_rx: mpsc::Receiver<ClientCommand<E, I>>,
     event_tx: mpsc::Sender<ClientEvent<T>>,
     stream_rx: mpsc::Receiver<StreamEvent<E>>,
@@ -68,14 +67,14 @@ where {
         let (stream_tx, stream_rx) = mpsc::channel(10);
 
         Self {
-            runtime: Runtime::default(),
-            blockstore: BS::default(),
-            sinks: Vec::default(),
+            runtime: Default::default(),
+            blockstore: Default::default(),
+            sinks: Default::default(),
             command_rx,
             event_tx,
             stream_tx,
             stream_rx,
-            _marker: PhantomData::default(),
+            _marker: PhantomData,
         }
     }
 
@@ -113,12 +112,9 @@ where {
             vm.step_epoch(&self.blockstore)?;
 
             while let Ok(Some(fact)) = vm.pop() {
-                // TODO: index sinks by relation_id; see https://github.com/RhizomeDB/rs-rhizome/issues/25
-                for (relation_id, sink) in &self.sinks {
-                    if fact.id() == *relation_id {
-                        sink.clone()
-                            .send(SinkCommand::ProcessFact(fact.clone()))
-                            .await?;
+                if let Some(sinks) = self.sinks.get_mut(&fact.id()) {
+                    for sink in sinks {
+                        sink.send(SinkCommand::ProcessFact(fact.clone())).await?;
                     }
                 }
             }
@@ -138,11 +134,13 @@ where {
             ClientCommand::Flush(sender) => {
                 let mut handles = Vec::default();
 
-                for (_, sink) in &self.sinks {
-                    let (tx, rx) = oneshot::channel();
-                    sink.clone().send(SinkCommand::Flush(tx)).await?;
+                for sinks in self.sinks.values_mut() {
+                    for sink in sinks.iter_mut() {
+                        let (tx, rx) = oneshot::channel();
+                        sink.send(SinkCommand::Flush(tx)).await?;
 
-                    handles.push(rx);
+                        handles.push(rx);
+                    }
                 }
 
                 for handle in handles {
@@ -203,7 +201,7 @@ where {
                 };
 
                 self.runtime.spawn_pinned(create_task);
-                self.sinks.push((id, tx));
+                self.sinks.entry(id).or_default().push(tx);
 
                 sender
                     .send(())

@@ -58,7 +58,7 @@ where
             version,
             cols,
             relation: into,
-            _marker: PhantomData::default(),
+            _marker: PhantomData,
         }
     }
 
