@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683062100066,
+  "lastUpdate": 1683078197665,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -353,6 +353,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/acb85dbbabc8f57080c4a274a73cec1f8f8a866c"
         },
         "date": 1683062099191,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "ab485a58d0edd8756ec1d3656234b854b10bab02",
+          "message": "chore: associate TODO comments with Github issues",
+          "timestamp": "2023-05-02T18:41:12-07:00",
+          "tree_id": "fc9b01b650ea0b2282c51da29664584eef20ea00",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/ab485a58d0edd8756ec1d3656234b854b10bab02"
+        },
+        "date": 1683078196913,
         "tool": "cargo",
         "benches": [
           {
