@@ -17,7 +17,7 @@ use super::{AliasId, Formula, Term};
 pub(crate) struct Bindings(im::HashMap<BindingKey, Arc<Val>>);
 
 // TODO: Put Links in here as they're resolved,
-// so that we can memoize their resolution
+// so that we can memoize their resolution; see https://github.com/RhizomeDB/rs-rhizome/issues/23
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) enum BindingKey {
     Relation(RelationId, Option<AliasId>, ColId),

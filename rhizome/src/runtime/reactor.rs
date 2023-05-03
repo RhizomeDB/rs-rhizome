@@ -44,8 +44,6 @@ pub struct Reactor<
     blockstore: BS,
     // TODO: set of stream IDs?
     sinks: Vec<(RelationId, mpsc::Sender<SinkCommand<I>>)>,
-    // TODO: refactor events / commands to swap their names and to move processing of commands into
-    // the event loop
     command_rx: mpsc::Receiver<ClientCommand<E, I>>,
     event_tx: mpsc::Sender<ClientEvent<T>>,
     stream_rx: mpsc::Receiver<StreamEvent<E>>,
@@ -111,11 +109,11 @@ where {
                 }
             }
 
-            // TODO: use a buffered blockstore and flush after each iteration?
+            // TODO: use a buffered blockstore; see https://github.com/RhizomeDB/rs-rhizome/issues/24
             vm.step_epoch(&self.blockstore)?;
 
             while let Ok(Some(fact)) = vm.pop() {
-                // TODO: index sinks by relation_id
+                // TODO: index sinks by relation_id; see https://github.com/RhizomeDB/rs-rhizome/issues/25
                 for (relation_id, sink) in &self.sinks {
                     if fact.id() == *relation_id {
                         sink.clone()

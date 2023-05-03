@@ -25,8 +25,8 @@ pub(crate) use sinks::*;
 pub(crate) use sources::*;
 pub(crate) use swap::*;
 
-// TODO: Nested loops shouldn't be supported, so I should split the AST
-// to make them unrepresentable.
+// TODO: Flatten the AST by replacing `Loop` with `Push` and `Pop`;
+// see https://github.com/RhizomeDB/rs-rhizome/issues/29
 #[derive(Debug, IsVariant)]
 pub(crate) enum Statement<EF, IF, ER, IR>
 where

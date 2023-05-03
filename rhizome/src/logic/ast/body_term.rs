@@ -126,7 +126,7 @@ impl GetLink {
     pub fn new(cid: CidValue, args: Vec<(LinkId, CidValue)>) -> Result<Self> {
         let links: Vec<_> = args.into_iter().collect();
 
-        // TODO: Support multiple links
+        // TODO: Support multiple links; see https://github.com/RhizomeDB/rs-rhizome/issues/22
         assert!(links.len() == 1);
 
         let link = links
