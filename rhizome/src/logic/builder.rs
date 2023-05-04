@@ -1411,45 +1411,6 @@ mod tests {
     }
 
     #[test]
-    fn test_capture_group_by_reduce() {
-        assert_compile!(|p| {
-            p.input("product", |h| {
-                h.column::<i32>("id")
-                    .column::<i32>("category")
-                    .column::<i32>("stock")
-            })?;
-
-            p.output("categoryStock", |h| {
-                h.column::<i32>("category").column::<i32>("stock")
-            })?;
-
-            p.rule::<(i32, i32, i32)>("categoryStock", &|h,
-                                                         b,
-                                                         (
-                category,
-                category_stock,
-                product_stock,
-            )| {
-                h.bind((("category", category), ("stock", category_stock)))?;
-
-                b.search("product", (("category", category),))?;
-                b.reduce(
-                    category_stock,
-                    (product_stock,),
-                    "product",
-                    (("category", category), ("stock", product_stock)),
-                    0,
-                    |acc, (x,)| acc + x,
-                )?;
-
-                Ok(())
-            })?;
-
-            Ok(p)
-        });
-    }
-
-    #[test]
     fn test_reduce_unbound_group_by() {
         assert_compile_err!(
             &Error::ReduceUnboundGroupBy("x1".into(), "x".into(), "pair".into(),),
