@@ -256,6 +256,29 @@ where
         if !sinks_builder.relations.is_empty() {
             loop_body.push(Statement::Sinks(sinks_builder.finalize()));
         }
+        // Merge delta into total
+        for &relation in stratum.relations() {
+            // Merge the output of the static rules into total
+            let from_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let into_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let merge = Merge::new(
+                relation,
+                RelationVersion::Delta,
+                relation,
+                RelationVersion::Total,
+                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
+            );
+
+            loop_body.push(Statement::Merge(merge));
+        }
 
         // Exit the loop if all of the dynamic relations have reached a fixed point
         let mut exit_builder = ExitBuilder::default();
@@ -271,29 +294,8 @@ where
 
         loop_body.push(Statement::Exit(exit_builder.finalize()));
 
-        // Merge new into total, then swap new and delta
+        //Swap new and delta
         for &relation in stratum.relations() {
-            // Merge the output of the static rules into total
-            let from_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::New))
-                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
-            );
-
-            let into_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Total))
-                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
-            );
-
-            let merge = Merge::new(
-                relation,
-                RelationVersion::New,
-                relation,
-                RelationVersion::Total,
-                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
-            );
-
-            loop_body.push(Statement::Merge(merge));
-
             // Swap new and delta
             let left_relation = Arc::clone(
                 idb.get(&(relation, RelationVersion::New))
