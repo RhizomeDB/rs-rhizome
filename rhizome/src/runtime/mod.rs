@@ -158,10 +158,12 @@ mod tests {
                 p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
                 p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
-                p.fact("edge", |f| f.bind((("from", 0), ("to", 1))))?;
-                p.fact("edge", |f| f.bind((("from", 1), ("to", 2))))?;
-                p.fact("edge", |f| f.bind((("from", 2), ("to", 3))))?;
-                p.fact("edge", |f| f.bind((("from", 3), ("to", 4))))?;
+                p.rule::<(i32, i32)>("edge", &|h, b, (x, y)| {
+                    h.bind((("from", x), ("to", y)))?;
+                    b.search("evac", (("entity", x), ("attribute", "to"), ("value", y)))?;
+
+                    Ok(())
+                })?;
 
                 p.rule::<(i32, i32)>("path", &|h, b, (x, y)| {
                     h.bind((("from", x), ("to", y)))?;
