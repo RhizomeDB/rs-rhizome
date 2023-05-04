@@ -96,7 +96,7 @@ where
     where
         BS: Blockstore,
     {
-        assert!(self.timestamp == self.timestamp.epoch_start());
+        debug_assert!(self.timestamp == self.timestamp.epoch_start());
 
         let start = self.timestamp;
 
@@ -119,7 +119,7 @@ where
             Statement::Swap(swap) => self.handle_swap(swap),
             Statement::Purge(purge) => self.handle_purge(purge),
             Statement::Exit(exit) => {
-                assert!(self.pc.1.is_some());
+                debug_assert!(self.pc.1.is_some());
 
                 self.handle_exit(exit)
             }
@@ -197,7 +197,7 @@ where
                 Ok(Arc::clone(inner_statement))
             }
             _ => {
-                assert!(self.pc.1.is_none());
+                debug_assert!(self.pc.1.is_none());
 
                 Ok(Arc::clone(outer_statement))
             }
