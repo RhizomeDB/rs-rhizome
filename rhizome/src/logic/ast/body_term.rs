@@ -127,7 +127,7 @@ impl GetLink {
         let links: Vec<_> = args.into_iter().collect();
 
         // TODO: Support multiple links; see https://github.com/RhizomeDB/rs-rhizome/issues/22
-        assert!(links.len() == 1);
+        debug_assert!(links.len() == 1);
 
         let link = links
             .get(0)
