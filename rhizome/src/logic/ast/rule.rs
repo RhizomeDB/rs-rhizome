@@ -6,7 +6,7 @@ use crate::{
     relation::Source,
 };
 
-use super::{BodyTerm, Edge, GetLink, Negation, RelPredicate, VarPredicate};
+use super::{BodyTerm, Edge, GetLink, Negation, Reduce, RelPredicate, VarPredicate};
 
 #[derive(Debug)]
 pub struct Rule {
@@ -76,6 +76,19 @@ impl Rule {
             .iter()
             .filter_map(|term| {
                 if let BodyTerm::GetLink(inner) = term {
+                    Some(inner)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn reduce_terms(&self) -> Vec<&Reduce> {
+        self.body
+            .iter()
+            .filter_map(|term| {
+                if let BodyTerm::Reduce(inner) = term {
                     Some(inner)
                 } else {
                     None
