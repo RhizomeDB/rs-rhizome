@@ -5,7 +5,6 @@ use std::{
 };
 
 use anyhow::Result;
-use derive_more::{From, IsVariant};
 
 use crate::{
     error::Error,
@@ -15,38 +14,16 @@ use crate::{
     var::Var,
 };
 
-use super::{CidValue, Declaration, Polarity};
+use super::{CidValue, Declaration};
 use crate::col_val::ColVal;
 
-#[derive(Debug, From, IsVariant)]
+#[derive(Debug)]
 pub enum BodyTerm {
     VarPredicate(VarPredicate),
     RelPredicate(RelPredicate),
     Negation(Negation),
     GetLink(GetLink),
     Reduce(Reduce),
-}
-
-impl BodyTerm {
-    pub fn depends_on(&self) -> Vec<Arc<Declaration>> {
-        match self {
-            BodyTerm::RelPredicate(inner) => vec![inner.relation()],
-            BodyTerm::Negation(inner) => vec![inner.relation()],
-            BodyTerm::GetLink(_) => vec![],
-            BodyTerm::VarPredicate(_) => vec![],
-            BodyTerm::Reduce(_) => vec![],
-        }
-    }
-
-    pub fn polarity(&self) -> Option<Polarity> {
-        match self {
-            BodyTerm::RelPredicate(_) => Some(Polarity::Positive),
-            BodyTerm::Negation(_) => Some(Polarity::Negative),
-            BodyTerm::GetLink(_) => None,
-            BodyTerm::VarPredicate(_) => None,
-            BodyTerm::Reduce(_) => Some(Polarity::Negative),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

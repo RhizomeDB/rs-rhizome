@@ -5,8 +5,6 @@ use crate::{
     value::Val,
 };
 
-use super::Edge;
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Fact {
     head: RelationId,
@@ -24,9 +22,5 @@ impl Fact {
 
     pub fn args(&self) -> &HashMap<ColId, Arc<Val>> {
         &self.args
-    }
-
-    pub fn depends_on(&self) -> Vec<Edge> {
-        Vec::default()
     }
 }
