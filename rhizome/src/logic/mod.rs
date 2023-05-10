@@ -2,6 +2,7 @@ mod ast;
 mod builder;
 
 pub(crate) mod lower_to_ram;
+pub(crate) mod stratify;
 
 use anyhow::Result;
 

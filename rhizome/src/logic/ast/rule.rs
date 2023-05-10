@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use crate::{
     col_val::ColVal,
     id::{ColId, RelationId},
-    relation::Source,
 };
 
-use super::{BodyTerm, Edge, GetLink, Negation, Reduce, RelPredicate, VarPredicate};
+use super::{BodyTerm, GetLink, Negation, Reduce, RelPredicate, VarPredicate};
 
 #[derive(Debug)]
 pub struct Rule {
@@ -95,24 +94,5 @@ impl Rule {
                 }
             })
             .collect()
-    }
-
-    pub fn depends_on(&self) -> Vec<Edge> {
-        let mut edges = Vec::default();
-
-        for term in self.body() {
-            if let Some(polarity) = term.polarity() {
-                for dependency in term.depends_on() {
-                    let edge = match dependency.source() {
-                        Source::Edb => Edge::FromEDB(dependency.id(), self.head, polarity),
-                        Source::Idb => Edge::FromIDB(dependency.id(), self.head, polarity),
-                    };
-
-                    edges.push(edge);
-                }
-            }
-        }
-
-        edges
     }
 }
