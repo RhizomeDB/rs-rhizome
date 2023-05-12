@@ -9,6 +9,7 @@ use crate::{logic::VarClosure, pretty::Pretty, value::Val};
 
 use super::Term;
 
+#[derive(Clone)]
 pub(crate) struct Predicate {
     args: Vec<Term>,
     f: Arc<dyn VarClosure>,

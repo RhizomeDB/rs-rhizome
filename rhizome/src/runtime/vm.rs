@@ -267,7 +267,7 @@ where
 
     fn handle_project<BS>(
         &self,
-        project: &Project<EF, IF, IR>,
+        project: &Project<EF, IF, ER, IR>,
         blockstore: &BS,
         bindings: &Bindings,
     ) -> Result<bool>

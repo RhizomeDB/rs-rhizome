@@ -54,6 +54,14 @@ impl RelPredicate {
             })
             .collect()
     }
+
+    pub fn bound_vars(&self, bindings: &HashSet<VarId>) -> HashSet<VarId> {
+        self.vars()
+            .into_iter()
+            .filter(|v| bindings.contains(&v.id()))
+            .map(|v| v.id())
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -75,10 +83,8 @@ impl Negation {
         &self.args
     }
 
-    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<VarId, T>) -> bool {
-        self.vars()
-            .iter()
-            .all(|var| bindings.contains_key(&var.id()))
+    pub fn is_vars_bound(&self, bindings: &HashSet<VarId>) -> bool {
+        self.vars().iter().all(|var| bindings.contains(&var.id()))
     }
 
     pub fn vars(&self) -> HashSet<&Var> {
@@ -128,8 +134,31 @@ impl GetLink {
     pub fn link_value(&self) -> CidValue {
         self.link_value
     }
+
+    pub fn len_bound_args(&self, bindings: &HashSet<VarId>) -> usize {
+        let mut len = 0;
+
+        if let CidValue::Var(var) = self.cid() {
+            if bindings.contains(&var.id()) {
+                len += 1;
+            }
+        } else {
+            len += 1;
+        }
+
+        if let CidValue::Var(var) = self.link_value() {
+            if bindings.contains(&var.id()) {
+                len += 1;
+            }
+        } else {
+            len += 1;
+        }
+
+        len
+    }
 }
 
+#[derive(Clone)]
 pub struct VarPredicate {
     vars: Vec<Var>,
     f: Arc<dyn VarClosure>,
@@ -148,10 +177,8 @@ impl VarPredicate {
         Arc::clone(&self.f)
     }
 
-    pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<VarId, T>) -> bool {
-        self.vars()
-            .iter()
-            .all(|var| bindings.contains_key(&var.id()))
+    pub fn is_vars_bound(&self, bindings: &HashSet<VarId>) -> bool {
+        self.vars().iter().all(|var| bindings.contains(&var.id()))
     }
 }
 
@@ -163,6 +190,7 @@ impl Debug for VarPredicate {
     }
 }
 
+#[derive(Clone)]
 pub struct Reduce {
     target: Var,
     vars: Vec<Var>,
@@ -213,6 +241,14 @@ impl Reduce {
 
     pub fn f(&self) -> Arc<dyn ReduceClosure> {
         Arc::clone(&self.f)
+    }
+
+    pub fn bound_vars(&self, bindings: &HashSet<VarId>) -> HashSet<VarId> {
+        self.vars()
+            .iter()
+            .filter(|v| bindings.contains(&v.id()))
+            .map(|v| v.id())
+            .collect()
     }
 
     pub fn is_vars_bound<T>(&self, bindings: &im::HashMap<VarId, T>) -> bool {

@@ -12,37 +12,41 @@ use crate::{
     fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId},
     pretty::Pretty,
-    ram::{term::Term, Bindings, RelationVersion},
+    ram::{term::Term, Bindings, Formula, RelationVersion},
     relation::Relation,
     storage::blockstore::Blockstore,
     value::Val,
 };
 
 #[derive(Clone, Debug)]
-pub(crate) struct Project<EF, IF, R>
+pub(crate) struct Project<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    R: Relation<Fact = IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     id: RelationId,
     version: RelationVersion,
     cols: HashMap<ColId, Term>,
-    relation: Arc<RwLock<R>>,
-    _marker: PhantomData<EF>,
+    relation: Arc<RwLock<IR>>,
+    formulae: Vec<Formula<EF, IF, ER, IR>>,
+    _marker: PhantomData<(EF, ER)>,
 }
 
-impl<EF, IF, R> Project<EF, IF, R>
+impl<EF, IF, ER, IR> Project<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    R: Relation<Fact = IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     pub(crate) fn new<A, T>(
         id: RelationId,
         version: RelationVersion,
         cols: impl IntoIterator<Item = (A, T)>,
-        into: Arc<RwLock<R>>,
+        formulae: Vec<Formula<EF, IF, ER, IR>>,
+        into: Arc<RwLock<IR>>,
     ) -> Self
     where
         A: Into<ColId>,
@@ -57,6 +61,7 @@ where
             id,
             version,
             cols,
+            formulae,
             relation: into,
             _marker: PhantomData,
         }
@@ -66,6 +71,12 @@ where
     where
         BS: Blockstore,
     {
+        for formula in self.formulae.iter() {
+            if !bindings.is_formula_satisfied::<BS, EF, IF, ER, IR>(formula, blockstore)? {
+                return Ok(());
+            }
+        }
+
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in &self.cols {
@@ -93,11 +104,12 @@ where
     }
 }
 
-impl<EF, IF, R> Pretty for Project<EF, IF, R>
+impl<EF, IF, ER, IR> Pretty for Project<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
-    R: Relation<Fact = IF>,
+    ER: Relation<Fact = EF>,
+    IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let cols_doc = RcDoc::intersperse(

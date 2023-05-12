@@ -13,7 +13,7 @@ use crate::{
 
 use super::{predicate::Predicate, Equality, NotIn, NotInRelation, RelationVersion, Term};
 
-#[derive(Debug, IsVariant, From, TryInto)]
+#[derive(Debug, Clone, IsVariant, From, TryInto)]
 pub(crate) enum Formula<EF, IF, ER, IR>
 where
     EF: EDBFact,

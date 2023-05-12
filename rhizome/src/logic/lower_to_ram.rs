@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
@@ -424,6 +423,7 @@ where
             fact.head(),
             RelationVersion::Delta,
             cols,
+            vec![],
             relation,
         )),
         true,
@@ -447,17 +447,15 @@ where
     let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
 
     for rewrite in semi_naive_rewrites(rule) {
+        let ordered = order_terms(rewrite);
+
         let operation = lower_rule_body_to_ram(
-            rule.head(),
-            rule.args(),
+            rule,
             version,
             Default::default(),
             Default::default(),
-            rewrite,
-            rule.negation_terms(),
-            rule.get_link_terms(),
-            rule.var_predicate_terms(),
-            rule.reduce_terms(),
+            ordered.into_iter().rev().collect(),
+            vec![],
             edb,
             idb,
         )?;
@@ -468,17 +466,14 @@ where
     Ok(statements)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_rule_body_to_ram<EF, IF, ER, IR>(
-    relation_id: RelationId,
-    head_args: &HashMap<ColId, ColVal>,
+    rule: &Rule,
     version: RelationVersion,
     bindings: im::HashMap<VarId, Term>,
     mut next_alias: im::HashMap<RelationId, AliasId>,
-    mut rel_predicates: Vec<(&RelPredicate, RelationVersion)>,
-    mut remaining_negation_terms: Vec<&Negation>,
-    remaining_get_link_terms: Vec<&GetLink>,
-    mut remaining_var_predicate_terms: Vec<&VarPredicate>,
-    remaining_reduce_terms: Vec<&super::ast::body_term::Reduce>,
+    mut terms: Vec<SemiNaiveTerm>,
+    mut formulae: Vec<Formula<EF, IF, ER, IR>>,
     edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
     idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
 ) -> Result<ram::Operation<EF, IF, ER, IR>>
@@ -488,323 +483,27 @@ where
     ER: Relation<Fact = EF>,
     IR: Relation<Fact = IF>,
 {
-    let operation = match rel_predicates.pop() {
-        None => {
-            let mut bindings = bindings;
-
-            let (satisfied_get_link_terms, mut remaining_get_link_terms): (Vec<_>, Vec<_>) =
-                remaining_get_link_terms
-                    .into_iter()
-                    .partition(|term| match term.cid() {
-                        CidValue::Cid(_) => true,
-                        CidValue::Var(var) => bindings.contains_key(&var.id()),
-                    });
-
-            for get_link in &satisfied_get_link_terms {
-                if let CidValue::Var(val_var) = get_link.link_value() {
-                    if !bindings.contains_key(&val_var.id()) {
-                        match get_link.cid() {
-                            CidValue::Cid(cid) => {
-                                bindings.insert(
-                                    val_var.id(),
-                                    Term::Link(
-                                        get_link.link_id(),
-                                        Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
-                                    ),
-                                );
-                            }
-                            CidValue::Var(var) => {
-                                if let Some(term) = bindings.get(&var.id()) {
-                                    bindings.insert(
-                                        val_var.id(),
-                                        Term::Link(get_link.link_id(), Box::new(term.clone())),
-                                    );
-                                } else {
-                                    return error(Error::ClauseNotDomainIndependent(var.id()));
-                                }
-                            }
-                        };
-                    }
-                }
-            }
-
-            let mut reduce_bindings = bindings.clone();
-            let mut reduce_terms = vec![];
-
-            for reduce in &remaining_reduce_terms {
-                let prev_bindings = reduce_bindings.clone();
-                let alias = next_alias.get(&reduce.relation().id()).copied();
-
-                next_alias =
-                    next_alias.update_with(reduce.relation().id(), AliasId::default(), |old, _| {
-                        old.next()
-                    });
-
-                if !reduce_bindings.contains_key(&reduce.target().id()) {
-                    reduce_bindings.insert(
-                        reduce.target().id(),
-                        Term::Agg(reduce.relation().id(), alias, *reduce.target()),
-                    );
-                }
-
-                let (satisfied_negation_terms, remaining_negation): (Vec<_>, Vec<_>) =
-                    remaining_negation_terms
-                        .into_iter()
-                        .partition(|n| n.is_vars_bound(&reduce_bindings));
-
-                let (satisfied_get_link_terms, remaining_get_link): (Vec<_>, Vec<_>) =
-                    remaining_get_link_terms
-                        .into_iter()
-                        .partition(|term| match term.cid() {
-                            CidValue::Cid(_) => true,
-                            CidValue::Var(var) => reduce_bindings.contains_key(&var.id()),
-                        });
-
-                let (satisfied_var_predicate_terms, remaining_var_predicate): (Vec<_>, Vec<_>) =
-                    remaining_var_predicate_terms
-                        .into_iter()
-                        .partition(|n| n.is_vars_bound(&reduce_bindings));
-
-                remaining_negation_terms = remaining_negation;
-                remaining_get_link_terms = remaining_get_link;
-                remaining_var_predicate_terms = remaining_var_predicate;
-
-                for get_link in &satisfied_get_link_terms {
-                    if let CidValue::Var(val_var) = get_link.link_value() {
-                        if !reduce_bindings.contains_key(&val_var.id()) {
-                            match get_link.cid() {
-                                CidValue::Cid(cid) => {
-                                    reduce_bindings.insert(
-                                        val_var.id(),
-                                        Term::Link(
-                                            get_link.link_id(),
-                                            Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
-                                        ),
-                                    );
-                                }
-                                CidValue::Var(var) => {
-                                    if let Some(term) = reduce_bindings.get(&var.id()) {
-                                        reduce_bindings.insert(
-                                            val_var.id(),
-                                            Term::Link(get_link.link_id(), Box::new(term.clone())),
-                                        );
-                                    } else {
-                                        return error(Error::ClauseNotDomainIndependent(var.id()));
-                                    }
-                                }
-                            };
-                        }
-                    }
-                }
-
-                reduce_terms.push((
-                    reduce,
-                    alias,
-                    prev_bindings,
-                    satisfied_negation_terms,
-                    satisfied_get_link_terms,
-                    satisfied_var_predicate_terms,
-                ));
-            }
-
-            debug_assert!(remaining_negation_terms.is_empty());
-            debug_assert!(remaining_get_link_terms.is_empty());
-            debug_assert!(remaining_var_predicate_terms.is_empty());
-
-            let relation = idb
-                .get(&(relation_id, version))
-                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?
-                .clone();
-
-            let mut cols = im::HashMap::<ColId, Term>::default();
-            for (&k, v) in head_args {
-                let term = match v {
-                    ColVal::Lit(c) => Term::Lit(c.clone()),
-                    ColVal::Binding(v) => reduce_bindings
-                        .get(&v.id())
-                        .ok_or_else(|| Error::InternalRhizomeError("binding not found".to_owned()))?
-                        .clone(),
-                };
-
-                cols.insert(k, term);
-            }
-
-            let mut operation =
-                Operation::Project(Project::new(relation_id, version, cols, relation));
-
-            for (reduce, alias, bindings, negations, get_links, var_predicates) in
-                reduce_terms.into_iter().rev()
-            {
-                let mut formulae = Vec::default();
-
-                for negation in negations {
-                    let formula = lower_negation_to_ram(negation, &reduce_bindings, edb, idb)?;
-
-                    formulae.push(formula);
-                }
-
-                for get_link in get_links {
-                    let formula = lower_get_link_to_ram(get_link, &reduce_bindings)?;
-
-                    formulae.push(formula);
-                }
-
-                for var_predicate in var_predicates {
-                    let formula = lower_var_predicate_to_ram(var_predicate, &reduce_bindings)?;
-
-                    formulae.push(formula);
-                }
-
-                let mut args = Vec::default();
-                let mut group_by_cols = HashMap::default();
-                for (col_id, col_val) in reduce.group_by_cols() {
-                    if let Some(term) = match col_val {
-                        ColVal::Lit(lit) => Some(Term::Lit(lit.clone())),
-                        ColVal::Binding(var) => {
-                            if let Some(term) = bindings.get(&var.id()) {
-                                if reduce.vars().contains(var) {
-                                    args.push(term.clone());
-                                }
-
-                                Some(term.clone())
-                            } else if reduce.vars().contains(var) {
-                                args.push(Term::Col(reduce.relation().id(), alias, *col_id));
-
-                                None
-                            } else {
-                                return error(Error::ClauseNotDomainIndependent(var.id()));
-                            }
-                        }
-                    } {
-                        group_by_cols.insert(*col_id, term);
-                    }
-                }
-
-                let reduce_relation = match reduce.relation().source() {
-                    Source::Edb => {
-                        let relation = Arc::clone(
-                            edb.get(&(reduce.relation().id(), RelationVersion::Total))
-                                .ok_or_else(|| {
-                                    Error::InternalRhizomeError("relation not found".to_owned())
-                                })?,
-                        );
-
-                        ReduceRelation::Edb(relation)
-                    }
-                    Source::Idb => {
-                        let relation = Arc::clone(
-                            idb.get(&(reduce.relation().id(), RelationVersion::Total))
-                                .ok_or_else(|| {
-                                    Error::InternalRhizomeError("relation not found".to_owned())
-                                })?,
-                        );
-
-                        ReduceRelation::Idb(relation)
-                    }
-                };
-
-                operation = Operation::Reduce(Reduce::new(
-                    args,
-                    reduce.init().clone(),
-                    reduce.f(),
-                    *reduce.target(),
-                    group_by_cols,
-                    reduce.relation().id(),
-                    alias,
-                    reduce_relation,
-                    formulae,
-                    operation,
-                ));
-            }
-
-            operation
-        }
-        Some((rel_predicate, rel_version)) => {
-            let mut formulae = Vec::default();
+    match terms.pop() {
+        Some(SemiNaiveTerm::RelPredicate(inner, inner_version)) => {
             let mut next_bindings = bindings.clone();
+            let alias = next_alias.get(&inner.relation().id()).copied();
 
-            let alias = next_alias.get(&rel_predicate.relation().id()).copied();
+            next_alias =
+                next_alias.update_with(inner.relation().id(), AliasId::default(), |old, _| {
+                    old.next()
+                });
 
-            next_alias = next_alias.update_with(
-                rel_predicate.relation().id(),
-                AliasId::default(),
-                |old, _| old.next(),
-            );
-
-            for (col_id, col_val) in rel_predicate.args() {
+            for (col_id, col_val) in inner.args() {
                 if let ColVal::Binding(var) = col_val {
                     if !bindings.contains_key(&var.id()) {
-                        next_bindings.insert(
-                            var.id(),
-                            Term::Col(rel_predicate.relation().id(), alias, *col_id),
-                        );
+                        next_bindings
+                            .insert(var.id(), Term::Col(inner.relation().id(), alias, *col_id));
                     }
                 };
             }
 
-            let (satisfied_negation_terms, remaining_negation_terms): (Vec<_>, Vec<_>) =
-                remaining_negation_terms
-                    .into_iter()
-                    .partition(|n| n.is_vars_bound(&next_bindings));
-
-            let (satisfied_get_link_terms, remaining_get_link_terms): (Vec<_>, Vec<_>) =
-                remaining_get_link_terms
-                    .into_iter()
-                    .partition(|term| match term.cid() {
-                        CidValue::Cid(_) => true,
-                        CidValue::Var(var) => next_bindings.contains_key(&var.id()),
-                    });
-
-            let (satisfied_var_predicate_terms, remaining_var_predicate_terms): (Vec<_>, Vec<_>) =
-                remaining_var_predicate_terms
-                    .into_iter()
-                    .partition(|n| n.is_vars_bound(&next_bindings));
-
-            for negation in satisfied_negation_terms {
-                let formula = lower_negation_to_ram(negation, &next_bindings, edb, idb)?;
-
-                formulae.push(formula);
-            }
-
-            for get_link in satisfied_get_link_terms {
-                if let CidValue::Var(val_var) = get_link.link_value() {
-                    if !next_bindings.contains_key(&val_var.id()) {
-                        match get_link.cid() {
-                            CidValue::Cid(cid) => {
-                                next_bindings.insert(
-                                    val_var.id(),
-                                    Term::Link(
-                                        get_link.link_id(),
-                                        Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
-                                    ),
-                                );
-                            }
-                            CidValue::Var(var) => {
-                                if let Some(term) = next_bindings.get(&var.id()) {
-                                    next_bindings.insert(
-                                        val_var.id(),
-                                        Term::Link(get_link.link_id(), Box::new(term.clone())),
-                                    );
-                                } else {
-                                    return error(Error::ClauseNotDomainIndependent(var.id()));
-                                }
-                            }
-                        };
-                    }
-                }
-
-                let formula = lower_get_link_to_ram(get_link, &next_bindings)?;
-
-                formulae.push(formula);
-            }
-
-            for var_predicate in satisfied_var_predicate_terms {
-                let formula = lower_var_predicate_to_ram(var_predicate, &next_bindings)?;
-
-                formulae.push(formula);
-            }
-
-            if head_args
+            if rule
+                .args()
                 .clone()
                 .into_values()
                 .filter_map(|v| match v {
@@ -814,18 +513,21 @@ where
                 .all(|v| next_bindings.contains_key(&v.id()))
             {
                 let relation = idb
-                    .get(&(relation_id, RelationVersion::Total))
+                    .get(&(rule.head(), RelationVersion::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?
                     .clone();
 
                 let mut cols = im::HashMap::<ColId, Term>::default();
-                for (&k, v) in head_args {
+                for (&k, v) in rule.args() {
                     let term = match v {
                         ColVal::Lit(c) => Term::Lit(c.clone()),
                         ColVal::Binding(v) => next_bindings
                             .get(&v.id())
                             .ok_or_else(|| {
-                                Error::InternalRhizomeError("binding not found".to_owned())
+                                Error::InternalRhizomeError(format!(
+                                    "binding not found: {}",
+                                    v.id()
+                                ))
                             })?
                             .clone(),
                     };
@@ -834,18 +536,18 @@ where
                 }
 
                 formulae.push(Formula::not_in(
-                    relation_id,
+                    rule.head(),
                     RelationVersion::Total,
                     Vec::from_iter(cols.clone()),
                     NotInRelation::Idb(relation),
                 ))
             }
 
-            for (&col_id, col_val) in rel_predicate.args() {
+            for (&col_id, col_val) in inner.args() {
                 match col_val {
                     ColVal::Lit(val) => {
                         let formula = Formula::equality(
-                            Term::Col(rel_predicate.relation().id(), alias, col_id),
+                            Term::Col(inner.relation().id(), alias, col_id),
                             Term::Lit(val.clone()),
                         );
 
@@ -854,7 +556,7 @@ where
                     ColVal::Binding(var) => {
                         if let Some(bound) = bindings.get(&var.id()) {
                             let formula = Formula::equality(
-                                Term::Col(rel_predicate.relation().id(), alias, col_id),
+                                Term::Col(inner.relation().id(), alias, col_id),
                                 bound.clone(),
                             );
 
@@ -864,10 +566,10 @@ where
                 }
             }
 
-            let search_relation = match rel_predicate.relation().source() {
+            let search_relation = match inner.relation().source() {
                 Source::Edb => {
                     let relation = Arc::clone(
-                        edb.get(&(rel_predicate.relation().id(), rel_version))
+                        edb.get(&(inner.relation().id(), inner_version))
                             .ok_or_else(|| {
                                 Error::InternalRhizomeError("relation not found".to_owned())
                             })?,
@@ -877,7 +579,7 @@ where
                 }
                 Source::Idb => {
                     let relation = Arc::clone(
-                        idb.get(&(rel_predicate.relation().id(), rel_version))
+                        idb.get(&(inner.relation().id(), inner_version))
                             .ok_or_else(|| {
                                 Error::InternalRhizomeError("relation not found".to_owned())
                             })?,
@@ -887,31 +589,242 @@ where
                 }
             };
 
-            Operation::Search(Search::new(
-                rel_predicate.relation().id(),
+            Ok(Operation::Search(Search::new(
+                inner.relation().id(),
                 alias,
-                rel_version,
+                inner_version,
                 search_relation,
                 formulae,
                 lower_rule_body_to_ram(
-                    relation_id,
-                    head_args,
+                    rule,
                     version,
                     next_bindings,
                     next_alias,
-                    rel_predicates,
-                    remaining_negation_terms,
-                    remaining_get_link_terms,
-                    remaining_var_predicate_terms,
-                    remaining_reduce_terms,
+                    terms,
+                    vec![],
                     edb,
                     idb,
                 )?,
-            ))
+            )))
         }
-    };
+        Some(SemiNaiveTerm::VarPredicate(inner)) => {
+            let formula = lower_var_predicate_to_ram(&inner, &bindings)?;
 
-    Ok(operation)
+            formulae.push(formula);
+
+            lower_rule_body_to_ram(
+                rule, version, bindings, next_alias, terms, formulae, edb, idb,
+            )
+        }
+        Some(SemiNaiveTerm::Negation(inner)) => {
+            let formula = lower_negation_to_ram(&inner, &bindings, edb, idb)?;
+
+            formulae.push(formula);
+
+            lower_rule_body_to_ram(
+                rule, version, bindings, next_alias, terms, formulae, edb, idb,
+            )
+        }
+        Some(SemiNaiveTerm::GetLink(inner)) => {
+            let mut next_bindings = bindings.clone();
+
+            if let CidValue::Var(val_var) = inner.link_value() {
+                if !bindings.contains_key(&val_var.id()) {
+                    match inner.cid() {
+                        CidValue::Cid(cid) => {
+                            next_bindings.insert(
+                                val_var.id(),
+                                Term::Link(
+                                    inner.link_id(),
+                                    Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
+                                ),
+                            );
+                        }
+                        CidValue::Var(var) => {
+                            if let Some(term) = bindings.get(&var.id()) {
+                                next_bindings.insert(
+                                    val_var.id(),
+                                    Term::Link(inner.link_id(), Box::new(term.clone())),
+                                );
+                            } else {
+                                return error(Error::ClauseNotDomainIndependent(var.id()));
+                            }
+                        }
+                    };
+                }
+            }
+
+            let formula = lower_get_link_to_ram(&inner, &next_bindings)?;
+
+            formulae.push(formula);
+
+            lower_rule_body_to_ram(
+                rule,
+                version,
+                next_bindings,
+                next_alias,
+                terms,
+                formulae,
+                edb,
+                idb,
+            )
+        }
+        Some(SemiNaiveTerm::Reduce(inner)) => {
+            let mut next_bindings = bindings.clone();
+            let alias = next_alias.get(&inner.relation().id()).copied();
+
+            next_alias =
+                next_alias.update_with(inner.relation().id(), AliasId::default(), |old, _| {
+                    old.next()
+                });
+
+            let mut args = Vec::default();
+            let mut group_by_cols = HashMap::default();
+
+            for (col_id, col_val) in inner.group_by_cols() {
+                if let Some(term) = match col_val {
+                    ColVal::Lit(lit) => Some(Term::Lit(lit.clone())),
+                    ColVal::Binding(var) => {
+                        if let Some(term) = bindings.get(&var.id()) {
+                            if inner.vars().contains(var) {
+                                args.push(term.clone());
+                            }
+
+                            Some(term.clone())
+                        } else if inner.vars().contains(var) {
+                            args.push(Term::Col(inner.relation().id(), alias, *col_id));
+
+                            None
+                        } else {
+                            return error(Error::ClauseNotDomainIndependent(var.id()));
+                        }
+                    }
+                } {
+                    group_by_cols.insert(*col_id, term);
+                }
+            }
+
+            let reduce_relation = match inner.relation().source() {
+                Source::Edb => {
+                    let relation = Arc::clone(
+                        edb.get(&(inner.relation().id(), RelationVersion::Total))
+                            .ok_or_else(|| {
+                                Error::InternalRhizomeError("relation not found".to_owned())
+                            })?,
+                    );
+
+                    ReduceRelation::Edb(relation)
+                }
+                Source::Idb => {
+                    let relation = Arc::clone(
+                        idb.get(&(inner.relation().id(), RelationVersion::Total))
+                            .ok_or_else(|| {
+                                Error::InternalRhizomeError("relation not found".to_owned())
+                            })?,
+                    );
+
+                    ReduceRelation::Idb(relation)
+                }
+            };
+
+            next_bindings.insert(
+                inner.target().id(),
+                Term::Agg(inner.relation().id(), alias, *inner.target()),
+            );
+
+            if rule
+                .args()
+                .clone()
+                .into_values()
+                .filter_map(|v| match v {
+                    ColVal::Binding(v) => Some(v),
+                    _ => None,
+                })
+                .all(|v| next_bindings.contains_key(&v.id()))
+            {
+                let relation = idb
+                    .get(&(rule.head(), RelationVersion::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?
+                    .clone();
+
+                let mut cols = im::HashMap::<ColId, Term>::default();
+                for (&k, v) in rule.args() {
+                    let term = match v {
+                        ColVal::Lit(c) => Term::Lit(c.clone()),
+                        ColVal::Binding(v) => next_bindings
+                            .get(&v.id())
+                            .ok_or_else(|| {
+                                Error::InternalRhizomeError(format!(
+                                    "binding not found: {}",
+                                    v.id()
+                                ))
+                            })?
+                            .clone(),
+                    };
+
+                    cols.insert(k, term);
+                }
+
+                formulae.push(Formula::not_in(
+                    rule.head(),
+                    RelationVersion::Total,
+                    Vec::from_iter(cols.clone()),
+                    NotInRelation::Idb(relation),
+                ));
+            }
+
+            Ok(Operation::Reduce(Reduce::new(
+                args,
+                inner.init().clone(),
+                inner.f(),
+                *inner.target(),
+                group_by_cols,
+                inner.relation().id(),
+                alias,
+                reduce_relation,
+                formulae,
+                lower_rule_body_to_ram(
+                    rule,
+                    version,
+                    next_bindings,
+                    next_alias,
+                    terms,
+                    vec![],
+                    edb,
+                    idb,
+                )?,
+            )))
+        }
+        None => {
+            let relation = idb
+                .get(&(rule.head(), version))
+                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?
+                .clone();
+
+            let mut cols = im::HashMap::<ColId, Term>::default();
+            for (&k, v) in rule.args() {
+                let term = match v {
+                    ColVal::Lit(c) => Term::Lit(c.clone()),
+                    ColVal::Binding(v) => bindings
+                        .get(&v.id())
+                        .ok_or_else(|| {
+                            Error::InternalRhizomeError(format!("binding not found: {}", v.id()))
+                        })?
+                        .clone(),
+                };
+
+                cols.insert(k, term);
+            }
+
+            Ok(Operation::Project(Project::new(
+                rule.head(),
+                version,
+                cols,
+                formulae,
+                relation,
+            )))
+        }
+    }
 }
 
 pub(crate) fn lower_negation_to_ram<EF, IF, ER, IR>(
@@ -932,7 +845,9 @@ where
             ColVal::Lit(val) => Term::Lit(val.clone()),
             ColVal::Binding(var) => bindings
                 .get(&var.id())
-                .ok_or_else(|| Error::InternalRhizomeError("binding not found".to_owned()))?
+                .ok_or_else(|| {
+                    Error::InternalRhizomeError(format!("binding not found: {}", var.id()))
+                })?
                 .clone(),
         };
 
@@ -976,7 +891,9 @@ where
             Box::new(
                 bindings
                     .get(&var.id())
-                    .ok_or_else(|| Error::InternalRhizomeError("binding not found".to_owned()))?
+                    .ok_or_else(|| {
+                        Error::InternalRhizomeError(format!("binding not found: {}", var.id()))
+                    })?
                     .clone(),
             ),
         ),
@@ -989,7 +906,7 @@ where
         ),
         CidValue::Var(var) => bindings
             .get(&var.id())
-            .ok_or_else(|| Error::InternalRhizomeError("binding not found".to_owned()))?
+            .ok_or_else(|| Error::InternalRhizomeError(format!("binding not found: {}", var.id())))?
             .clone(),
     };
 
@@ -1012,7 +929,9 @@ where
         .map(|var| {
             Ok(bindings
                 .get(&var.id())
-                .ok_or_else(|| Error::InternalRhizomeError("binding not found".to_owned()))?
+                .ok_or_else(|| {
+                    Error::InternalRhizomeError(format!("binding not found: {}", var.id()))
+                })?
                 .clone())
         })
         .collect::<Result<Vec<Term>>>()?;
@@ -1020,12 +939,39 @@ where
     Ok(Formula::predicate(var_terms, var_predicate.f()))
 }
 
-pub(crate) fn semi_naive_rewrites(rule: &Rule) -> Vec<Vec<(&RelPredicate, RelationVersion)>> {
-    if rule.rel_predicate_terms().is_empty() {
-        return vec![vec![]];
+#[derive(Clone, Debug)]
+pub(crate) enum SemiNaiveTerm {
+    RelPredicate(RelPredicate, RelationVersion),
+    VarPredicate(VarPredicate),
+    Negation(Negation),
+    GetLink(GetLink),
+    Reduce(super::ast::body_term::Reduce),
+}
+
+pub(crate) fn semi_naive_rewrites(rule: &Rule) -> Vec<Vec<SemiNaiveTerm>> {
+    let mut non_relational_terms = vec![];
+
+    for var_predicate in rule.var_predicate_terms() {
+        non_relational_terms.push(SemiNaiveTerm::VarPredicate(var_predicate.clone()));
     }
 
-    let mut rewrites: Vec<Vec<(&RelPredicate, RelationVersion)>> = vec![];
+    for negation in rule.negation_terms() {
+        non_relational_terms.push(SemiNaiveTerm::Negation(negation.clone()));
+    }
+
+    for get_link in rule.get_link_terms() {
+        non_relational_terms.push(SemiNaiveTerm::GetLink(get_link.clone()));
+    }
+
+    for reduce in rule.reduce_terms() {
+        non_relational_terms.push(SemiNaiveTerm::Reduce(reduce.clone()));
+    }
+
+    if rule.rel_predicate_terms().is_empty() {
+        return vec![non_relational_terms];
+    }
+
+    let mut rewrites: Vec<Vec<SemiNaiveTerm>> = vec![];
 
     // Use a bitmask to represent all of the possible rewrites of the rule,
     // where each rel_predicate searches against either the delta or total
@@ -1035,29 +981,105 @@ pub(crate) fn semi_naive_rewrites(rule: &Rule) -> Vec<Vec<(&RelPredicate, Relati
     let rewrite_count = 1 << rule.rel_predicate_terms().len();
 
     for offset in 1..rewrite_count {
-        let mut rewrite = vec![];
+        let mut rewrite = non_relational_terms.clone();
 
         for (i, &term) in rule.rel_predicate_terms().iter().enumerate() {
             if offset & (1 << i) == 0 {
-                rewrite.push((term, RelationVersion::Total))
+                rewrite.push(SemiNaiveTerm::RelPredicate(
+                    term.clone(),
+                    RelationVersion::Total,
+                ))
             } else {
-                rewrite.push((term, RelationVersion::Delta))
+                rewrite.push(SemiNaiveTerm::RelPredicate(
+                    term.clone(),
+                    RelationVersion::Delta,
+                ))
             }
         }
 
         rewrites.push(rewrite);
     }
 
-    // Simple query planner, sort terms so that:
-    // 1. delta relations are searched first
-    // 2. followed by terms with the fewest variables
-    for rewrite in rewrites.iter_mut() {
-        rewrite.sort_by(|a, b| match (a.1, b.1) {
-            (RelationVersion::Delta, RelationVersion::Total) => Ordering::Greater,
-            (RelationVersion::Total, RelationVersion::Delta) => Ordering::Less,
-            _ => a.0.vars().len().cmp(&b.0.vars().len()),
-        })
+    rewrites
+}
+
+fn order_terms(mut terms: Vec<SemiNaiveTerm>) -> Vec<SemiNaiveTerm> {
+    let mut ordered_terms = Vec::new();
+    let mut bindings: HashSet<VarId> = HashSet::new();
+
+    while !terms.is_empty() {
+        // Select a term based on the current bindings
+        if let Some(term) = select_term(&mut terms, &bindings) {
+            // Update the bindings based on the selected term
+            update_bindings(&mut bindings, &term);
+            // Add the selected term to the ordered list
+            ordered_terms.push(term);
+        } else {
+            panic!();
+        }
     }
 
-    rewrites
+    ordered_terms
+}
+
+fn select_term(
+    available_terms: &mut Vec<SemiNaiveTerm>,
+    bindings: &HashSet<VarId>,
+) -> Option<SemiNaiveTerm> {
+    let select_index = available_terms
+        .iter()
+        .enumerate()
+        .filter(|(_, term)| match term {
+            SemiNaiveTerm::RelPredicate(_, _) => true,
+            SemiNaiveTerm::VarPredicate(inner) => inner.is_vars_bound(bindings),
+            SemiNaiveTerm::Negation(inner) => inner.is_vars_bound(bindings),
+            SemiNaiveTerm::GetLink(_) => true,
+            SemiNaiveTerm::Reduce(_) => true,
+        })
+        .max_by_key(|(_, term)| match term {
+            SemiNaiveTerm::Negation(inner) => (4, inner.vars().len()),
+            SemiNaiveTerm::GetLink(inner) => {
+                if inner.len_bound_args(bindings) == 2 {
+                    (4, 2)
+                } else {
+                    (0, inner.len_bound_args(bindings))
+                }
+            }
+            SemiNaiveTerm::VarPredicate(inner) => (3, inner.vars().len()),
+            SemiNaiveTerm::RelPredicate(inner, RelationVersion::Delta) => {
+                (2, inner.bound_vars(bindings).len())
+            }
+            SemiNaiveTerm::RelPredicate(inner, RelationVersion::Total) => {
+                (1, inner.bound_vars(bindings).len())
+            }
+            SemiNaiveTerm::RelPredicate(_, RelationVersion::New) => {
+                panic!("New relation in semi-naive rule");
+            }
+            SemiNaiveTerm::Reduce(inner) => (0, inner.bound_vars(bindings).len()),
+        })
+        .map(|(index, _)| index);
+
+    select_index.map(|index| available_terms.remove(index))
+}
+
+fn update_bindings(bindings: &mut HashSet<VarId>, term: &SemiNaiveTerm) {
+    match term {
+        SemiNaiveTerm::GetLink(inner) => {
+            if let CidValue::Var(var) = inner.cid() {
+                bindings.insert(var.id());
+            }
+            if let CidValue::Var(var) = inner.link_value() {
+                bindings.insert(var.id());
+            }
+        }
+        SemiNaiveTerm::Reduce(inner) => {
+            bindings.insert(inner.target().id());
+        }
+        SemiNaiveTerm::RelPredicate(inner, _) => {
+            for var in inner.vars() {
+                bindings.insert(var.id());
+            }
+        }
+        _ => {}
+    }
 }

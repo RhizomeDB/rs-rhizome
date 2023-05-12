@@ -24,7 +24,7 @@ where
     IR: Relation<Fact = IF>,
 {
     Search(Search<EF, IF, ER, IR>),
-    Project(Project<EF, IF, IR>),
+    Project(Project<EF, IF, ER, IR>),
     Reduce(Reduce<EF, IF, ER, IR>),
 }
 
