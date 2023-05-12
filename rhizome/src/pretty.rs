@@ -51,11 +51,13 @@ mod tests {
         let project = Operation::Project(Project::<
             DefaultEDBFact,
             DefaultIDBFact,
+            DefaultRelation<DefaultEDBFact>,
             DefaultRelation<DefaultIDBFact>,
         >::new(
             "person".into(),
             RelationVersion::Total,
             hashmap! {"age" => Term::Lit(Arc::new(Val::S32(29)))},
+            vec![],
             Arc::default(),
         ));
 
