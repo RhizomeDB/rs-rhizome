@@ -120,7 +120,10 @@ where
             let col_val = bindings
                 .resolve::<BS, EF>(col_term, blockstore)?
                 .ok_or_else(|| {
-                    Error::InternalRhizomeError("expected term to resolve".to_owned())
+                    Error::InternalRhizomeError(format!(
+                        "expected term to resolve for col: {}",
+                        col_id
+                    ))
                 })?;
 
             group_by_vals.insert(*col_id, col_val);

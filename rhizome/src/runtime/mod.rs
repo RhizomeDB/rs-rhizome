@@ -335,6 +335,72 @@ mod tests {
     }
 
     #[test]
+    fn test_get_link_one_hop() -> Result<()> {
+        let f0 = EVACFact::new(0, "node", 0, vec![])?;
+        let f1 = EVACFact::new(0, "node", 0, vec![("to".into(), f0.cid()?)])?;
+        let f2 = EVACFact::new(0, "node", 0, vec![("to".into(), f1.cid()?)])?;
+        let f3 = EVACFact::new(0, "node", 0, vec![("to".into(), f1.cid()?)])?;
+        let f4 = EVACFact::new(0, "node", 0, vec![("to".into(), f2.cid()?)])?;
+        let f5 = EVACFact::new(0, "node", 0, vec![("to".into(), f3.cid()?)])?;
+        let f6 = EVACFact::new(0, "node", 0, vec![("to".into(), f4.cid()?)])?;
+
+        let idb = [(
+            "hop",
+            vec![
+                BTreeFact::new(
+                    "hop",
+                    [("from", Val::Cid(f2.cid()?)), ("to", Val::Cid(f0.cid()?))],
+                ),
+                BTreeFact::new(
+                    "hop",
+                    [("from", Val::Cid(f3.cid()?)), ("to", Val::Cid(f0.cid()?))],
+                ),
+                BTreeFact::new(
+                    "hop",
+                    [("from", Val::Cid(f4.cid()?)), ("to", Val::Cid(f1.cid()?))],
+                ),
+                BTreeFact::new(
+                    "hop",
+                    [("from", Val::Cid(f5.cid()?)), ("to", Val::Cid(f1.cid()?))],
+                ),
+                BTreeFact::new(
+                    "hop",
+                    [("from", Val::Cid(f6.cid()?)), ("to", Val::Cid(f2.cid()?))],
+                ),
+            ],
+        )];
+
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Cid>("cid")
+                        .column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("hop", |h| h.column::<Cid>("from").column::<Cid>("to"))?;
+
+                p.rule::<(Cid, Cid, Cid)>("hop", &|h, b, (from, via, to)| {
+                    h.bind((("from", from), ("to", to)))?;
+
+                    b.search("evac", (("cid", from),))?;
+                    b.get_link(from, "to", via)?;
+                    b.get_link(via, "to", to)?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [f0, f1, f2, f3, f4, f5, f6],
+            idb
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_user_defined_predicate() -> Result<()> {
         assert_derives!(
             |p| {
