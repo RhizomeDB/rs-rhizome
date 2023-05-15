@@ -80,13 +80,11 @@ where
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in &self.cols {
-            let val = bindings
-                .resolve::<BS, EF>(term, blockstore)?
-                .ok_or_else(|| {
-                    Error::InternalRhizomeError("expected term to resolve".to_owned())
-                })?;
-
-            bound.push((*id, <Val>::clone(&val)));
+            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore)? {
+                bound.push((*id, <Val>::clone(&val)));
+            } else {
+                return Ok(());
+            }
         }
 
         let fact = IF::new(self.id, bound);

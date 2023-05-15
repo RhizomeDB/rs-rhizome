@@ -36,21 +36,19 @@ impl Bindings {
     {
         match term {
             Term::Link(link_id, cid_term) => {
-                let cid_val = self
-                    .resolve::<BS, EF>(cid_term, blockstore)?
-                    .ok_or_else(|| {
-                        Error::InternalRhizomeError("CID could not be resolved".to_owned())
-                    })?;
-
-                let Val::Cid(cid) = &*cid_val else {
+                if let Some(cid_val) = self.resolve::<BS, EF>(cid_term, blockstore)? {
+                    let Val::Cid(cid) = &*cid_val else {
                    return error(Error::InternalRhizomeError("expected term to resolve to CID".to_owned()));
                 };
 
-                let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(cid) else {
+                    let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(cid) else {
                         return Ok(None);
                     };
 
-                Ok(fact.link(*link_id))
+                    Ok(fact.link(*link_id))
+                } else {
+                    Ok(None)
+                }
             }
 
             Term::Col(relation_id, alias, col_id) => Ok(self
