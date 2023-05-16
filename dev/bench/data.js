@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683136289508,
+  "lastUpdate": 1684196828215,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -443,6 +443,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/e57079b1e9a0c20486accc8476f664e4e61cfddb"
         },
         "date": 1683136288683,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "6caea85314a74176fcfd87cb620a81f2bda6617c",
+          "message": "refactor: ignore clippy false positive in default_constructed_unit_structs",
+          "timestamp": "2023-05-15T20:22:46-04:00",
+          "tree_id": "994476b697f27d4a294dcff3101ba09bd127e709",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/6caea85314a74176fcfd87cb620a81f2bda6617c"
+        },
+        "date": 1684196827191,
         "tool": "cargo",
         "benches": [
           {
