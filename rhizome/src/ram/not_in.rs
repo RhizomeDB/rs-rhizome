@@ -85,9 +85,13 @@ where
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in self.cols() {
-            // TODO: Error if term fails to resolve; see https://github.com/RhizomeDB/rs-rhizome/issues/28
             if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore)? {
                 bound.push((*id, <Val>::clone(&val)));
+            } else {
+                return error(Error::InternalRhizomeError(format!(
+                    "failed to resolve term for column: {}",
+                    id
+                )));
             }
         }
 
