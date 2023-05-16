@@ -91,6 +91,7 @@ macro_rules! assert_derives {
             $crate::storage::blockstore::Blockstore::put_serializable(
                 &mut bs,
                 fact,
+                #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                 $crate::storage::DefaultCodec::default(),
                 $crate::storage::DEFAULT_MULTIHASH,
             )
