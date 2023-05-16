@@ -154,6 +154,7 @@ where {
             ClientCommand::InsertFact(fact, sender) => {
                 self.blockstore.put_serializable(
                     &fact,
+                    #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                     DefaultCodec::default(),
                     DEFAULT_MULTIHASH,
                 )?;
@@ -221,6 +222,7 @@ where {
             StreamEvent::Fact(fact) => {
                 self.blockstore.put_serializable(
                     &fact,
+                    #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                     DefaultCodec::default(),
                     DEFAULT_MULTIHASH,
                 )?;
