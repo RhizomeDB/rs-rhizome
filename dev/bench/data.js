@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684196828215,
+  "lastUpdate": 1684267983034,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -473,6 +473,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/6caea85314a74176fcfd87cb620a81f2bda6617c"
         },
         "date": 1684196827191,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "5bd00c3ac502689e37d0f9b2fb83f9261621d946",
+          "message": "fix: error if a term fails to resolve when applying NotIn\n\nFixes https://github.com/RhizomeDB/rs-rhizome/issues/28",
+          "timestamp": "2023-05-16T16:12:13-04:00",
+          "tree_id": "c74efb52c3add921d7f9ac393917b42eabe8c8c6",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/5bd00c3ac502689e37d0f9b2fb83f9261621d946"
+        },
+        "date": 1684267982126,
         "tool": "cargo",
         "benches": [
           {
