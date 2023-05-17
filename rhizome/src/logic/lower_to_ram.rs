@@ -617,9 +617,13 @@ where
             )
         }
         Some(SemiNaiveTerm::Negation(inner)) => {
-            let formula = lower_negation_to_ram(&inner, &bindings, edb, idb)?;
+            let formula_delta =
+                lower_negation_to_ram(&inner, &bindings, RelationVersion::Delta, edb, idb)?;
+            let formula_total =
+                lower_negation_to_ram(&inner, &bindings, RelationVersion::Total, edb, idb)?;
 
-            formulae.push(formula);
+            formulae.push(formula_delta);
+            formulae.push(formula_total);
 
             lower_rule_body_to_ram(
                 rule, version, bindings, next_alias, terms, formulae, edb, idb,
@@ -830,6 +834,7 @@ where
 pub(crate) fn lower_negation_to_ram<EF, IF, ER, IR>(
     negation: &Negation,
     bindings: &im::HashMap<VarId, Term>,
+    version: RelationVersion,
     edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
     idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
 ) -> Result<Formula<EF, IF, ER, IR>>
@@ -856,12 +861,12 @@ where
 
     let not_in_relation = match negation.relation().source() {
         Source::Edb => NotInRelation::Edb(Arc::clone(
-            edb.get(&(negation.relation().id(), RelationVersion::Total))
+            edb.get(&(negation.relation().id(), version))
                 .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
         )),
 
         Source::Idb => NotInRelation::Idb(Arc::clone(
-            idb.get(&(negation.relation().id(), RelationVersion::Total))
+            idb.get(&(negation.relation().id(), version))
                 .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
         )),
     };

@@ -94,24 +94,23 @@ where
                 )));
             }
         }
-
         match &self.relation {
-            NotInRelation::Edb(_) => {
-                // See https://github.com/RhizomeDB/rs-rhizome/issues/27
-                todo!("Negation is only implemented on IDB relations")
-            }
-            NotInRelation::Idb(relation) => {
-                let bound_fact = IF::new(self.id, bound);
-
-                Ok(!relation
-                    .read()
-                    .or_else(|_| {
-                        error(Error::InternalRhizomeError(
-                            "relation lock poisoned".to_owned(),
-                        ))
-                    })?
-                    .contains(&bound_fact))
-            }
+            NotInRelation::Edb(relation) => Ok(!relation
+                .read()
+                .or_else(|_| {
+                    error(Error::InternalRhizomeError(
+                        "relation lock poisoned".to_owned(),
+                    ))
+                })?
+                .contains(&bound)),
+            NotInRelation::Idb(relation) => Ok(!relation
+                .read()
+                .or_else(|_| {
+                    error(Error::InternalRhizomeError(
+                        "relation lock poisoned".to_owned(),
+                    ))
+                })?
+                .contains(&bound)),
         }
     }
 }
