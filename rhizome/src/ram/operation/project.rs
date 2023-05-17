@@ -119,10 +119,28 @@ where
         .nest(2)
         .group();
 
+        let when_doc = if self.formulae.is_empty() {
+            RcDoc::nil()
+        } else {
+            RcDoc::text(" where")
+                .append(RcDoc::hardline())
+                .append(RcDoc::text("("))
+                .append(
+                    RcDoc::intersperse(
+                        self.formulae.iter().map(|formula| formula.to_doc()),
+                        RcDoc::text(" and "),
+                    )
+                    .nest(1)
+                    .group(),
+                )
+                .append(RcDoc::text(")"))
+        };
+
         RcDoc::concat([
             RcDoc::text("project "),
             RcDoc::text("("),
             cols_doc,
+            when_doc,
             RcDoc::text(")"),
             RcDoc::text(" into "),
             RcDoc::as_string(self.id),
