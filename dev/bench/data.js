@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684267983034,
+  "lastUpdate": 1684282953840,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -503,6 +503,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/5bd00c3ac502689e37d0f9b2fb83f9261621d946"
         },
         "date": 1684267982126,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "1af70a08ce0533cee6080d7137e548c57b86cfb3",
+          "message": "fix: support negation over EDB relations\n\nFixes https://github.com/RhizomeDB/rs-rhizome/issues/27",
+          "timestamp": "2023-05-16T20:21:30-04:00",
+          "tree_id": "c830712ad72485293fe5869af90582529f6d8ee7",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/1af70a08ce0533cee6080d7137e548c57b86cfb3"
+        },
+        "date": 1684282952760,
         "tool": "cargo",
         "benches": [
           {
