@@ -210,6 +210,114 @@ mod tests {
     }
 
     #[test]
+    fn test_negate_edb() -> Result<()> {
+        // Attach a link to one fact to ensure negation works against facts with links
+        let cid = Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")?;
+
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("result", |h| {
+                    h.column::<i32>("entity").column::<i32>("value")
+                })?;
+
+                p.rule::<(i32, i32)>("result", &|h, b, (e, v)| {
+                    h.bind((("entity", e), ("value", v)))?;
+
+                    b.search(
+                        "evac",
+                        (("entity", e), ("attribute", "value"), ("value", v)),
+                    )?;
+                    b.except(
+                        "evac",
+                        (("entity", e), ("attribute", "ignored"), ("value", true)),
+                    )?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [
+                EVACFact::new(0, "value", 0, vec![])?,
+                EVACFact::new(0, "value", 1, vec![])?,
+                EVACFact::new(1, "value", 2, vec![])?,
+                EVACFact::new(2, "value", 2, vec![])?,
+                EVACFact::new(3, "value", 23, vec![])?,
+                EVACFact::new(1, "ignored", true, vec![])?,
+                EVACFact::new(2, "ignored", false, vec![])?,
+                EVACFact::new(3, "ignored", true, vec![("foo".into(), cid)])?,
+            ],
+            [(
+                "result",
+                [
+                    BTreeFact::new("result", [("entity", 0), ("value", 0)]),
+                    BTreeFact::new("result", [("entity", 0), ("value", 1)]),
+                    BTreeFact::new("result", [("entity", 2), ("value", 2)]),
+                ]
+            )]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_negate_idb() -> Result<()> {
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("ignored", |h| h.column::<i32>("entity"))?;
+
+                p.output("result", |h| {
+                    h.column::<i32>("entity").column::<i32>("value")
+                })?;
+
+                p.fact("ignored", |h| h.bind((("entity", 1),)))?;
+
+                p.rule::<(i32, i32)>("result", &|h, b, (e, v)| {
+                    h.bind((("entity", e), ("value", v)))?;
+
+                    b.search(
+                        "evac",
+                        (("entity", e), ("attribute", "value"), ("value", v)),
+                    )?;
+                    b.except("ignored", (("entity", e),))?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [
+                EVACFact::new(0, "value", 0, vec![])?,
+                EVACFact::new(0, "value", 1, vec![])?,
+                EVACFact::new(1, "value", 2, vec![])?,
+                EVACFact::new(2, "value", 2, vec![])?,
+            ],
+            [(
+                "result",
+                [
+                    BTreeFact::new("result", [("entity", 0), ("value", 0)]),
+                    BTreeFact::new("result", [("entity", 0), ("value", 1)]),
+                    BTreeFact::new("result", [("entity", 2), ("value", 2)]),
+                ]
+            )]
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_get_link() -> Result<()> {
         let f00 = EVACFact::new(0, "node", 0, vec![])?;
         let f01 = EVACFact::new(0, "node", 0, vec![("parent".into(), f00.cid()?)])?;

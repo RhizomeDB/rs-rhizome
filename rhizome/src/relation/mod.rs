@@ -1,4 +1,4 @@
-use crate::fact::traits::Fact;
+use crate::{fact::traits::Fact, id::ColId, value::Val};
 use im::OrdSet;
 use std::{fmt::Debug, hash::Hash};
 
@@ -28,7 +28,7 @@ pub trait Relation: Default + Eq + PartialEq + Debug {
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
 
-    fn contains(&self, fact: &Self::Fact) -> bool;
+    fn contains(&self, bindings: &[(ColId, Val)]) -> bool;
 
     fn insert(&mut self, fact: Self::Fact);
     fn merge(&mut self, rhs: &Self);
@@ -73,12 +73,14 @@ where
         self.inner.is_empty()
     }
 
-    fn contains(&self, fact: &F) -> bool {
+    fn contains(&self, bindings: &[(ColId, Val)]) -> bool {
         // TODO: This is incredibly slow. We either need to project relations down to the columns used in existence checks, or
         // only allow negation over the complete set of columns for a relation.
-        self.inner
-            .iter()
-            .any(|f| fact.cols().iter().all(|k| f.col(k) == fact.col(k)))
+        self.inner.iter().any(|f| {
+            bindings
+                .iter()
+                .all(|(k, v)| f.col(k).map_or(false, |b| *b == *v))
+        })
     }
 
     fn insert(&mut self, fact: F) {
