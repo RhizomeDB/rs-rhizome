@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684282953840,
+  "lastUpdate": 1684533927872,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -533,6 +533,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/1af70a08ce0533cee6080d7137e548c57b86cfb3"
         },
         "date": 1684282952760,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "3a2bce8263551d26162e7a5cea068c36e588c8f3",
+          "message": "perf: implement hexastore-style indexes for EDB relations",
+          "timestamp": "2023-05-19T18:04:00-04:00",
+          "tree_id": "dde146419d3260f8a190febe0927e1af644aac01",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/3a2bce8263551d26162e7a5cea068c36e588c8f3"
+        },
+        "date": 1684533927407,
         "tool": "cargo",
         "benches": [
           {
