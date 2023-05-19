@@ -74,7 +74,7 @@ where
                         "relation lock poisoned".to_owned(),
                     ))
                 })?
-                .iter()
+                .search(vec![])
             {
                 output.push_back(fact.clone());
             }

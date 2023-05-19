@@ -106,6 +106,17 @@ where
         R: Relation<Fact = F>,
         WithBindings: Fn(Bindings) -> Result<bool>,
     {
+        let mut bound_cols = vec![];
+        for (col_id, term) in self.bindings.iter() {
+            let resolved = bindings
+                .resolve::<BS, EF>(term, blockstore)?
+                .ok_or_else(|| {
+                    Error::InternalRhizomeError("expected binding not found".to_owned())
+                })?;
+
+            bound_cols.push((*col_id, <Val>::clone(&resolved)));
+        }
+
         for fact in relation
             .read()
             .or_else(|_| {
@@ -113,7 +124,7 @@ where
                     "relation lock poisoned".to_owned(),
                 ))
             })?
-            .iter()
+            .search(bound_cols)
         {
             let mut next_bindings = bindings.clone();
 

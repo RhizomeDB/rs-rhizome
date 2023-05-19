@@ -9,9 +9,10 @@ use pretty::RcDoc;
 use crate::{
     error::{error, Error},
     fact::traits::EDBFact,
-    id::RelationId,
+    id::{ColId, RelationId},
     pretty::Pretty,
     relation::Relation,
+    value::Val,
 };
 
 #[derive(Debug)]
@@ -69,6 +70,11 @@ where
         let mut has_new_facts = false;
 
         while let Some(fact) = input.pop_front() {
+            let mut bindings: Vec<(ColId, Val)> = Vec::default();
+            for col_id in fact.cols() {
+                bindings.push((col_id, <Val>::clone(&fact.col(&col_id).unwrap())));
+            }
+
             let id = fact.id();
             let relation = self
                 .relations
@@ -82,7 +88,7 @@ where
                         "relation lock poisoned".to_owned(),
                     ))
                 })?
-                .insert(fact);
+                .insert(bindings, fact);
 
             has_new_facts = true;
         }

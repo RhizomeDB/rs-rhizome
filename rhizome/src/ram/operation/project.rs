@@ -87,7 +87,7 @@ where
             }
         }
 
-        let fact = IF::new(self.id, bound);
+        let fact = IF::new(self.id, bound.clone());
 
         self.relation
             .write()
@@ -96,7 +96,7 @@ where
                     "relation lock poisoned".to_owned(),
                 ))
             })?
-            .insert(fact);
+            .insert(bound, fact);
 
         Ok(())
     }

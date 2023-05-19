@@ -94,6 +94,7 @@ where
                 )));
             }
         }
+
         match &self.relation {
             NotInRelation::Edb(relation) => Ok(!relation
                 .read()
@@ -102,7 +103,7 @@ where
                         "relation lock poisoned".to_owned(),
                     ))
                 })?
-                .contains(&bound)),
+                .contains(bound)),
             NotInRelation::Idb(relation) => Ok(!relation
                 .read()
                 .or_else(|_| {
@@ -110,7 +111,7 @@ where
                         "relation lock poisoned".to_owned(),
                     ))
                 })?
-                .contains(&bound)),
+                .contains(bound)),
         }
     }
 }

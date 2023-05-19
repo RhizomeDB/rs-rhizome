@@ -115,7 +115,7 @@ where
         F: Fact,
         R: Relation<Fact = F>,
     {
-        let mut group_by_vals: HashMap<ColId, Arc<Val>> = HashMap::default();
+        let mut group_by_vals: Vec<(ColId, Val)> = Vec::default();
         for (col_id, col_term) in &self.group_by_cols {
             let col_val = bindings
                 .resolve::<BS, EF>(col_term, blockstore)?
@@ -126,7 +126,7 @@ where
                     ))
                 })?;
 
-            group_by_vals.insert(*col_id, col_val);
+            group_by_vals.push((*col_id, <Val>::clone(&col_val)));
         }
 
         let mut any = false;
@@ -139,54 +139,39 @@ where
                     "relation lock poisoned".to_owned(),
                 ))
             })?
-            .iter()
+            .search(group_by_vals)
         {
-            let mut matches = true;
-            for (col_id, col_val) in &group_by_vals {
-                let fact_val = fact.col(col_id).ok_or_else(|| {
+            any = true;
+
+            let mut match_bindings = bindings.clone();
+
+            for k in fact.cols() {
+                let fact_val = fact.col(&k).ok_or_else(|| {
                     Error::InternalRhizomeError("expected column not found".to_owned())
                 })?;
 
-                if *col_val != fact_val {
-                    matches = false;
-
-                    break;
-                }
+                match_bindings.insert(
+                    BindingKey::Relation(self.id, self.alias, k),
+                    fact_val.clone(),
+                );
             }
 
-            if matches {
-                any = true;
-
-                let mut match_bindings = bindings.clone();
-
-                for k in fact.cols() {
-                    let fact_val = fact.col(&k).ok_or_else(|| {
-                        Error::InternalRhizomeError("expected column not found".to_owned())
+            let mut args = Vec::default();
+            for term in self.args.iter() {
+                let resolved = match_bindings
+                    .resolve::<BS, EF>(term, blockstore)?
+                    .ok_or_else(|| {
+                        Error::InternalRhizomeError(
+                            "argument to reduce failed to resolve".to_owned(),
+                        )
                     })?;
 
-                    match_bindings.insert(
-                        BindingKey::Relation(self.id, self.alias, k),
-                        fact_val.clone(),
-                    );
-                }
+                let inner_val = Arc::try_unwrap(resolved).unwrap_or_else(|arc| (*arc).clone());
 
-                let mut args = Vec::default();
-                for term in self.args.iter() {
-                    let resolved = match_bindings
-                        .resolve::<BS, EF>(term, blockstore)?
-                        .ok_or_else(|| {
-                            Error::InternalRhizomeError(
-                                "argument to reduce failed to resolve".to_owned(),
-                            )
-                        })?;
-
-                    let inner_val = Arc::try_unwrap(resolved).unwrap_or_else(|arc| (*arc).clone());
-
-                    args.push(inner_val);
-                }
-
-                result = self.do_reduce(result, args)?;
+                args.push(inner_val);
             }
+
+            result = self.do_reduce(result, args)?;
         }
 
         if any {
