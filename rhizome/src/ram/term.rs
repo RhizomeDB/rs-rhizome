@@ -17,6 +17,7 @@ pub enum Term {
     Lit(Arc<Val>),
     Link(LinkId, Box<Term>),
     Col(RelationId, Option<AliasId>, ColId),
+    Cid(RelationId, Option<AliasId>),
     Agg(RelationId, Option<AliasId>, Var),
 }
 
@@ -44,6 +45,11 @@ impl Pretty for Term {
                 relation_binding(relation_id, alias_id),
                 RcDoc::text("."),
                 RcDoc::as_string(col_id),
+            ]),
+            Term::Cid(relation_id, alias_id) => RcDoc::concat([
+                RcDoc::text("cid("),
+                relation_binding(relation_id, alias_id),
+                RcDoc::text(")"),
             ]),
             Term::Agg(relation_id, alias_id, var) => RcDoc::concat([
                 RcDoc::text("("),

@@ -493,6 +493,18 @@ where
                     old.next()
                 });
 
+            if let Some(cid) = inner.cid() {
+                if inner.relation().source() != Source::Edb {
+                    return error(Error::ContentAddressedIDB(inner.relation().id()));
+                }
+
+                if let CidValue::Var(var) = cid {
+                    if !bindings.contains_key(&var.id()) {
+                        next_bindings.insert(var.id(), Term::Cid(inner.relation().id(), alias));
+                    }
+                }
+            }
+
             for (col_id, col_val) in inner.args() {
                 if let ColVal::Binding(var) = col_val {
                     if !bindings.contains_key(&var.id()) {
@@ -543,24 +555,38 @@ where
                 ))
             }
 
-            for (&col_id, col_val) in inner.args() {
-                match col_val {
-                    ColVal::Lit(val) => {
+            if let Some(cid_val) = inner.cid() {
+                match cid_val {
+                    CidValue::Cid(cid) => {
                         let formula = Formula::equality(
-                            Term::Col(inner.relation().id(), alias, col_id),
-                            Term::Lit(val.clone()),
+                            Term::Cid(inner.relation().id(), alias),
+                            Term::Lit(Arc::new(Val::Cid(*cid))),
                         );
 
                         formulae.push(formula);
                     }
-                    ColVal::Binding(var) => {
+                    CidValue::Var(var) => {
                         if let Some(bound) = bindings.get(&var.id()) {
                             let formula = Formula::equality(
-                                Term::Col(inner.relation().id(), alias, col_id),
+                                Term::Cid(inner.relation().id(), alias),
                                 bound.clone(),
                             );
 
                             formulae.push(formula);
+                        }
+                    }
+                }
+            }
+
+            let mut rel_bindings = Vec::default();
+            for (&col_id, col_val) in inner.args() {
+                match col_val {
+                    ColVal::Lit(val) => {
+                        rel_bindings.push((col_id, Term::Lit(val.clone())));
+                    }
+                    ColVal::Binding(var) => {
+                        if let Some(bound) = bindings.get(&var.id()) {
+                            rel_bindings.push((col_id, bound.clone()));
                         }
                     }
                 }
@@ -594,6 +620,7 @@ where
                 alias,
                 inner_version,
                 search_relation,
+                rel_bindings,
                 formulae,
                 lower_rule_body_to_ram(
                     rule,
@@ -1081,6 +1108,10 @@ fn update_bindings(bindings: &mut HashSet<VarId>, term: &SemiNaiveTerm) {
             bindings.insert(inner.target().id());
         }
         SemiNaiveTerm::RelPredicate(inner, _) => {
+            if let Some(CidValue::Var(var)) = inner.cid() {
+                bindings.insert(var.id());
+            }
+
             for var in inner.vars() {
                 bindings.insert(var.id());
             }

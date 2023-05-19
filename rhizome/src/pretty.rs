@@ -21,14 +21,13 @@ mod tests {
     use crate::{
         fact::{DefaultEDBFact, DefaultIDBFact},
         ram::{
-            alias_id::AliasId,
             formula::Formula,
             operation::{project::Project, search::Search, Operation},
             relation_version::RelationVersion,
             term::Term,
             SearchRelation,
         },
-        relation::DefaultRelation,
+        relation::{DefaultEDBRelation, DefaultIDBRelation},
         value::Val,
     };
 
@@ -36,23 +35,18 @@ mod tests {
 
     #[test]
     fn test_pretty() -> Result<()> {
-        let formula1 = Formula::equality(
-            Term::Col("person".into(), Some(AliasId::new().next()), "name".into()),
-            Term::Lit(Arc::new(Val::String("Quinn".into()))),
-        );
-
-        let formula2 = Formula::not_in(
+        let formula = Formula::not_in(
             "person".into(),
             RelationVersion::Total,
             [("age", Term::Lit(Arc::new(Val::U32(29))))],
-            crate::ram::NotInRelation::Edb(Arc::new(RwLock::new(DefaultRelation::default()))),
+            crate::ram::NotInRelation::Edb(Arc::new(RwLock::new(DefaultEDBRelation::default()))),
         );
 
         let project = Operation::Project(Project::<
             DefaultEDBFact,
             DefaultIDBFact,
-            DefaultRelation<DefaultEDBFact>,
-            DefaultRelation<DefaultIDBFact>,
+            DefaultEDBRelation<DefaultEDBFact>,
+            DefaultIDBRelation<DefaultIDBFact>,
         >::new(
             "person".into(),
             RelationVersion::Total,
@@ -65,8 +59,12 @@ mod tests {
             "person".into(),
             None,
             RelationVersion::Total,
-            SearchRelation::Edb(Arc::new(RwLock::new(DefaultRelation::default()))),
-            [formula1, formula2],
+            SearchRelation::Edb(Arc::new(RwLock::new(DefaultEDBRelation::default()))),
+            vec![(
+                "name".into(),
+                Term::Lit(Arc::new(Val::String("Quinn".into()))),
+            )],
+            [formula],
             project,
         ));
 
@@ -75,7 +73,7 @@ mod tests {
 
         assert_eq!(
             r#"search person_total where
-(person_1.name = "Quinn" and (age: 29) notin person_total) do
+(name = "Quinn" and (age: 29) notin person_total) do
   project (age: 29) into person_total"#,
             String::from_utf8(w)?
         );

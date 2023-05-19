@@ -21,6 +21,7 @@ pub(crate) struct Bindings(im::HashMap<BindingKey, Arc<Val>>);
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) enum BindingKey {
     Relation(RelationId, Option<AliasId>, ColId),
+    Cid(RelationId, Option<AliasId>),
     Agg(RelationId, Option<AliasId>, Var),
 }
 
@@ -54,6 +55,11 @@ impl Bindings {
             Term::Col(relation_id, alias, col_id) => Ok(self
                 .0
                 .get(&BindingKey::Relation(*relation_id, *alias, *col_id))
+                .map(Arc::clone)),
+
+            Term::Cid(relation_id, alias) => Ok(self
+                .0
+                .get(&BindingKey::Cid(*relation_id, *alias))
                 .map(Arc::clone)),
 
             Term::Lit(val) => Ok(Some(val).map(Arc::clone)),

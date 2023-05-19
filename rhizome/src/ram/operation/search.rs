@@ -6,11 +6,12 @@ use pretty::RcDoc;
 use crate::{
     error::{error, Error},
     fact::traits::{EDBFact, Fact, IDBFact},
-    id::RelationId,
+    id::{ColId, RelationId},
     pretty::Pretty,
-    ram::{alias_id::AliasId, formula::Formula, BindingKey, Bindings, RelationVersion},
+    ram::{alias_id::AliasId, formula::Formula, BindingKey, Bindings, RelationVersion, Term},
     relation::Relation,
     storage::blockstore::Blockstore,
+    value::Val,
 };
 
 use super::Operation;
@@ -39,6 +40,7 @@ where
     alias: Option<AliasId>,
     version: RelationVersion,
     relation: SearchRelation<EF, IF, ER, IR>,
+    bindings: Vec<(ColId, Term)>,
     when: Vec<Formula<EF, IF, ER, IR>>,
     operation: Box<Operation<EF, IF, ER, IR>>,
 }
@@ -55,6 +57,7 @@ where
         alias: Option<AliasId>,
         version: RelationVersion,
         relation: SearchRelation<EF, IF, ER, IR>,
+        bindings: Vec<(ColId, Term)>,
         when: impl IntoIterator<Item = Formula<EF, IF, ER, IR>>,
         operation: Operation<EF, IF, ER, IR>,
     ) -> Self {
@@ -65,6 +68,7 @@ where
             alias,
             version,
             relation,
+            bindings,
             when,
             operation: Box::new(operation),
         }
@@ -112,6 +116,15 @@ where
             .iter()
         {
             let mut next_bindings = bindings.clone();
+
+            // TODO: Only add the CID to the bindings if it's required by
+            // a later operation.
+            if let Some(cid) = fact.cid()? {
+                next_bindings.insert(
+                    BindingKey::Cid(self.id, self.alias),
+                    Arc::new(Val::Cid(cid)),
+                );
+            }
 
             for k in fact.cols() {
                 let v = fact.col(&k).ok_or_else(|| {
@@ -174,7 +187,16 @@ where
                 .append(RcDoc::text("("))
                 .append(
                     RcDoc::intersperse(
-                        self.when.iter().map(|formula| formula.to_doc()),
+                        self.bindings
+                            .iter()
+                            .map(|(col_id, term)| {
+                                RcDoc::concat([
+                                    RcDoc::as_string(col_id),
+                                    RcDoc::text(" = "),
+                                    term.to_doc(),
+                                ])
+                            })
+                            .chain(self.when.iter().map(|formula| formula.to_doc())),
                         RcDoc::text(" and "),
                     )
                     .nest(1)

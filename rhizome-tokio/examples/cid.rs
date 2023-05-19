@@ -2,7 +2,10 @@ use anyhow::Result;
 use cid::Cid;
 use futures::{sink::unfold, StreamExt};
 use rhizome::{
-    fact::{evac_fact::EVACFact, traits::EDBFact},
+    fact::{
+        evac_fact::EVACFact,
+        traits::{EDBFact, Fact},
+    },
     runtime::client::Client,
     types::Any,
 };
@@ -16,16 +19,13 @@ async fn main() -> Result<()> {
         reactor
             .async_run(|p| {
                 p.input("evac", |h| {
-                    h.column::<Cid>("cid")
-                        .column::<Any>("entity")
+                    h.column::<Any>("entity")
                         .column::<Any>("attribute")
                         .column::<Any>("value")
                 })?;
 
                 p.output("create", |h| {
-                    h.column::<Cid>("cid")
-                        .column::<i32>("entity")
-                        .column::<i32>("initial")
+                    h.column::<i32>("entity").column::<i32>("initial")
                 })?;
 
                 p.output("update", |h| {
@@ -43,14 +43,10 @@ async fn main() -> Result<()> {
 
                 p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, e, i)| {
                     h.bind((("cid", cid), ("entity", e), ("initial", i)))?;
-                    b.search(
+                    b.search_cid(
                         "evac",
-                        (
-                            ("cid", cid),
-                            ("entity", e),
-                            ("attribute", "initial"),
-                            ("value", i),
-                        ),
+                        cid,
+                        (("entity", e), ("attribute", "initial"), ("value", i)),
                     )?;
 
                     Ok(())
@@ -64,14 +60,10 @@ async fn main() -> Result<()> {
                         ("parent", parent),
                     ))?;
 
-                    b.search(
+                    b.search_cid(
                         "evac",
-                        (
-                            ("cid", cid),
-                            ("entity", e),
-                            ("attribute", "write"),
-                            ("value", v),
-                        ),
+                        cid,
+                        (("entity", e), ("attribute", "write"), ("value", v)),
                     )?;
                     b.get_link(cid, "parent", parent)?;
                     b.search("create", (("cid", parent), ("entity", e)))?;
@@ -87,14 +79,10 @@ async fn main() -> Result<()> {
                         ("parent", parent),
                     ))?;
 
-                    b.search(
+                    b.search_cid(
                         "evac",
-                        (
-                            ("cid", cid),
-                            ("entity", e),
-                            ("attribute", "write"),
-                            ("value", v),
-                        ),
+                        cid,
+                        (("entity", e), ("attribute", "write"), ("value", v)),
                     )?;
                     b.get_link(cid, "parent", parent)?;
                     b.search("update", (("cid", parent), ("entity", e)))?;
@@ -130,11 +118,11 @@ async fn main() -> Result<()> {
         }
     });
 
-    let e0 = EVACFact::new(0, "initial", 0, vec![])?;
-    let e1 = EVACFact::new(0, "write", 1, vec![("parent".into(), e0.cid()?)])?;
-    let e2 = EVACFact::new(0, "write", 5, vec![("parent".into(), e1.cid()?)])?;
-    let e3 = EVACFact::new(0, "write", 3, vec![("parent".into(), e1.cid()?)])?;
-    let e4 = EVACFact::new(1, "initial", 4, vec![])?;
+    let e0 = EVACFact::new(0, "initial", 0, vec![]);
+    let e1 = EVACFact::new(0, "write", 1, vec![("parent".into(), e0.cid()?.unwrap())]);
+    let e2 = EVACFact::new(0, "write", 5, vec![("parent".into(), e1.cid()?.unwrap())]);
+    let e3 = EVACFact::new(0, "write", 3, vec![("parent".into(), e1.cid()?.unwrap())]);
+    let e4 = EVACFact::new(1, "initial", 4, vec![]);
 
     client
         .register_sink(

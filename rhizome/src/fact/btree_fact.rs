@@ -40,6 +40,10 @@ impl IDBFact for BTreeFact {
 impl Fact for BTreeFact {
     type Marker = IdbMarker;
 
+    fn cid(&self) -> anyhow::Result<Option<cid::Cid>> {
+        Ok(None)
+    }
+
     fn col(&self, id: &ColId) -> Option<Arc<Val>> {
         self.cols.get(id).map(Arc::clone)
     }

@@ -17,6 +17,7 @@ use crate::{
 pub trait Fact: Clone + Ord + PartialOrd + Display + Debug + Send + Sync {
     type Marker;
 
+    fn cid(&self) -> Result<Option<Cid>>;
     fn col(&self, id: &ColId) -> Option<Arc<Val>>;
     fn cols(&self) -> Vec<ColId>;
 }
@@ -27,10 +28,9 @@ pub trait EDBFact: Fact<Marker = EdbMarker> + ContentAddressable {
         attr: impl Into<Val>,
         val: impl Into<Val>,
         links: Vec<(LinkId, Cid)>,
-    ) -> Result<Self>;
+    ) -> Self;
 
     fn id(&self) -> RelationId;
-    fn cid(&self) -> Result<Cid>;
     fn link(&self, id: LinkId) -> Option<Arc<Val>>;
 }
 pub trait IDBFact: Fact<Marker = IdbMarker> {

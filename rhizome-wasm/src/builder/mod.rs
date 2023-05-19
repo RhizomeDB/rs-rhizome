@@ -1,14 +1,8 @@
-use std::cell::RefCell;
-use std::cmp::max;
-use std::rc::Rc;
+use std::{cell::RefCell, cmp::max, rc::Rc};
 
 use anyhow::Result;
-use rhizome::types::Any;
-use rhizome::var::TypedVar;
-use rhizome::RuleVars;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use wasm_bindgen::JsValue;
+use rhizome::{types::Any, var::TypedVar, RuleVars};
+use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
 
 use crate::Cid;
@@ -39,8 +33,7 @@ impl ProgramBuilder {
 
     fn install_preamble(p: &rhizome::ProgramBuilder) -> Result<()> {
         p.input("evac", |h| {
-            h.column::<cid::Cid>("cid")
-                .column::<Any>("entity")
+            h.column::<Any>("entity")
                 .column::<Any>("attribute")
                 .column::<Any>("value")
         })?;
@@ -227,12 +220,24 @@ impl ProgramBuilder {
                                 .as_string()
                                 .unwrap();
 
+                            let cid = js_sys::Reflect::get(&term, &JsValue::from("cid")).unwrap();
+
+                            let cid_val = if let Ok(val) =
+                                serde_wasm_bindgen::from_value::<Cid>(cid.clone())
+                            {
+                                Some(val.inner().into())
+                            } else if let Some(var) = Var::downcast_js_ref(&cid) {
+                                vars.get(var.idx).map(|v| v.into())
+                            } else {
+                                None
+                            };
+
                             let bindings =
                                 js_sys::Reflect::get(&term, &JsValue::from("where")).unwrap();
 
                             let bindings_keys = js_sys::Reflect::own_keys(&bindings).unwrap();
 
-                            b.build_search(id.as_ref(), |s| {
+                            b.build_search(id.as_ref(), cid_val, |s| {
                                 bindings_keys.iter().for_each(|key| {
                                     let col_key = key.as_string().unwrap();
                                     let col_val = js_sys::Reflect::get(&bindings, &key).unwrap();

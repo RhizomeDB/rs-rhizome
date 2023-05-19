@@ -39,13 +39,13 @@ impl InputFact {
         }
 
         if let Some(val) = value.as_bool() {
-            Self(DefaultEDBFact::new(entity, attribute, val, links).unwrap())
+            Self(DefaultEDBFact::new(entity, attribute, val, links))
         } else if let Some(val) = value.as_f64() {
-            Self(DefaultEDBFact::new(entity, attribute, val as i64, links).unwrap())
+            Self(DefaultEDBFact::new(entity, attribute, val as i64, links))
         } else if let Some(val) = value.as_string() {
-            Self(DefaultEDBFact::new(entity, attribute, val.as_ref(), links).unwrap())
+            Self(DefaultEDBFact::new(entity, attribute, val.as_ref(), links))
         } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(value) {
-            Self(DefaultEDBFact::new(entity, attribute, val.inner(), links).unwrap())
+            Self(DefaultEDBFact::new(entity, attribute, val.inner(), links))
         } else {
             panic!("unknown type")
         }
