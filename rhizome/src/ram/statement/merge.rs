@@ -55,7 +55,7 @@ where
             ))
         })?;
 
-        merge_into.merge(&merge_from);
+        *merge_into = merge_into.merge(&merge_from);
 
         debug_assert!(merge_into.len() >= merge_from.len());
 

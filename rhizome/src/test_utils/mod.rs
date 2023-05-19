@@ -6,7 +6,7 @@ pub use rvg::*;
 use crate::{
     fact::{DefaultEDBFact, DefaultIDBFact},
     ram::Program,
-    relation::DefaultRelation,
+    relation::{DefaultEDBRelation, DefaultIDBRelation},
     ProgramBuilder,
 };
 use anyhow::Result;
@@ -18,8 +18,8 @@ pub(crate) fn build_easy<F>(
     Program<
         DefaultEDBFact,
         DefaultIDBFact,
-        DefaultRelation<DefaultEDBFact>,
-        DefaultRelation<DefaultIDBFact>,
+        DefaultEDBRelation<DefaultEDBFact>,
+        DefaultIDBRelation<DefaultIDBFact>,
     >,
 >
 where
@@ -28,8 +28,8 @@ where
     crate::build::<
         DefaultEDBFact,
         DefaultIDBFact,
-        DefaultRelation<DefaultEDBFact>,
-        DefaultRelation<DefaultIDBFact>,
+        DefaultEDBRelation<DefaultEDBFact>,
+        DefaultIDBRelation<DefaultIDBFact>,
         F,
     >(f)
 }

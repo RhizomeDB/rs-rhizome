@@ -19,7 +19,7 @@ use crate::{
     },
     id::RelationId,
     logic::ProgramBuilder,
-    relation::{DefaultRelation, Relation},
+    relation::{DefaultEDBRelation, DefaultIDBRelation, Relation},
     storage::{blockstore::Blockstore, memory::MemoryBlockstore, DefaultCodec, DEFAULT_MULTIHASH},
     timestamp::{DefaultTimestamp, Timestamp},
 };
@@ -31,8 +31,8 @@ pub struct Reactor<
     BS = MemoryBlockstore,
     E = DefaultEDBFact,
     I = DefaultIDBFact,
-    ER = DefaultRelation<E>,
-    IR = DefaultRelation<I>,
+    ER = DefaultEDBRelation<E>,
+    IR = DefaultIDBRelation<I>,
 > where
     T: Timestamp,
     E: EDBFact,

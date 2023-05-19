@@ -18,7 +18,7 @@ use crate::{
         },
         Bindings, Reduce,
     },
-    relation::{DefaultRelation, Relation},
+    relation::{DefaultEDBRelation, DefaultIDBRelation, Relation},
     storage::blockstore::Blockstore,
     timestamp::{DefaultTimestamp, Timestamp},
 };
@@ -27,8 +27,8 @@ pub(crate) struct VM<
     T = DefaultTimestamp,
     EF = DefaultEDBFact,
     IF = DefaultIDBFact,
-    ER = DefaultRelation<EF>,
-    IR = DefaultRelation<IF>,
+    ER = DefaultEDBRelation<EF>,
+    IR = DefaultIDBRelation<IF>,
 > where
     EF: EDBFact,
     IF: IDBFact,
