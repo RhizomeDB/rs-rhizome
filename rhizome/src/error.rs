@@ -51,6 +51,8 @@ pub enum Error {
     ReduceBoundTarget(VarId),
     #[error("Attempted to group by the target var {0}")]
     ReduceGroupByTarget(VarId),
+    #[error("Attempted to bind to CID of IDB relation {0}")]
+    ContentAddressedIDB(RelationId),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

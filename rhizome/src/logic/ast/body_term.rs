@@ -29,16 +29,29 @@ pub enum BodyTerm {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RelPredicate {
     relation: Arc<Declaration>,
+    cid: Option<CidValue>,
     args: HashMap<ColId, ColVal>,
 }
 
 impl RelPredicate {
-    pub fn new(relation: Arc<Declaration>, args: HashMap<ColId, ColVal>) -> Self {
-        Self { relation, args }
+    pub fn new(
+        relation: Arc<Declaration>,
+        cid: Option<CidValue>,
+        args: HashMap<ColId, ColVal>,
+    ) -> Self {
+        Self {
+            relation,
+            cid,
+            args,
+        }
     }
 
     pub fn relation(&self) -> Arc<Declaration> {
         Arc::clone(&self.relation)
+    }
+
+    pub fn cid(&self) -> &Option<CidValue> {
+        &self.cid
     }
 
     pub fn args(&self) -> &HashMap<ColId, ColVal> {
@@ -56,11 +69,21 @@ impl RelPredicate {
     }
 
     pub fn bound_vars(&self, bindings: &HashSet<VarId>) -> HashSet<VarId> {
-        self.vars()
-            .into_iter()
-            .filter(|v| bindings.contains(&v.id()))
-            .map(|v| v.id())
-            .collect()
+        let mut result = HashSet::default();
+
+        if let Some(CidValue::Var(var)) = self.cid() {
+            if bindings.contains(&var.id()) {
+                result.insert(var.id());
+            }
+        }
+
+        for var in self.vars() {
+            if bindings.contains(&var.id()) {
+                result.insert(var.id());
+            }
+        }
+
+        result
     }
 }
 

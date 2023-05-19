@@ -6,7 +6,6 @@ use cid::Cid;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    error::Error,
     id::{ColId, LinkId, RelationId},
     relation::EdbMarker,
     storage::content_addressable::ContentAddressable,
@@ -17,10 +16,6 @@ use super::traits::{EDBFact, Fact};
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct EVACFact {
-    #[serde(skip_serializing)]
-    pub cid: Option<Cid>,
-    #[serde(skip_serializing)]
-    pub cid_val: Option<Arc<Val>>,
     pub entity: Arc<Val>,
     pub attr: Arc<Val>,
     pub val: Arc<Val>,
@@ -33,7 +28,7 @@ impl EDBFact for EVACFact {
         attr: impl Into<Val>,
         val: impl Into<Val>,
         links: Vec<(LinkId, Cid)>,
-    ) -> Result<Self> {
+    ) -> Self {
         let entity = Arc::new(entity.into());
         let attr = Arc::new(attr.into());
         let val = Arc::new(val.into());
@@ -43,28 +38,16 @@ impl EDBFact for EVACFact {
             .map(|(k, v)| (k, Arc::new(Val::Cid(v))))
             .collect();
 
-        let mut fact = Self {
+        Self {
             entity,
             attr,
             val,
             causal_links,
-            cid: None,
-            cid_val: None,
-        };
-
-        fact.cid = Some(ContentAddressable::cid(&fact)?);
-        fact.cid_val = fact.cid.map(|c| Arc::new(Val::Cid(c)));
-
-        Ok(fact)
+        }
     }
 
     fn id(&self) -> RelationId {
         RelationId::new("evac")
-    }
-
-    fn cid(&self) -> Result<Cid> {
-        self.cid
-            .ok_or_else(|| Error::InternalRhizomeError("EVAC fact has no CID".to_owned()).into())
     }
 
     fn link(&self, id: LinkId) -> Option<Arc<Val>> {
@@ -75,25 +58,26 @@ impl EDBFact for EVACFact {
 impl Fact for EVACFact {
     type Marker = EdbMarker;
 
+    fn cid(&self) -> Result<Option<Cid>> {
+        let cid = ContentAddressable::cid(self)?;
+
+        Ok(Some(cid))
+    }
+
     fn col(&self, id: &ColId) -> Option<Arc<Val>> {
-        let val = if *id == ColId::new("cid") {
-            self.cid_val.as_ref()
-        } else if *id == ColId::new("entity") {
-            Some(&self.entity)
+        if *id == ColId::new("entity") {
+            Some(self.entity.clone())
         } else if *id == ColId::new("attribute") {
-            Some(&self.attr)
+            Some(self.attr.clone())
         } else if *id == ColId::new("value") {
-            Some(&self.val)
+            Some(self.val.clone())
         } else {
             None
-        };
-
-        val.map(Arc::clone)
+        }
     }
 
     fn cols(&self) -> Vec<ColId> {
         vec![
-            ColId::new("cid"),
             ColId::new("entity"),
             ColId::new("attribute"),
             ColId::new("value"),

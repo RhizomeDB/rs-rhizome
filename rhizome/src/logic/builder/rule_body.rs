@@ -149,7 +149,7 @@ impl RuleBodyBuilder {
     where
         T: AtomArgs<A>,
     {
-        let builder = RelPredicateBuilder::default();
+        let builder = RelPredicateBuilder::new(None);
 
         for (col_id, col_val) in T::into_cols(t) {
             builder.bindings.borrow_mut().push((col_id, col_val));
@@ -162,11 +162,29 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn build_search<F>(&self, id: &str, f: F) -> Result<()>
+    pub fn search_cid<C, T, A>(&self, id: &str, cid: C, t: T) -> Result<()>
+    where
+        C: Into<CidValue>,
+        T: AtomArgs<A>,
+    {
+        let builder = RelPredicateBuilder::new(Some(cid.into()));
+
+        for (col_id, col_val) in T::into_cols(t) {
+            builder.bindings.borrow_mut().push((col_id, col_val));
+        }
+
+        self.rel_predicates
+            .borrow_mut()
+            .push((id.to_string(), builder));
+
+        Ok(())
+    }
+
+    pub fn build_search<F>(&self, id: &str, cid: Option<CidValue>, f: F) -> Result<()>
     where
         F: Fn(&'_ RelPredicateBuilder) -> Result<()>,
     {
-        let builder = RelPredicateBuilder::default();
+        let builder = RelPredicateBuilder::new(cid);
 
         f(&builder)?;
 

@@ -88,7 +88,7 @@ mod tests {
                 h.bind_one(("from", x))?;
                 h.bind_one(("to", y))?;
 
-                b.build_search("edge", |s| {
+                b.build_search("edge", None, |s| {
                     s.bind_one(("from", x))?;
                     s.bind_one(("to", y))?;
 
@@ -101,14 +101,14 @@ mod tests {
             p.rule::<(i32, i32, i32)>("path", &|h, b, (x, y, z)| {
                 h.bind((("from", x), ("to", z)))?;
 
-                b.build_search("edge", |s| {
+                b.build_search("edge", None, |s| {
                     s.bind_one(("from", x))?;
                     s.bind_one(("to", y))?;
 
                     Ok(())
                 })?;
 
-                b.build_search("path", |s| {
+                b.build_search("path", None, |s| {
                     s.bind_one(("from", y))?;
                     s.bind_one(("to", z))?;
 
@@ -1531,6 +1531,42 @@ mod tests {
 
                 b.search("edge", (("from", x), ("to", y)))?;
                 b.search("path", (("from", y), ("to", z)))?;
+
+                Ok(())
+            })?;
+
+            Ok(p)
+        });
+    }
+
+    #[test]
+    fn test_search_cid_edb() {
+        assert_compile!(|p| {
+            p.input("evac", |h| h)?;
+            p.output("p", |h| h.column::<Cid>("x"))?;
+
+            p.rule::<(Cid,)>("p", &|h, b, (x,)| {
+                h.bind((("x", x),))?;
+
+                b.search_cid("evac", x, ())?;
+
+                Ok(())
+            })?;
+
+            Ok(p)
+        });
+    }
+
+    #[test]
+    fn test_search_cid_idb() {
+        assert_compile_err!(&Error::ContentAddressedIDB("q".into()), |p| {
+            p.output("q", |h| h)?;
+            p.output("p", |h| h.column::<Cid>("x"))?;
+
+            p.rule::<(Cid,)>("p", &|h, b, (x,)| {
+                h.bind((("x", x),))?;
+
+                b.search_cid("q", x, ())?;
 
                 Ok(())
             })?;

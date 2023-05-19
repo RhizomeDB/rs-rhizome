@@ -1,28 +1,48 @@
 use anyhow::Result;
+use cid::Cid;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use crate::{
     col_val::ColVal,
     error::{error, Error},
     id::{ColId, VarId},
-    logic::ast::{Declaration, RelPredicate},
+    logic::ast::{CidValue, Declaration, RelPredicate},
+    relation::Source,
     types::ColType,
 };
 
 use super::atom_args::AtomArg;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RelPredicateBuilder {
+    pub(super) cid: Option<CidValue>,
     pub(super) bindings: RefCell<Vec<(ColId, ColVal)>>,
 }
 
 impl RelPredicateBuilder {
+    pub fn new(cid: Option<CidValue>) -> Self {
+        Self {
+            cid,
+            bindings: Default::default(),
+        }
+    }
+
     pub fn finalize(
         self,
         relation: Arc<Declaration>,
         bound_vars: &mut HashMap<VarId, ColType>,
     ) -> Result<RelPredicate> {
         let mut cols = HashMap::default();
+
+        if let Some(cid) = self.cid {
+            if relation.source() != Source::Edb {
+                return error(Error::ContentAddressedIDB(relation.id()));
+            }
+
+            if let CidValue::Var(var) = cid {
+                bound_vars.insert(var.id(), ColType::new::<Cid>());
+            }
+        }
 
         for (col_id, col_val) in self.bindings.into_inner() {
             let schema = relation.schema();
@@ -63,7 +83,7 @@ impl RelPredicateBuilder {
             cols.insert(col_id, col_val);
         }
 
-        let predicate = RelPredicate::new(relation, cols);
+        let predicate = RelPredicate::new(relation, self.cid, cols);
 
         Ok(predicate)
     }
