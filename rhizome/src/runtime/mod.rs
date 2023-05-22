@@ -82,7 +82,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::cmp;
 
     use anyhow::Result;
     use cid::Cid;
@@ -608,14 +607,14 @@ mod tests {
 
                 p.rule::<(i32, i32)>("count", &|h, b, (count, n)| {
                     h.bind((("n", count),))?;
-                    b.reduce(count, (n,), "num", (("n", n),), 0, |acc, (_,)| acc + 1)?;
+                    b.count(count, "num", (("n", n),))?;
 
                     Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
                     h.bind((("n", sum),))?;
-                    b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                    b.sum(sum, n, "num", (("n", n),))?;
 
                     Ok(())
                 })?;
@@ -623,9 +622,7 @@ mod tests {
                 p.rule::<(i32, i32)>("min", &|h, b, (min, n)| {
                     h.bind((("n", min),))?;
 
-                    b.reduce(min, (n,), "num", (("n", n),), i32::MAX, |acc, (x,)| {
-                        cmp::min(acc, x)
-                    })?;
+                    b.min(min, n, "num", (("n", n),), i32::MAX)?;
 
                     Ok(())
                 })?;
@@ -633,9 +630,7 @@ mod tests {
                 p.rule::<(i32, i32)>("max", &|h, b, (max, n)| {
                     h.bind((("n", max),))?;
 
-                    b.reduce(max, (n,), "num", (("n", n),), i32::MIN, |acc, (x,)| {
-                        cmp::max(acc, x)
-                    })?;
+                    b.max(max, n, "num", (("n", n),), i32::MIN)?;
 
                     Ok(())
                 })?;
