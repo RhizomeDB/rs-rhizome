@@ -14,7 +14,7 @@ use super::{
 };
 
 type RuleBuilderClosure<'a, T> =
-    dyn Fn(&'_ RuleHeadBuilder, &'_ RuleBodyBuilder, &'_ T) -> Result<()> + 'a;
+    dyn Fn(&'_ RuleHeadBuilder, &'_ RuleBodyBuilder, T) -> Result<()> + 'a;
 
 #[derive(Debug, Default)]
 pub struct ProgramBuilder {
@@ -104,7 +104,7 @@ impl ProgramBuilder {
         let head_builder = RuleHeadBuilder::new(Arc::clone(&declaration));
         let body_builder = RuleBodyBuilder::new(Rc::clone(&self.relations));
 
-        f(&head_builder, &body_builder, &T::into_vars(0))?;
+        f(&head_builder, &body_builder, T::into_vars(0))?;
 
         let body = body_builder.finalize(&mut bound_vars)?;
         let head = head_builder.finalize(&mut bound_vars)?;

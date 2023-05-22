@@ -16,11 +16,8 @@ use crate::{
 };
 
 use super::{
-    atom_args::AtomArgs,
-    negation::NegationBuilder,
-    reduce::ReduceBuilder,
-    rel_predicate::RelPredicateBuilder,
-    typed_vars_tuple::{TypedVarsTuple, VarRefTuple},
+    atom_bindings::AtomBindings, negation::NegationBuilder, reduce::ReduceBuilder,
+    rel_predicate::RelPredicateBuilder, typed_vars_tuple::TypedVarsTuple,
 };
 
 type RelPredicates = Vec<(String, RelPredicateBuilder)>;
@@ -147,15 +144,13 @@ impl RuleBodyBuilder {
         Ok(body_terms)
     }
 
-    pub fn search<T, A>(&self, id: &str, t: T) -> Result<()>
+    pub fn search<T>(&self, id: &str, bindings: T) -> Result<()>
     where
-        T: AtomArgs<A>,
+        T: AtomBindings,
     {
         let builder = RelPredicateBuilder::new(None);
 
-        for (col_id, col_val) in T::into_cols(t) {
-            builder.bindings.borrow_mut().push((col_id, col_val));
-        }
+        bindings.bind(&mut builder.bindings.borrow_mut());
 
         self.rel_predicates
             .borrow_mut()
@@ -164,16 +159,14 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn search_cid<C, T, A>(&self, id: &str, cid: C, t: T) -> Result<()>
+    pub fn search_cid<C, T>(&self, id: &str, cid: C, bindings: T) -> Result<()>
     where
         C: Into<CidValue>,
-        T: AtomArgs<A>,
+        T: AtomBindings,
     {
         let builder = RelPredicateBuilder::new(Some(cid.into()));
 
-        for (col_id, col_val) in T::into_cols(t) {
-            builder.bindings.borrow_mut().push((col_id, col_val));
-        }
+        bindings.bind(&mut builder.bindings.borrow_mut());
 
         self.rel_predicates
             .borrow_mut()
@@ -197,15 +190,13 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn except<T, A>(&self, id: &str, t: T) -> Result<()>
+    pub fn except<T>(&self, id: &str, bindings: T) -> Result<()>
     where
-        T: AtomArgs<A>,
+        T: AtomBindings,
     {
         let builder = NegationBuilder::default();
 
-        for (col_id, col_val) in T::into_cols(t) {
-            builder.bindings.borrow_mut().push((col_id, col_val));
-        }
+        bindings.bind(&mut builder.bindings.borrow_mut());
 
         self.negations.borrow_mut().push((id.to_string(), builder));
 
@@ -240,17 +231,15 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn predicate<VarsRef, VarArgs, F>(&self, vars: VarsRef, f: F) -> Result<()>
+    pub fn predicate<Vars, F>(&self, vars: Vars, f: F) -> Result<()>
     where
-        VarsRef: VarRefTuple<Target = VarArgs>,
-        VarArgs: TypedVarsTuple<Val> + Send + Sync + 'static,
-        F: Fn(VarArgs::Output) -> bool + Send + Sync + 'static,
+        Vars: TypedVarsTuple<Val> + Send + Sync + 'static,
+        F: Fn(Vars::Output) -> bool + Send + Sync + 'static,
     {
-        let owned = vars.deref();
-        let vars_vec = owned.vars();
+        let vars_vec = vars.vars();
 
         let f: Arc<dyn VarClosure> = Arc::new(move |bindings| {
-            let args = owned.args(bindings)?;
+            let args = vars.args(bindings)?;
 
             Ok(f(args))
         });
@@ -260,10 +249,10 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn reduce<Target, VarsRef, VarArgs, Args, Arg, F>(
+    pub fn reduce<Target, Vars, Args, F>(
         &self,
-        target: &TypedVar<Target>,
-        vars: VarsRef,
+        target: TypedVar<Target>,
+        vars: Vars,
         id: &str,
         args: Args,
         init: Target,
@@ -273,33 +262,29 @@ impl RuleBodyBuilder {
         Val: TryInto<Target, Error = &'static str>,
         Target: Into<Val> + Clone,
         Type: FromType<Target>,
-        VarsRef: VarRefTuple<Target = VarArgs>,
-        VarArgs: TypedVarsTuple<Val> + Send + Sync + 'static,
-        Args: AtomArgs<Arg>,
-        F: Fn(Target, VarArgs::Output) -> Target + Send + Sync + 'static,
+        Vars: TypedVarsTuple<Val> + Send + Sync + 'static,
+        Args: AtomBindings,
+        F: Fn(Target, Vars::Output) -> Target + Send + Sync + 'static,
     {
-        let owned = vars.deref();
-        let vars_vec = owned.vars();
+        let vars_vec = vars.vars();
 
         let f: Arc<dyn ReduceClosure> = Arc::new(move |acc, bindings| {
             let acc = acc.try_into().map_err(|_| {
                 Error::InternalRhizomeError("failed to downcast reduce accumulator".to_owned())
             })?;
 
-            let args = owned.args(bindings)?;
+            let args = vars.args(bindings)?;
 
             Ok(f(acc, args).into())
         });
 
-        let mut builder = ReduceBuilder::new(init.into(), (*target).clone().into(), f);
+        let mut builder = ReduceBuilder::new(init.into(), target.into(), f);
 
         for var in vars_vec {
             builder.vars.push(var);
         }
 
-        for (col_id, col_val) in Args::into_cols(args) {
-            builder.bindings.push((col_id, col_val));
-        }
+        args.bind(&mut builder.bindings);
 
         self.reduces.borrow_mut().push((id.to_string(), builder));
 
@@ -308,43 +293,37 @@ impl RuleBodyBuilder {
 
     // TODO: Find a good way of dynamically registering these
     // https://github.com/RhizomeDB/rs-rhizome/issues/39
-    pub fn count<Target, Args, Arg>(
-        &self,
-        target: &TypedVar<Target>,
-        id: &str,
-        args: Args,
-    ) -> Result<()>
+    pub fn count<Target, Args>(&self, target: TypedVar<Target>, id: &str, args: Args) -> Result<()>
     where
         Val: TryInto<Target, Error = &'static str>,
         Target: Into<Val> + Clone + Add + One + Zero + 'static,
         Type: FromType<Target>,
-        Args: AtomArgs<Arg>,
+        Args: AtomBindings,
     {
         self.reduce(target, (), id, args, Zero::zero(), kernel::math::count)
     }
 
-    pub fn sum<Target, VarRef, VarArg, Args, Arg>(
+    pub fn sum<Target, Vars, Args>(
         &self,
-        target: &TypedVar<Target>,
-        var: VarRef,
+        target: TypedVar<Target>,
+        var: Vars,
         id: &str,
         args: Args,
     ) -> Result<()>
     where
         Val: TryInto<Target, Error = &'static str>,
-        Target: Into<Val> + Clone + Add<VarArg::Output, Output = Target> + Zero + 'static,
+        Target: Into<Val> + Clone + Add<Vars::Output, Output = Target> + Zero + 'static,
         Type: FromType<Target>,
-        VarRef: VarRefTuple<Target = VarArg>,
-        VarArg: TypedVarsTuple<Val> + Send + Sync + 'static,
-        Args: AtomArgs<Arg>,
+        Vars: TypedVarsTuple<Val> + Send + Sync + 'static,
+        Args: AtomBindings,
     {
         self.reduce(target, var, id, args, Zero::zero(), kernel::math::sum)
     }
 
-    pub fn min<Target, VarRef, VarArg, Args, Arg>(
+    pub fn min<Target, Vars, Args>(
         &self,
-        target: &TypedVar<Target>,
-        var: VarRef,
+        target: TypedVar<Target>,
+        var: Vars,
         id: &str,
         args: Args,
         default: Target,
@@ -353,17 +332,16 @@ impl RuleBodyBuilder {
         Val: TryInto<Target, Error = &'static str>,
         Target: Into<Val> + Ord + Clone + 'static,
         Type: FromType<Target>,
-        VarRef: VarRefTuple<Target = VarArg>,
-        VarArg: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
-        Args: AtomArgs<Arg>,
+        Vars: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
+        Args: AtomBindings,
     {
         self.reduce(target, var, id, args, default, kernel::math::min)
     }
 
-    pub fn max<Target, VarRef, VarArg, Args, Arg>(
+    pub fn max<Target, Vars, Args>(
         &self,
-        target: &TypedVar<Target>,
-        var: VarRef,
+        target: TypedVar<Target>,
+        var: Vars,
         id: &str,
         args: Args,
         default: Target,
@@ -372,9 +350,8 @@ impl RuleBodyBuilder {
         Val: TryInto<Target, Error = &'static str>,
         Target: Into<Val> + Ord + Clone + 'static,
         Type: FromType<Target>,
-        VarRef: VarRefTuple<Target = VarArg>,
-        VarArg: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
-        Args: AtomArgs<Arg>,
+        Vars: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
+        Args: AtomBindings,
     {
         self.reduce(target, var, id, args, default, kernel::math::max)
     }

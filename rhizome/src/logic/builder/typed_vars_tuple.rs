@@ -1,48 +1,9 @@
 use anyhow::Result;
 
 use crate::{
-    types::{ColType, FromType, Type},
+    types::{FromType, Type},
     var::{TypedVar, Var},
 };
-
-pub trait VarRefTuple {
-    type Target;
-
-    fn deref(&self) -> Self::Target;
-}
-
-impl<'a, V> VarRefTuple for &'a TypedVar<V>
-where
-    ColType: FromType<V>,
-    V: Copy,
-{
-    type Target = TypedVar<V>;
-
-    fn deref(&self) -> Self::Target {
-        **self
-    }
-}
-
-macro_rules! impl_var_ref_tuple {
-    ($($Ts:expr),*) => {
-        paste::item! {
-            impl<'a, $([< V $Ts >],)*> VarRefTuple for ($(&'a TypedVar<[< V $Ts >]>,)*)
-            where
-                $(
-                    ColType: FromType<[< V $Ts >]>,
-                    [< V $Ts >]: Copy ,
-                )*
-            {
-                type Target = ($(TypedVar<[< V $Ts >]>,)*);
-
-                #[allow(clippy::unused_unit)]
-                fn deref(&self) -> Self::Target {
-                    ($(*self.$Ts,)*)
-                }
-            }
-        }
-    };
-}
 
 pub trait TypedVarsTuple<O> {
     type Output;
@@ -110,13 +71,3 @@ impl_typed_vars_tuple!(0, 1, 2, 3, 4);
 impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5);
 impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5, 6);
 impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5, 6, 7);
-
-impl_var_ref_tuple!();
-impl_var_ref_tuple!(0);
-impl_var_ref_tuple!(0, 1);
-impl_var_ref_tuple!(0, 1, 2);
-impl_var_ref_tuple!(0, 1, 2, 3);
-impl_var_ref_tuple!(0, 1, 2, 3, 4);
-impl_var_ref_tuple!(0, 1, 2, 3, 4, 5);
-impl_var_ref_tuple!(0, 1, 2, 3, 4, 5, 6);
-impl_var_ref_tuple!(0, 1, 2, 3, 4, 5, 6, 7);

@@ -8,7 +8,7 @@ use crate::{
     logic::ast::{Declaration, Negation},
 };
 
-use super::atom_args::AtomArg;
+use super::atom_binding::AtomBinding;
 
 #[derive(Debug, Default)]
 pub struct NegationBuilder {
@@ -61,11 +61,11 @@ impl NegationBuilder {
         Ok(negation)
     }
 
-    pub fn bind_one<T, A>(&self, binding: T) -> Result<()>
+    pub fn bind_one<T>(&self, binding: T) -> Result<()>
     where
-        T: AtomArg<A>,
+        T: AtomBinding,
     {
-        let (id, val) = binding.into_col();
+        let (id, val) = binding.into_pair();
 
         self.bindings.borrow_mut().push((id, val));
 
