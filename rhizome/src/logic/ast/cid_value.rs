@@ -18,17 +18,11 @@ impl From<Cid> for CidValue {
     }
 }
 
-impl From<&Var> for CidValue {
-    fn from(value: &Var) -> Self {
-        Self::Var(*value)
-    }
-}
-
-impl<T> From<&TypedVar<T>> for CidValue
+impl<T> From<TypedVar<T>> for CidValue
 where
     ColType: FromType<T>,
 {
-    fn from(value: &TypedVar<T>) -> Self {
+    fn from(value: TypedVar<T>) -> Self {
         let var = if let ColType::Any = value.typ() {
             Var::new::<Cid>(value.id().to_string().as_ref())
         } else {

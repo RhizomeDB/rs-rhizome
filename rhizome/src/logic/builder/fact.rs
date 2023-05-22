@@ -7,10 +7,9 @@ use crate::{
     id::ColId,
     logic::ast::{Declaration, Fact},
     relation::Source,
-    value::Val,
 };
 
-use super::atom_args::{AtomArg, AtomArgs};
+use super::{atom_binding::AtomBinding, atom_bindings::AtomBindings};
 
 #[derive(Debug)]
 pub struct FactBuilder {
@@ -81,22 +80,20 @@ impl FactBuilder {
         }
     }
 
-    pub fn bind<T, A>(mut self, bindings: T) -> Self
+    pub fn bind<T>(mut self, bindings: T) -> Self
     where
-        T: AtomArgs<A>,
+        T: AtomBindings,
     {
-        for (id, value) in T::into_cols(bindings) {
-            self.bindings.push((id, value));
-        }
+        bindings.bind(&mut self.bindings);
 
         self
     }
 
     pub fn bind_one<T>(mut self, binding: T) -> Self
     where
-        T: AtomArg<Val>,
+        T: AtomBinding,
     {
-        let (id, value) = binding.into_col();
+        let (id, value) = binding.into_pair();
 
         self.bindings.push((id, value));
 

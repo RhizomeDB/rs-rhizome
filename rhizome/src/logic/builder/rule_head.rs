@@ -10,7 +10,7 @@ use crate::{
     value::Val,
 };
 
-use super::atom_args::{AtomArg, AtomArgs};
+use super::{atom_binding::AtomBinding, atom_bindings::AtomBindings};
 
 #[derive(Debug)]
 pub struct RuleHeadBuilder {
@@ -103,22 +103,20 @@ impl RuleHeadBuilder {
         Ok(())
     }
 
-    pub fn bind<T, A>(&self, bindings: T) -> Result<()>
+    pub fn bind<T>(&self, bindings: T) -> Result<()>
     where
-        T: AtomArgs<A>,
+        T: AtomBindings,
     {
-        for (id, value) in T::into_cols(bindings) {
-            self.bindings.borrow_mut().push((id, value));
-        }
+        bindings.bind(&mut self.bindings.borrow_mut());
 
         Ok(())
     }
 
-    pub fn bind_one<T, A>(&self, binding: T) -> Result<()>
+    pub fn bind_one<T>(&self, binding: T) -> Result<()>
     where
-        T: AtomArg<A>,
+        T: AtomBinding,
     {
-        let (id, value) = binding.into_col();
+        let (id, value) = binding.into_pair();
 
         self.bindings.borrow_mut().push((id, value));
 

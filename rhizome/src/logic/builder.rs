@@ -10,7 +10,8 @@ pub use self::{program::ProgramBuilder, rule_vars::RuleVars};
 
 use super::lower_to_ram;
 
-mod atom_args;
+mod atom_binding;
+mod atom_bindings;
 mod declaration;
 mod fact;
 mod negation;
@@ -207,7 +208,7 @@ mod tests {
             p.rule::<(i32,)>("p", &|h, b, (x,)| {
                 h.bind((("p", x),))?;
 
-                b.search("t", ((("t", x)),))?;
+                b.search("t", (("t", x),))?;
                 b.except("q", (("q", x),))?;
 
                 Ok(())
@@ -216,7 +217,7 @@ mod tests {
             p.rule::<(i32,)>("q", &|h, b, (x,)| {
                 h.bind((("q", x),))?;
 
-                b.search("t", ((("t", x)),))?;
+                b.search("t", (("t", x),))?;
                 b.except("p", (("p", x),))?;
 
                 Ok(())
@@ -567,7 +568,7 @@ mod tests {
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
-                p.fact("p", |f| f.bind((("x", &TypedVar::<i32>::new("foo")),)))?;
+                p.fact("p", |f| f.bind((("x", TypedVar::<i32>::new("foo")),)))?;
 
                 Ok(p)
             }
@@ -579,7 +580,7 @@ mod tests {
                 p.output("p", |h| h.column::<i32>("x").column::<i32>("y"))?;
 
                 p.fact("p", |f| {
-                    f.bind((("x", 1), ("y", &TypedVar::<i32>::new("foo"))))
+                    f.bind((("x", 1), ("y", TypedVar::<i32>::new("foo"))))
                 })?;
 
                 Ok(p)

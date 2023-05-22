@@ -11,7 +11,7 @@ use crate::{
     types::ColType,
 };
 
-use super::atom_args::AtomArg;
+use super::atom_binding::AtomBinding;
 
 #[derive(Debug)]
 pub struct RelPredicateBuilder {
@@ -88,11 +88,11 @@ impl RelPredicateBuilder {
         Ok(predicate)
     }
 
-    pub fn bind_one<T, A>(&self, binding: T) -> Result<()>
+    pub fn bind_one<T>(&self, binding: T) -> Result<()>
     where
-        T: AtomArg<A>,
+        T: AtomBinding,
     {
-        let (id, val) = binding.into_col();
+        let (id, val) = binding.into_pair();
 
         self.bindings.borrow_mut().push((id, val));
 
