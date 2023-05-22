@@ -1413,7 +1413,7 @@ mod tests {
     #[test]
     fn test_reduce_unbound_group_by() {
         assert_compile_err!(
-            &Error::ReduceUnboundGroupBy("x1".into(), "x".into(), "pair".into(),),
+            &Error::ClauseNotRangeRestricted("x".into(), "x1".into(),),
             |p| {
                 p.input("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
                 p.output("ySum", |h| h.column::<i32>("x").column::<i32>("y"))?;

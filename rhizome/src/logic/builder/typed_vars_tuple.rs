@@ -5,21 +5,32 @@ use crate::{
     var::{TypedVar, Var},
 };
 
-pub trait VarRefTuple<O> {
+pub trait VarRefTuple {
     type Target;
 
     fn deref(&self) -> Self::Target;
 }
 
+impl<'a, V> VarRefTuple for &'a TypedVar<V>
+where
+    ColType: FromType<V>,
+    V: Copy,
+{
+    type Target = TypedVar<V>;
+
+    fn deref(&self) -> Self::Target {
+        **self
+    }
+}
+
 macro_rules! impl_var_ref_tuple {
     ($($Ts:expr),*) => {
         paste::item! {
-            impl<'a, O, $([< V $Ts >],)*> VarRefTuple<O> for ($(&'a TypedVar<[< V $Ts >]>,)*)
+            impl<'a, $([< V $Ts >],)*> VarRefTuple for ($(&'a TypedVar<[< V $Ts >]>,)*)
             where
-                O: Clone,
                 $(
                     ColType: FromType<[< V $Ts >]>,
-                    [< V $Ts >]: Copy + TryFrom<O, Error = &'static str>,
+                    [< V $Ts >]: Copy ,
                 )*
             {
                 type Target = ($(TypedVar<[< V $Ts >]>,)*);
@@ -38,6 +49,25 @@ pub trait TypedVarsTuple<O> {
 
     fn vars(&self) -> Vec<Var>;
     fn args(&self, bindings: Vec<O>) -> Result<Self::Output>;
+}
+
+impl<O, V> TypedVarsTuple<O> for TypedVar<V>
+where
+    O: Clone,
+    Type: FromType<V>,
+    V: Copy + TryFrom<O, Error = &'static str>,
+{
+    type Output = V;
+
+    fn vars(&self) -> Vec<Var> {
+        vec![(*self).into()]
+    }
+
+    fn args(&self, bindings: Vec<O>) -> Result<Self::Output> {
+        Ok(V::try_from(bindings[0].clone()).map_err(|_| {
+            crate::error::Error::InternalRhizomeError("too few runtime args passed".to_owned())
+        })?)
+    }
 }
 
 macro_rules! impl_typed_vars_tuple {

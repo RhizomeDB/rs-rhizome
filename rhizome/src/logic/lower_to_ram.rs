@@ -727,7 +727,7 @@ where
 
                             None
                         } else {
-                            return error(Error::ClauseNotDomainIndependent(var.id()));
+                            None
                         }
                     }
                 } {

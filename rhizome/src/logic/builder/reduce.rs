@@ -73,10 +73,6 @@ impl ReduceBuilder {
                         return error(Error::ReduceGroupByTarget(var.id()));
                     }
 
-                    if !bound_vars.contains_key(&var.id()) && !self.vars.contains(var) {
-                        return error(Error::ReduceUnboundGroupBy(var.id(), col_id, relation.id()));
-                    }
-
                     if col.col_type().unify(&var.typ()).is_err() {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),

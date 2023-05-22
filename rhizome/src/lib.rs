@@ -15,6 +15,7 @@ pub(crate) mod relation;
 
 pub mod error;
 pub mod fact;
+pub mod kernel;
 pub mod pretty;
 pub mod runtime;
 pub mod storage;

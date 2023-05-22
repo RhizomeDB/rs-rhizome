@@ -1,9 +1,11 @@
 use anyhow::Result;
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc, sync::Arc};
+use num_traits::{One, Zero};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, ops::Add, rc::Rc, sync::Arc};
 
 use crate::{
     error::{error, Error},
     id::{LinkId, VarId},
+    kernel,
     logic::{
         ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
         ReduceClosure, VarClosure,
@@ -240,7 +242,7 @@ impl RuleBodyBuilder {
 
     pub fn predicate<VarsRef, VarArgs, F>(&self, vars: VarsRef, f: F) -> Result<()>
     where
-        VarsRef: VarRefTuple<Val, Target = VarArgs>,
+        VarsRef: VarRefTuple<Target = VarArgs>,
         VarArgs: TypedVarsTuple<Val> + Send + Sync + 'static,
         F: Fn(VarArgs::Output) -> bool + Send + Sync + 'static,
     {
@@ -271,7 +273,7 @@ impl RuleBodyBuilder {
         Val: TryInto<Target, Error = &'static str>,
         Target: Into<Val> + Clone,
         Type: FromType<Target>,
-        VarsRef: VarRefTuple<Val, Target = VarArgs>,
+        VarsRef: VarRefTuple<Target = VarArgs>,
         VarArgs: TypedVarsTuple<Val> + Send + Sync + 'static,
         Args: AtomArgs<Arg>,
         F: Fn(Target, VarArgs::Output) -> Target + Send + Sync + 'static,
@@ -302,5 +304,78 @@ impl RuleBodyBuilder {
         self.reduces.borrow_mut().push((id.to_string(), builder));
 
         Ok(())
+    }
+
+    // TODO: Find a good way of dynamically registering these
+    // https://github.com/RhizomeDB/rs-rhizome/issues/39
+    pub fn count<Target, Args, Arg>(
+        &self,
+        target: &TypedVar<Target>,
+        id: &str,
+        args: Args,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = &'static str>,
+        Target: Into<Val> + Clone + Add + One + Zero + 'static,
+        Type: FromType<Target>,
+        Args: AtomArgs<Arg>,
+    {
+        self.reduce(target, (), id, args, Zero::zero(), kernel::math::count)
+    }
+
+    pub fn sum<Target, VarRef, VarArg, Args, Arg>(
+        &self,
+        target: &TypedVar<Target>,
+        var: VarRef,
+        id: &str,
+        args: Args,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = &'static str>,
+        Target: Into<Val> + Clone + Add<VarArg::Output, Output = Target> + Zero + 'static,
+        Type: FromType<Target>,
+        VarRef: VarRefTuple<Target = VarArg>,
+        VarArg: TypedVarsTuple<Val> + Send + Sync + 'static,
+        Args: AtomArgs<Arg>,
+    {
+        self.reduce(target, var, id, args, Zero::zero(), kernel::math::sum)
+    }
+
+    pub fn min<Target, VarRef, VarArg, Args, Arg>(
+        &self,
+        target: &TypedVar<Target>,
+        var: VarRef,
+        id: &str,
+        args: Args,
+        default: Target,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = &'static str>,
+        Target: Into<Val> + Ord + Clone + 'static,
+        Type: FromType<Target>,
+        VarRef: VarRefTuple<Target = VarArg>,
+        VarArg: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
+        Args: AtomArgs<Arg>,
+    {
+        self.reduce(target, var, id, args, default, kernel::math::min)
+    }
+
+    pub fn max<Target, VarRef, VarArg, Args, Arg>(
+        &self,
+        target: &TypedVar<Target>,
+        var: VarRef,
+        id: &str,
+        args: Args,
+        default: Target,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = &'static str>,
+        Target: Into<Val> + Ord + Clone + 'static,
+        Type: FromType<Target>,
+        VarRef: VarRefTuple<Target = VarArg>,
+        VarArg: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
+        Args: AtomArgs<Arg>,
+    {
+        self.reduce(target, var, id, args, default, kernel::math::max)
     }
 }
