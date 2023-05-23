@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub(crate) struct ReduceBuilder {
-    pub(super) init: Val,
+    pub(super) init: Option<Val>,
     pub(super) target: Var,
     pub(super) vars: Vec<Var>,
     pub(super) bindings: Vec<(ColId, ColVal)>,
@@ -23,7 +23,7 @@ pub(crate) struct ReduceBuilder {
 }
 
 impl ReduceBuilder {
-    pub(crate) fn new(init: Val, target: Var, f: Arc<dyn ReduceClosure>) -> Self {
+    pub(crate) fn new(init: Option<Val>, target: Var, f: Arc<dyn ReduceClosure>) -> Self {
         Self {
             init,
             target,

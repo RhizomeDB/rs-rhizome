@@ -217,7 +217,7 @@ impl Debug for VarPredicate {
 pub struct Reduce {
     target: Var,
     vars: Vec<Var>,
-    init: Val,
+    init: Option<Val>,
     relation: Arc<Declaration>,
     group_by_cols: HashMap<ColId, ColVal>,
     f: Arc<dyn ReduceClosure>,
@@ -227,7 +227,7 @@ impl Reduce {
     pub fn new(
         target: Var,
         vars: Vec<Var>,
-        init: Val,
+        init: Option<Val>,
         relation: Arc<Declaration>,
         group_by_cols: HashMap<ColId, ColVal>,
         f: Arc<dyn ReduceClosure>,
@@ -250,7 +250,7 @@ impl Reduce {
         &self.vars
     }
 
-    pub fn init(&self) -> &Val {
+    pub fn init(&self) -> &Option<Val> {
         &self.init
     }
 
