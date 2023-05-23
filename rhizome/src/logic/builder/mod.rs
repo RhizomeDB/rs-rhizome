@@ -1338,7 +1338,7 @@ mod tests {
             p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
                 h.bind((("n", sum),))?;
 
-                b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.fold(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
 
                 Ok(())
             })?;
@@ -1356,7 +1356,7 @@ mod tests {
             p.rule::<(i32, i32, i32)>("minSum", &|h, b, (sum, x, y)| {
                 h.bind((("n", sum),))?;
 
-                b.reduce(
+                b.fold(
                     sum,
                     (x, y),
                     "pair",
@@ -1395,7 +1395,7 @@ mod tests {
                 h.bind((("category", category), ("stock", category_stock)))?;
 
                 b.search("product", (("category", category),))?;
-                b.reduce(
+                b.fold(
                     category_stock,
                     (product_stock,),
                     "product",
@@ -1422,7 +1422,7 @@ mod tests {
                 p.rule::<(i32, i32, i32)>("ySum", &|h, b, (sum, x, y)| {
                     h.bind((("x", x), ("y", sum)))?;
 
-                    b.reduce(sum, (y,), "pair", (("x", x), ("y", y)), 0, |acc, (y,)| {
+                    b.fold(sum, (y,), "pair", (("x", x), ("y", y)), 0, |acc, (y,)| {
                         acc + y
                     })?;
 
@@ -1444,7 +1444,7 @@ mod tests {
                 h.bind((("n", sum),))?;
 
                 b.search("num", (("n", sum),))?;
-                b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.fold(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
 
                 Ok(())
             })?;
@@ -1462,7 +1462,7 @@ mod tests {
             p.rule::<(i32,)>("sum", &|h, b, (n,)| {
                 h.bind((("n", n),))?;
 
-                b.reduce(n, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.fold(n, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
 
                 Ok(())
             })?;
@@ -1505,7 +1505,7 @@ mod tests {
 
             p.rule::<[i32; 2]>("sum", &|h, b, [sum, n]| {
                 h.bind((("n", sum),))?;
-                b.reduce(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.fold(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
 
                 Ok(())
             })?;

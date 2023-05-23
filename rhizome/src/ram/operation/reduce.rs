@@ -42,7 +42,7 @@ where
     IR: Relation<Fact = IF>,
 {
     args: Vec<Term>,
-    init: Val,
+    init: Option<Val>,
     f: Arc<dyn ReduceClosure>,
     group_by_cols: HashMap<ColId, Term>,
     target: Var,
@@ -64,7 +64,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         args: Vec<Term>,
-        init: Val,
+        init: Option<Val>,
         f: Arc<dyn ReduceClosure>,
         target: Var,
         group_by_cols: HashMap<ColId, Term>,
@@ -129,20 +129,60 @@ where
             group_by_vals.push((*col_id, <Val>::clone(&col_val)));
         }
 
-        let mut any = false;
-        let mut result = self.init.clone();
+        let relation = relation.read().or_else(|_| {
+            error(Error::InternalRhizomeError(
+                "relation lock poisoned".to_owned(),
+            ))
+        })?;
 
-        for fact in relation
-            .read()
-            .or_else(|_| {
-                error(Error::InternalRhizomeError(
-                    "relation lock poisoned".to_owned(),
-                ))
-            })?
-            .search(group_by_vals)
-        {
-            any = true;
+        let mut fact_iter = relation.search(group_by_vals).peekable();
 
+        if fact_iter.peek().is_none() {
+            return Ok(None);
+        }
+
+        let mut result = if let Some(init) = self.init.clone() {
+            init
+        } else if self.args.len() == 1 {
+            // Safe because of the self.args.len() == 1 check above
+            let init_term = unsafe { self.args.get_unchecked(0) };
+
+            // Progress the iterator becaues we will use the first fact
+            // to compute the initial accumulator.
+            if let Some(fact) = fact_iter.next() {
+                let mut match_bindings = bindings.clone();
+
+                for k in fact.cols() {
+                    let fact_val = fact.col(&k).ok_or_else(|| {
+                        Error::InternalRhizomeError("expected column not found".to_owned())
+                    })?;
+
+                    match_bindings.insert(
+                        BindingKey::Relation(self.id, self.alias, k),
+                        fact_val.clone(),
+                    );
+                }
+
+                match_bindings
+                    .resolve::<BS, EF>(init_term, blockstore)?
+                    .ok_or_else(|| {
+                        Error::InternalRhizomeError(
+                            "argument to reduce failed to resolve".to_owned(),
+                        )
+                    })?
+            } else {
+                return error(Error::InternalRhizomeError(
+                    "expected non-empty match results".to_owned(),
+                ));
+            }
+        } else {
+            return error(Error::InternalRhizomeError(format!(
+                "expected a single reduce binding, given: {}",
+                self.args.len()
+            )));
+        };
+
+        for fact in fact_iter {
             let mut match_bindings = bindings.clone();
 
             for k in fact.cols() {
@@ -172,14 +212,10 @@ where
             result = self.do_reduce(result, args)?;
         }
 
-        if any {
-            let mut next_bindings = bindings.clone();
-            next_bindings.insert(BindingKey::Agg(self.id, self.alias, self.target), result);
+        let mut next_bindings = bindings.clone();
+        next_bindings.insert(BindingKey::Agg(self.id, self.alias, self.target), result);
 
-            Ok(Some(next_bindings))
-        } else {
-            Ok(None)
-        }
+        Ok(Some(next_bindings))
     }
 
     fn do_reduce(&self, acc: Val, args: Vec<Val>) -> Result<Val> {

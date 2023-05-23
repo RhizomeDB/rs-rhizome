@@ -622,7 +622,7 @@ mod tests {
                 p.rule::<(i32, i32)>("min", &|h, b, (min, n)| {
                     h.bind((("n", min),))?;
 
-                    b.min(min, n, "num", (("n", n),), i32::MAX)?;
+                    b.min(min, n, "num", (("n", n),))?;
 
                     Ok(())
                 })?;
@@ -630,7 +630,7 @@ mod tests {
                 p.rule::<(i32, i32)>("max", &|h, b, (max, n)| {
                     h.bind((("n", max),))?;
 
-                    b.max(max, n, "num", (("n", n),), i32::MIN)?;
+                    b.max(max, n, "num", (("n", n),))?;
 
                     Ok(())
                 })?;
@@ -681,7 +681,7 @@ mod tests {
                 p.rule::<(i32, i32, i32)>("product", &|h, b, (x, y, z)| {
                     h.bind((("z", z),))?;
 
-                    b.reduce(z, (x, y), "pair", (("x", x), ("y", y)), 0, |acc, (x, y)| {
+                    b.fold(z, (x, y), "pair", (("x", x), ("y", y)), 0, |acc, (x, y)| {
                         acc + x * y
                     })?;
 
@@ -723,7 +723,7 @@ mod tests {
                     h.bind((("x", x), ("y", y), ("z", z)))?;
 
                     b.search("pair", (("x", x), ("y", y)))?;
-                    b.reduce(z, (x, y), "pair", (("x", x), ("y", y)), 0, |_, (x, y)| {
+                    b.fold(z, (x, y), "pair", (("x", x), ("y", y)), 0, |_, (x, y)| {
                         x * y
                     })?;
 

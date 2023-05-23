@@ -249,13 +249,115 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn reduce<Target, Vars, Args, F>(
+    pub fn fold<Target, Vars, Args, F>(
         &self,
         target: TypedVar<Target>,
         vars: Vars,
         id: &str,
         args: Args,
         init: Target,
+        f: F,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val>,
+        Type: FromType<Target>,
+        Vars: TypedVars + Send + Sync + 'static,
+        Args: AtomBindings,
+        F: Fn(Target, Vars::Args) -> Target + Send + Sync + 'static,
+    {
+        self.do_fold(target, vars, id, args, Some(init), f)
+    }
+
+    pub fn reduce<Target, Vars, Args, F>(
+        &self,
+        target: TypedVar<Target>,
+        vars: Vars,
+        id: &str,
+        args: Args,
+        f: F,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val>,
+        Type: FromType<Target>,
+        Vars: TypedVars + Send + Sync + 'static,
+        Args: AtomBindings,
+        F: Fn(Target, Vars::Args) -> Target + Send + Sync + 'static,
+    {
+        self.do_fold(target, vars, id, args, None, f)
+    }
+
+    // TODO: Find a good way of dynamically registering these
+    // https://github.com/RhizomeDB/rs-rhizome/issues/39
+    pub fn count<Target, Args>(&self, target: TypedVar<Target>, id: &str, args: Args) -> Result<()>
+    where
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Add + One + Zero + 'static,
+        Type: FromType<Target>,
+        Args: AtomBindings,
+    {
+        self.fold(target, (), id, args, Zero::zero(), kernel::math::count)
+    }
+
+    pub fn sum<Target, Vars, Args>(
+        &self,
+        target: TypedVar<Target>,
+        var: Vars,
+        id: &str,
+        args: Args,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Add + Zero + 'static,
+        Type: FromType<Target>,
+        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
+        Args: AtomBindings,
+    {
+        self.fold(target, var, id, args, Zero::zero(), kernel::math::sum)
+    }
+
+    pub fn min<Target, Vars, Args>(
+        &self,
+        target: TypedVar<Target>,
+        var: Vars,
+        id: &str,
+        args: Args,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Ord + 'static,
+        Type: FromType<Target>,
+        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
+        Args: AtomBindings,
+    {
+        self.reduce(target, var, id, args, kernel::math::min)
+    }
+
+    pub fn max<Target, Vars, Args>(
+        &self,
+        target: TypedVar<Target>,
+        var: Vars,
+        id: &str,
+        args: Args,
+    ) -> Result<()>
+    where
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Ord + 'static,
+        Type: FromType<Target>,
+        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
+        Args: AtomBindings,
+    {
+        self.reduce(target, var, id, args, kernel::math::max)
+    }
+
+    fn do_fold<Target, Vars, Args, F>(
+        &self,
+        target: TypedVar<Target>,
+        vars: Vars,
+        id: &str,
+        args: Args,
+        init: Option<Target>,
         f: F,
     ) -> Result<()>
     where
@@ -275,7 +377,7 @@ impl RuleBodyBuilder {
             Ok(f(acc, vals).into())
         });
 
-        let mut builder = ReduceBuilder::new(init.into(), target.into(), f);
+        let mut builder = ReduceBuilder::new(init.map(Into::into), target.into(), f);
 
         for var in vars_vec {
             builder.vars.push(var);
@@ -286,70 +388,5 @@ impl RuleBodyBuilder {
         self.reduces.borrow_mut().push((id.to_string(), builder));
 
         Ok(())
-    }
-
-    // TODO: Find a good way of dynamically registering these
-    // https://github.com/RhizomeDB/rs-rhizome/issues/39
-    pub fn count<Target, Args>(&self, target: TypedVar<Target>, id: &str, args: Args) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Add + One + Zero + 'static,
-        Type: FromType<Target>,
-        Args: AtomBindings,
-    {
-        self.reduce(target, (), id, args, Zero::zero(), kernel::math::count)
-    }
-
-    pub fn sum<Target, Vars, Args>(
-        &self,
-        target: TypedVar<Target>,
-        var: Vars,
-        id: &str,
-        args: Args,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Add + Zero + 'static,
-        Type: FromType<Target>,
-        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
-        Args: AtomBindings,
-    {
-        self.reduce(target, var, id, args, Zero::zero(), kernel::math::sum)
-    }
-
-    pub fn min<Target, Vars, Args>(
-        &self,
-        target: TypedVar<Target>,
-        var: Vars,
-        id: &str,
-        args: Args,
-        default: Target,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Ord + 'static,
-        Type: FromType<Target>,
-        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
-        Args: AtomBindings,
-    {
-        self.reduce(target, var, id, args, default, kernel::math::min)
-    }
-
-    pub fn max<Target, Vars, Args>(
-        &self,
-        target: TypedVar<Target>,
-        var: Vars,
-        id: &str,
-        args: Args,
-        default: Target,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Ord + 'static,
-        Type: FromType<Target>,
-        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
-        Args: AtomBindings,
-    {
-        self.reduce(target, var, id, args, default, kernel::math::max)
     }
 }
