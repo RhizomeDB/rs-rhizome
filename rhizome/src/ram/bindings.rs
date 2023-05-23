@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::sync::Arc;
 
 use crate::{
     error::{error, Error},
@@ -14,7 +13,7 @@ use crate::{
 use super::{AliasId, Formula, Term};
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct Bindings(im::HashMap<BindingKey, Arc<Val>>);
+pub(crate) struct Bindings(im::HashMap<BindingKey, Val>);
 
 // TODO: Put Links in here as they're resolved,
 // so that we can memoize their resolution; see https://github.com/RhizomeDB/rs-rhizome/issues/23
@@ -26,11 +25,11 @@ pub(crate) enum BindingKey {
 }
 
 impl Bindings {
-    pub(crate) fn insert(&mut self, key: BindingKey, term: Arc<Val>) {
+    pub(crate) fn insert(&mut self, key: BindingKey, term: Val) {
         self.0.insert(key, term);
     }
 
-    pub(crate) fn resolve<BS, EF>(&self, term: &Term, blockstore: &BS) -> Result<Option<Arc<Val>>>
+    pub(crate) fn resolve<BS, EF>(&self, term: &Term, blockstore: &BS) -> Result<Option<Val>>
     where
         BS: Blockstore,
         EF: EDBFact,
@@ -38,11 +37,11 @@ impl Bindings {
         match term {
             Term::Link(link_id, cid_term) => {
                 if let Some(cid_val) = self.resolve::<BS, EF>(cid_term, blockstore)? {
-                    let Val::Cid(cid) = &*cid_val else {
+                    let Val::Cid(cid) = cid_val else {
                    return error(Error::InternalRhizomeError("expected term to resolve to CID".to_owned()));
                 };
 
-                    let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(cid) else {
+                    let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(&cid) else {
                         return Ok(None);
                     };
 
@@ -55,19 +54,18 @@ impl Bindings {
             Term::Col(relation_id, alias, col_id) => Ok(self
                 .0
                 .get(&BindingKey::Relation(*relation_id, *alias, *col_id))
-                .map(Arc::clone)),
+                .cloned()),
 
-            Term::Cid(relation_id, alias) => Ok(self
-                .0
-                .get(&BindingKey::Cid(*relation_id, *alias))
-                .map(Arc::clone)),
+            Term::Cid(relation_id, alias) => {
+                Ok(self.0.get(&BindingKey::Cid(*relation_id, *alias)).cloned())
+            }
 
-            Term::Lit(val) => Ok(Some(val).map(Arc::clone)),
+            Term::Lit(val) => Ok(Some(val).cloned()),
 
             Term::Agg(relation_id, alias, var) => Ok(self
                 .0
                 .get(&BindingKey::Agg(*relation_id, *alias, *var))
-                .map(Arc::clone)),
+                .cloned()),
         }
     }
 
@@ -100,9 +98,7 @@ impl Bindings {
                         )
                     })?;
 
-                    let inner_val = Arc::try_unwrap(resolved).unwrap_or_else(|arc| (*arc).clone());
-
-                    args.push(inner_val);
+                    args.push(resolved);
                 }
 
                 inner.is_satisfied(args)

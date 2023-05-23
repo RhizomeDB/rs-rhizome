@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{collections::BTreeMap, fmt::Display, sync::Arc};
+use std::{collections::BTreeMap, fmt::Display};
 
 use anyhow::Result;
 use cid::Cid;
@@ -16,10 +16,10 @@ use super::traits::{EDBFact, Fact};
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct EVACFact {
-    pub entity: Arc<Val>,
-    pub attr: Arc<Val>,
-    pub val: Arc<Val>,
-    pub causal_links: BTreeMap<LinkId, Arc<Val>>,
+    pub entity: Val,
+    pub attr: Val,
+    pub val: Val,
+    pub causal_links: BTreeMap<LinkId, Val>,
 }
 
 impl EDBFact for EVACFact {
@@ -29,14 +29,11 @@ impl EDBFact for EVACFact {
         val: impl Into<Val>,
         links: Vec<(LinkId, Cid)>,
     ) -> Self {
-        let entity = Arc::new(entity.into());
-        let attr = Arc::new(attr.into());
-        let val = Arc::new(val.into());
+        let entity = entity.into();
+        let attr = attr.into();
+        let val = val.into();
 
-        let causal_links = links
-            .into_iter()
-            .map(|(k, v)| (k, Arc::new(Val::Cid(v))))
-            .collect();
+        let causal_links = links.into_iter().map(|(k, v)| (k, Val::Cid(v))).collect();
 
         Self {
             entity,
@@ -50,8 +47,8 @@ impl EDBFact for EVACFact {
         RelationId::new("evac")
     }
 
-    fn link(&self, id: LinkId) -> Option<Arc<Val>> {
-        self.causal_links.get(&id).map(Arc::clone)
+    fn link(&self, id: LinkId) -> Option<Val> {
+        self.causal_links.get(&id).cloned()
     }
 }
 
@@ -64,7 +61,7 @@ impl Fact for EVACFact {
         Ok(Some(cid))
     }
 
-    fn col(&self, id: &ColId) -> Option<Arc<Val>> {
+    fn col(&self, id: &ColId) -> Option<Val> {
         if *id == ColId::new("entity") {
             Some(self.entity.clone())
         } else if *id == ColId::new("attribute") {

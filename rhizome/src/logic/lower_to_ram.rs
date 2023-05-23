@@ -408,10 +408,7 @@ where
     EF: EDBFact,
     IF: IDBFact,
 {
-    let cols = fact
-        .args()
-        .iter()
-        .map(|(k, v)| (*k, Term::Lit(Arc::clone(v))));
+    let cols = fact.args().iter().map(|(k, v)| (*k, Term::Lit(v.clone())));
 
     let relation = Arc::clone(
         idb.get(&(fact.head(), RelationVersion::Delta))
@@ -560,7 +557,7 @@ where
                     CidValue::Cid(cid) => {
                         let formula = Formula::equality(
                             Term::Cid(inner.relation().id(), alias),
-                            Term::Lit(Arc::new(Val::Cid(*cid))),
+                            Term::Lit(Val::Cid(*cid)),
                         );
 
                         formulae.push(formula);
@@ -665,10 +662,7 @@ where
                         CidValue::Cid(cid) => {
                             next_bindings.insert(
                                 val_var.id(),
-                                Term::Link(
-                                    inner.link_id(),
-                                    Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
-                                ),
+                                Term::Link(inner.link_id(), Box::new(Term::Lit(Val::Cid(cid)))),
                             );
                         }
                         CidValue::Var(var) => {
@@ -917,7 +911,7 @@ where
     IR: Relation<Fact = IF>,
 {
     let cid_term = match get_link.cid() {
-        CidValue::Cid(cid) => Term::Lit(Arc::new(Val::Cid(cid))),
+        CidValue::Cid(cid) => Term::Lit(Val::Cid(cid)),
         CidValue::Var(var) => Term::Link(
             get_link.link_id(),
             Box::new(
@@ -932,10 +926,7 @@ where
     };
 
     let val_term = match get_link.link_value() {
-        CidValue::Cid(cid) => Term::Link(
-            get_link.link_id(),
-            Box::new(Term::Lit(Arc::new(Val::Cid(cid)))),
-        ),
+        CidValue::Cid(cid) => Term::Link(get_link.link_id(), Box::new(Term::Lit(Val::Cid(cid)))),
         CidValue::Var(var) => bindings
             .get(&var.id())
             .ok_or_else(|| Error::InternalRhizomeError(format!("binding not found: {}", var.id())))?
@@ -971,7 +962,7 @@ where
     Ok(Formula::predicate(var_terms, var_predicate.f()))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum SemiNaiveTerm {
     RelPredicate(RelPredicate, RelationVersion),
     VarPredicate(VarPredicate),

@@ -5,7 +5,12 @@ use std::{
     sync::Arc,
 };
 
-use crate::{logic::VarClosure, pretty::Pretty, value::Val};
+use crate::{
+    error::{error, Error},
+    logic::VarClosure,
+    pretty::Pretty,
+    value::Val,
+};
 
 use super::Term;
 
@@ -25,7 +30,11 @@ impl Predicate {
     }
 
     pub(crate) fn is_satisfied(&self, args: Vec<Val>) -> Result<bool> {
-        (self.f)(args)
+        (self.f)(args).or_else(|_| {
+            error(Error::InternalRhizomeError(
+                "failed to apply predicate".to_owned(),
+            ))
+        })
     }
 }
 

@@ -4,14 +4,12 @@ mod builder;
 pub(crate) mod lower_to_ram;
 pub(crate) mod stratify;
 
-use anyhow::Result;
-
 pub use builder::{build, ProgramBuilder, RuleVars};
 
 use crate::value::Val;
 
-pub trait VarClosure: Fn(Vec<Val>) -> Result<bool> + Send + Sync {}
-impl<T> VarClosure for T where T: Fn(Vec<Val>) -> Result<bool> + Send + Sync {}
+pub trait VarClosure: Fn(Vec<Val>) -> Result<bool, ()> + Send + Sync {}
+impl<T> VarClosure for T where T: Fn(Vec<Val>) -> Result<bool, ()> + Send + Sync {}
 
-pub trait ReduceClosure: Fn(Val, Vec<Val>) -> Result<Val> + Send + Sync {}
-impl<T> ReduceClosure for T where T: Fn(Val, Vec<Val>) -> Result<Val> + Send + Sync {}
+pub trait ReduceClosure: Fn(Val, Vec<Val>) -> Result<Val, ()> + Send + Sync {}
+impl<T> ReduceClosure for T where T: Fn(Val, Vec<Val>) -> Result<Val, ()> + Send + Sync {}

@@ -39,7 +39,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{cmp, sync::Arc};
+    use std::cmp;
 
     use anyhow::Result;
     use cid::Cid;
@@ -700,7 +700,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new(Val::S8(5))),
+                ColVal::Lit(Val::S8(5)),
                 ColType::Type(Type::S32)
             ),
             |p| {
@@ -716,7 +716,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new("foo".into())),
+                ColVal::Lit("foo".into()),
                 ColType::Type(Type::Cid)
             ),
             |p| {
@@ -732,7 +732,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new(Val::Char('f'))),
+                ColVal::Lit(Val::Char('f')),
                 ColType::Type(Type::String)
             ),
             |p| {
@@ -751,7 +751,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new(Val::U16(8))),
+                ColVal::Lit(Val::U16(8)),
                 ColType::Type(Type::Bool)
             ),
             |p| {
@@ -771,7 +771,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new(Val::Bool(true))),
+                ColVal::Lit(Val::Bool(true)),
                 ColType::Type(Type::U32)
             ),
             |p| {
@@ -791,7 +791,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "p".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new("b".into())),
+                ColVal::Lit("b".into()),
                 ColType::Type(Type::Char)
             ),
             |p| {
@@ -814,7 +814,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new(Val::U16(8))),
+                ColVal::Lit(Val::U16(8)),
                 ColType::Type(Type::Bool)
             ),
             |p| {
@@ -836,7 +836,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new(Val::Bool(true))),
+                ColVal::Lit(Val::Bool(true)),
                 ColType::Type(Type::U32)
             ),
             |p| {
@@ -858,7 +858,7 @@ mod tests {
             &Error::ColumnValueTypeConflict(
                 "q".into(),
                 "x".into(),
-                ColVal::Lit(Arc::new("b".into())),
+                ColVal::Lit("b".into()),
                 ColType::Type(Type::Char)
             ),
             |p| {

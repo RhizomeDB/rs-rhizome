@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     col_val::ColVal,
     id::ColId,
@@ -28,6 +26,6 @@ where
     T: Into<Val>,
 {
     fn into_pair(self) -> (ColId, ColVal) {
-        (self.0.into(), ColVal::Lit(Arc::new(self.1.into())))
+        (self.0.into(), ColVal::Lit(self.1.into()))
     }
 }

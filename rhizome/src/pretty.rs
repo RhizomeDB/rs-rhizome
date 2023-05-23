@@ -38,7 +38,7 @@ mod tests {
         let formula = Formula::not_in(
             "person".into(),
             RelationVersion::Total,
-            [("age", Term::Lit(Arc::new(Val::U32(29))))],
+            [("age", Term::Lit(Val::U32(29)))],
             crate::ram::NotInRelation::Edb(Arc::new(RwLock::new(DefaultEDBRelation::default()))),
         );
 
@@ -50,7 +50,7 @@ mod tests {
         >::new(
             "person".into(),
             RelationVersion::Total,
-            hashmap! {"age" => Term::Lit(Arc::new(Val::S32(29)))},
+            hashmap! {"age" => Term::Lit(Val::S32(29))},
             vec![],
             Arc::default(),
         ));
@@ -60,10 +60,7 @@ mod tests {
             None,
             RelationVersion::Total,
             SearchRelation::Edb(Arc::new(RwLock::new(DefaultEDBRelation::default()))),
-            vec![(
-                "name".into(),
-                Term::Lit(Arc::new(Val::String("Quinn".into()))),
-            )],
+            vec![("name".into(), Term::Lit(Val::String("Quinn".into())))],
             [formula],
             project,
         ));

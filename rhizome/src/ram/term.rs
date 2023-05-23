@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use derive_more::{From, IsVariant, TryInto};
 use pretty::RcDoc;
 
@@ -14,7 +12,7 @@ use super::AliasId;
 
 #[derive(Clone, Debug, From, IsVariant, TryInto)]
 pub enum Term {
-    Lit(Arc<Val>),
+    Lit(Val),
     Link(LinkId, Box<Term>),
     Col(RelationId, Option<AliasId>, ColId),
     Cid(RelationId, Option<AliasId>),

@@ -17,7 +17,7 @@ use crate::{
 
 use super::{
     atom_bindings::AtomBindings, negation::NegationBuilder, reduce::ReduceBuilder,
-    rel_predicate::RelPredicateBuilder, typed_vars_tuple::TypedVarsTuple,
+    rel_predicate::RelPredicateBuilder, typed_vars_tuple::TypedVars,
 };
 
 type RelPredicates = Vec<(String, RelPredicateBuilder)>;
@@ -233,15 +233,15 @@ impl RuleBodyBuilder {
 
     pub fn predicate<Vars, F>(&self, vars: Vars, f: F) -> Result<()>
     where
-        Vars: TypedVarsTuple<Val> + Send + Sync + 'static,
-        F: Fn(Vars::Output) -> bool + Send + Sync + 'static,
+        Vars: TypedVars + Send + Sync + 'static,
+        F: Fn(Vars::Args) -> bool + Send + Sync + 'static,
     {
         let vars_vec = vars.vars();
 
         let f: Arc<dyn VarClosure> = Arc::new(move |bindings| {
-            let args = vars.args(bindings)?;
+            let vals = vars.args(bindings)?;
 
-            Ok(f(args))
+            Ok(f(vals))
         });
 
         self.var_predicates.borrow_mut().push((vars_vec, f));
@@ -259,23 +259,20 @@ impl RuleBodyBuilder {
         f: F,
     ) -> Result<()>
     where
-        Val: TryInto<Target, Error = &'static str>,
-        Target: Into<Val> + Clone,
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val>,
         Type: FromType<Target>,
-        Vars: TypedVarsTuple<Val> + Send + Sync + 'static,
+        Vars: TypedVars + Send + Sync + 'static,
         Args: AtomBindings,
-        F: Fn(Target, Vars::Output) -> Target + Send + Sync + 'static,
+        F: Fn(Target, Vars::Args) -> Target + Send + Sync + 'static,
     {
         let vars_vec = vars.vars();
 
         let f: Arc<dyn ReduceClosure> = Arc::new(move |acc, bindings| {
-            let acc = acc.try_into().map_err(|_| {
-                Error::InternalRhizomeError("failed to downcast reduce accumulator".to_owned())
-            })?;
+            let acc = acc.try_into()?;
+            let vals = vars.args(bindings)?;
 
-            let args = vars.args(bindings)?;
-
-            Ok(f(acc, args).into())
+            Ok(f(acc, vals).into())
         });
 
         let mut builder = ReduceBuilder::new(init.into(), target.into(), f);
@@ -295,8 +292,8 @@ impl RuleBodyBuilder {
     // https://github.com/RhizomeDB/rs-rhizome/issues/39
     pub fn count<Target, Args>(&self, target: TypedVar<Target>, id: &str, args: Args) -> Result<()>
     where
-        Val: TryInto<Target, Error = &'static str>,
-        Target: Into<Val> + Clone + Add + One + Zero + 'static,
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Add + One + Zero + 'static,
         Type: FromType<Target>,
         Args: AtomBindings,
     {
@@ -311,10 +308,10 @@ impl RuleBodyBuilder {
         args: Args,
     ) -> Result<()>
     where
-        Val: TryInto<Target, Error = &'static str>,
-        Target: Into<Val> + Clone + Add<Vars::Output, Output = Target> + Zero + 'static,
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Add + Zero + 'static,
         Type: FromType<Target>,
-        Vars: TypedVarsTuple<Val> + Send + Sync + 'static,
+        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
         Args: AtomBindings,
     {
         self.reduce(target, var, id, args, Zero::zero(), kernel::math::sum)
@@ -329,10 +326,10 @@ impl RuleBodyBuilder {
         default: Target,
     ) -> Result<()>
     where
-        Val: TryInto<Target, Error = &'static str>,
-        Target: Into<Val> + Ord + Clone + 'static,
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Ord + 'static,
         Type: FromType<Target>,
-        Vars: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
+        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
         Args: AtomBindings,
     {
         self.reduce(target, var, id, args, default, kernel::math::min)
@@ -347,10 +344,10 @@ impl RuleBodyBuilder {
         default: Target,
     ) -> Result<()>
     where
-        Val: TryInto<Target, Error = &'static str>,
-        Target: Into<Val> + Ord + Clone + 'static,
+        Val: TryInto<Target, Error = ()>,
+        Target: Into<Val> + Ord + 'static,
         Type: FromType<Target>,
-        Vars: TypedVarsTuple<Val, Output = Target> + Send + Sync + 'static,
+        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
         Args: AtomBindings,
     {
         self.reduce(target, var, id, args, default, kernel::math::max)

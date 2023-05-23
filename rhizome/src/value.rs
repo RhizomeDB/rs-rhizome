@@ -1,12 +1,14 @@
-use std::fmt::{self, Display};
+use std::{
+    fmt::{self, Display},
+    sync::Arc,
+};
 
 use cid::Cid;
-use derive_more::TryInto;
 use serde::{Deserialize, Serialize};
 
 use crate::types::Type;
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, TryInto)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Val {
     Bool(bool),
     S8(i8),
@@ -18,7 +20,7 @@ pub enum Val {
     S64(i64),
     U64(u64),
     Char(char),
-    String(Box<str>),
+    String(Arc<str>),
     Cid(Cid),
 }
 
@@ -103,13 +105,156 @@ impl From<char> for Val {
 
 impl From<&str> for Val {
     fn from(value: &str) -> Self {
-        Self::String(value.to_string().into_boxed_str())
+        Self::String(Arc::from(value))
     }
 }
 
 impl From<Cid> for Val {
     fn from(value: Cid) -> Self {
         Self::Cid(value)
+    }
+}
+
+impl TryFrom<Val> for bool {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::Bool(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for i8 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::S8(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for u8 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::U8(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for i16 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::S16(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for u16 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::U16(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for i32 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::S32(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for u32 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::U32(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for i64 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::S64(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for u64 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::U64(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for char {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::Char(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for Arc<str> {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::String(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for String {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::String(v) => Ok(v.to_string()),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for Cid {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::Cid(v) => Ok(v),
+            _ => Err(()),
+        }
     }
 }
 

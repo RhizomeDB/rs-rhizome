@@ -48,7 +48,7 @@ macro_rules! impl_rule_vars_for_tuple {
             {
                 type Vars = ($(TypedVar<[< V $Vs >]>,)*);
 
-                #[allow(unused_variables)]
+                #[allow(clippy::unused_unit, unused_variables)]
                 fn into_vars(idx: usize) -> Self::Vars {
                     ($(TypedVar::<[< V $Vs >]>::new(format!("x{}", idx + [< $Vs >]).as_ref()),)*)
                 }

@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
-};
+use std::fmt::{Debug, Display};
 
 use anyhow::Result;
 use cid::Cid;
@@ -18,7 +15,7 @@ pub trait Fact: Clone + Ord + PartialOrd + Display + Debug + Send + Sync {
     type Marker;
 
     fn cid(&self) -> Result<Option<Cid>>;
-    fn col(&self, id: &ColId) -> Option<Arc<Val>>;
+    fn col(&self, id: &ColId) -> Option<Val>;
     fn cols(&self) -> Vec<ColId>;
 }
 
@@ -31,7 +28,7 @@ pub trait EDBFact: Fact<Marker = EdbMarker> + ContentAddressable {
     ) -> Self;
 
     fn id(&self) -> RelationId;
-    fn link(&self, id: LinkId) -> Option<Arc<Val>>;
+    fn link(&self, id: LinkId) -> Option<Val>;
 }
 pub trait IDBFact: Fact<Marker = IdbMarker> {
     fn new<A: Into<ColId> + Ord, D: Into<Val>>(
