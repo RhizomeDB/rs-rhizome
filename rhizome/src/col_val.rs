@@ -1,13 +1,10 @@
-use std::{
-    fmt::{self, Display},
-    sync::Arc,
-};
+use std::fmt::{self, Display};
 
 use crate::{value::Val, var::Var};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ColVal {
-    Lit(Arc<Val>),
+    Lit(Val),
     Binding(Var),
 }
 

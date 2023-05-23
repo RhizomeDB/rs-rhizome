@@ -131,10 +131,7 @@ where
             // TODO: Only add the CID to the bindings if it's required by
             // a later operation.
             if let Some(cid) = fact.cid()? {
-                next_bindings.insert(
-                    BindingKey::Cid(self.id, self.alias),
-                    Arc::new(Val::Cid(cid)),
-                );
+                next_bindings.insert(BindingKey::Cid(self.id, self.alias), Val::Cid(cid));
             }
 
             for k in fact.cols() {

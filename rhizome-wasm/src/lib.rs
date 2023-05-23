@@ -116,7 +116,7 @@ impl Rhizome {
                         let js_fact = js_sys::Object::new();
 
                         for col in fact.cols() {
-                            match &*fact.col(&col).unwrap() {
+                            match fact.col(&col).unwrap() {
                                 Val::Bool(v) => js_sys::Reflect::set(
                                     &js_fact,
                                     &col.resolve().into(),
@@ -138,7 +138,7 @@ impl Rhizome {
                                 Val::Cid(v) => js_sys::Reflect::set(
                                     &js_fact,
                                     &col.resolve().into(),
-                                    &serde_wasm_bindgen::to_value(&Cid(*v)).unwrap(),
+                                    &serde_wasm_bindgen::to_value(&Cid(v)).unwrap(),
                                 )
                                 .unwrap(),
                                 _ => panic!("unsupported type"),

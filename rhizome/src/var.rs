@@ -78,6 +78,10 @@ where
     pub fn typ(&self) -> ColType {
         self.typ
     }
+
+    pub fn as_var(&self) -> Var {
+        Var::new::<T>(self.id().to_string().as_ref())
+    }
 }
 
 impl<T> Display for TypedVar<T> {

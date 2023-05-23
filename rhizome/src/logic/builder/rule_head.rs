@@ -96,7 +96,7 @@ impl RuleHeadBuilder {
         T: Into<Val>,
     {
         let id = ColId::new(id);
-        let value = Arc::new(value.into());
+        let value = value.into();
 
         self.bindings.borrow_mut().push((id, ColVal::Lit(value)));
 

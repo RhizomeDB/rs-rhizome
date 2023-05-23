@@ -166,9 +166,7 @@ where
                         )
                     })?;
 
-                let inner_val = Arc::try_unwrap(resolved).unwrap_or_else(|arc| (*arc).clone());
-
-                args.push(inner_val);
+                args.push(resolved);
             }
 
             result = self.do_reduce(result, args)?;
@@ -176,10 +174,7 @@ where
 
         if any {
             let mut next_bindings = bindings.clone();
-            next_bindings.insert(
-                BindingKey::Agg(self.id, self.alias, self.target),
-                Arc::new(result),
-            );
+            next_bindings.insert(BindingKey::Agg(self.id, self.alias, self.target), result);
 
             Ok(Some(next_bindings))
         } else {
@@ -188,7 +183,11 @@ where
     }
 
     fn do_reduce(&self, acc: Val, args: Vec<Val>) -> Result<Val> {
-        (self.f)(acc, args)
+        (self.f)(acc, args).or_else(|_| {
+            error(Error::InternalRhizomeError(
+                "failed to apply reduce".to_owned(),
+            ))
+        })
     }
 }
 

@@ -44,7 +44,7 @@ where
         self.inner.iter().any(|f| {
             bindings
                 .iter()
-                .all(|(k, v)| f.col(k).map_or(false, |b| *b == *v))
+                .all(|(k, v)| f.col(k).map_or(false, |b| b == *v))
         })
     }
 
@@ -52,7 +52,7 @@ where
         Box::new(self.inner.iter().filter(move |f| {
             bindings
                 .iter()
-                .all(|(k, v)| f.col(k).map_or(false, |b| *b == *v))
+                .all(|(k, v)| f.col(k).map_or(false, |b| b == *v))
         }))
     }
 

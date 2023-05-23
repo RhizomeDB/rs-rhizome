@@ -2,58 +2,67 @@ use anyhow::Result;
 
 use crate::{
     types::{FromType, Type},
+    value::Val,
     var::{TypedVar, Var},
 };
 
-pub trait TypedVarsTuple<O> {
-    type Output;
+pub trait TypedVars {
+    type Args;
 
     fn vars(&self) -> Vec<Var>;
-    fn args(&self, bindings: Vec<O>) -> Result<Self::Output>;
+    fn args(&self, bindings: Vec<Val>) -> Result<Self::Args, ()>;
 }
 
-impl<O, V> TypedVarsTuple<O> for TypedVar<V>
-where
-    O: Clone,
-    Type: FromType<V>,
-    V: Copy + TryFrom<O, Error = &'static str>,
-{
-    type Output = V;
+impl TypedVars for () {
+    type Args = ();
 
     fn vars(&self) -> Vec<Var> {
-        vec![(*self).into()]
+        vec![]
     }
 
-    fn args(&self, bindings: Vec<O>) -> Result<Self::Output> {
-        Ok(V::try_from(bindings[0].clone()).map_err(|_| {
-            crate::error::Error::InternalRhizomeError("too few runtime args passed".to_owned())
-        })?)
+    fn args(&self, _bindings: Vec<Val>) -> Result<Self::Args, ()> {
+        Ok(())
+    }
+}
+
+impl<V> TypedVars for TypedVar<V>
+where
+    Type: FromType<V>,
+    V: TryFrom<Val, Error = ()>,
+{
+    type Args = V;
+
+    fn vars(&self) -> Vec<Var> {
+        vec![self.as_var()]
+    }
+
+    fn args(&self, bindings: Vec<Val>) -> Result<Self::Args, ()> {
+        bindings[0].clone().try_into()
     }
 }
 
 macro_rules! impl_typed_vars_tuple {
     ($($Ts:expr),*) => {
         paste::item! {
-            impl<O, $([< V $Ts >],)*> TypedVarsTuple<O> for ($(TypedVar<[< V $Ts >]>,)*)
+            impl<$([< V $Ts >],)*> TypedVars for ($(TypedVar<[< V $Ts >]>,)*)
             where
-                O: Clone,
                 $(
                     Type: FromType<[< V $Ts >]>,
-                    [< V $Ts >]: Copy + TryFrom<O, Error = &'static str>,
+                    [< V $Ts >]: TryFrom<Val, Error = ()>,
                 )*
             {
-                type Output = ($([< V $Ts >],)*);
+                type Args = ($([< V $Ts >],)*);
 
                 fn vars(&self) -> Vec<Var> {
-                     vec![$(self.$Ts.into(),)*]
+                     vec![$(self.$Ts.as_var(),)*]
                 }
 
                 #[allow(unused_variables)]
                 #[allow(clippy::unused_unit)]
-                fn args(&self, bindings: Vec<O>) -> Result<Self::Output> {
+                fn args(&self, bindings: Vec<Val>) -> Result<Self::Args, ()> {
                     Ok((
                         $(
-                            [< V $Ts >]::try_from(bindings[$Ts].clone()).map_err(|_| $crate::error::Error::InternalRhizomeError("too few runtime args passed".to_owned()))?,
+                            bindings[$Ts].clone().try_into()?,
                         )*
                     ))
                 }
@@ -62,7 +71,6 @@ macro_rules! impl_typed_vars_tuple {
     };
 }
 
-impl_typed_vars_tuple!();
 impl_typed_vars_tuple!(0);
 impl_typed_vars_tuple!(0, 1);
 impl_typed_vars_tuple!(0, 1, 2);

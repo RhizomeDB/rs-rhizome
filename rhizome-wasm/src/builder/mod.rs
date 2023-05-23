@@ -165,7 +165,7 @@ impl ProgramBuilder {
         self.inner
             .borrow_mut()
             .rule::<A>(id, &|h, b, vars| {
-                let vars = Vec::from_iter(vars.clone().into_iter());
+                let vars = Vec::from_iter(vars.into_iter());
                 let head_vars = vars
                     .iter()
                     .enumerate()
@@ -194,7 +194,7 @@ impl ProgramBuilder {
                     } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(col_val.clone()) {
                         h.bind_one((col_key.as_ref(), val.inner())).unwrap()
                     } else if let Some(var) = Var::downcast_js_ref(&col_val) {
-                        h.bind_one((col_key.as_ref(), vars.get(var.idx).unwrap()))
+                        h.bind_one((col_key.as_ref(), *vars.get(var.idx).unwrap()))
                             .unwrap()
                     } else {
                         panic!("unknown type")
@@ -227,7 +227,7 @@ impl ProgramBuilder {
                             {
                                 Some(val.inner().into())
                             } else if let Some(var) = Var::downcast_js_ref(&cid) {
-                                vars.get(var.idx).map(|v| v.into())
+                                vars.get(var.idx).map(|v| (*v).into())
                             } else {
                                 None
                             };
@@ -253,7 +253,7 @@ impl ProgramBuilder {
                                     {
                                         s.bind_one((col_key.as_ref(), val.inner())).unwrap()
                                     } else if let Some(var) = Var::downcast_js_ref(&col_val) {
-                                        s.bind_one((col_key.as_str(), vars.get(var.idx).unwrap()))
+                                        s.bind_one((col_key.as_str(), *vars.get(var.idx).unwrap()))
                                             .unwrap();
                                     } else {
                                         panic!("unknown type")
@@ -291,7 +291,7 @@ impl ProgramBuilder {
                                     {
                                         s.bind_one((col_key.as_ref(), val.inner())).unwrap()
                                     } else if let Some(var) = Var::downcast_js_ref(&col_val) {
-                                        s.bind_one((col_key.as_str(), vars.get(var.idx).unwrap()))
+                                        s.bind_one((col_key.as_str(), *vars.get(var.idx).unwrap()))
                                             .unwrap();
                                     } else {
                                         panic!("unknown type")
@@ -323,7 +323,7 @@ impl ProgramBuilder {
                                     b.get_link(
                                         cid_val.inner(),
                                         link_key,
-                                        vars.get(var.idx).unwrap(),
+                                        *vars.get(var.idx).unwrap(),
                                     )
                                     .unwrap();
                                 } else {
@@ -334,16 +334,16 @@ impl ProgramBuilder {
                                     serde_wasm_bindgen::from_value::<Cid>(link_val.clone())
                                 {
                                     b.get_link(
-                                        vars.get(cid_var.idx).unwrap(),
+                                        *vars.get(cid_var.idx).unwrap(),
                                         link_key,
                                         val.inner(),
                                     )
                                     .unwrap();
                                 } else if let Some(var) = Var::downcast_js_ref(&link_val) {
                                     b.get_link(
-                                        vars.get(cid_var.idx).unwrap(),
+                                        *vars.get(cid_var.idx).unwrap(),
                                         link_key,
-                                        vars.get(var.idx).unwrap(),
+                                        *vars.get(var.idx).unwrap(),
                                     )
                                     .unwrap();
                                 } else {
