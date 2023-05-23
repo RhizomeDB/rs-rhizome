@@ -46,11 +46,11 @@ pub enum Error {
     #[error("Facts must be ground: attempted to bind {1} to variable {2} of relation {0}")]
     NonGroundFact(RelationId, ColId, VarId),
     #[error("Attempted to group by unbound variable {0} for column {1} of relation {2}")]
-    ReduceUnboundGroupBy(VarId, ColId, RelationId),
-    #[error("Attempted to bind reduce to already bound variable {0}")]
-    ReduceBoundTarget(VarId),
+    AggregationUnboundGroupBy(VarId, ColId, RelationId),
+    #[error("Attempted to aggregate into a bound variable {0}")]
+    AggregationBoundTarget(VarId),
     #[error("Attempted to group by the target var {0}")]
-    ReduceGroupByTarget(VarId),
+    AggregationGroupByTarget(VarId),
     #[error("Attempted to bind to CID of IDB relation {0}")]
     ContentAddressedIDB(RelationId),
 }

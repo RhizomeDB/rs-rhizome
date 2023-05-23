@@ -10,13 +10,13 @@ pub use self::{program::ProgramBuilder, rule_vars::RuleVars};
 
 use super::lower_to_ram;
 
+mod aggregation;
 mod atom_binding;
 mod atom_bindings;
 mod declaration;
 mod fact;
 mod negation;
 mod program;
-mod reduce;
 mod rel_predicate;
 mod rule_body;
 mod rule_head;
@@ -1330,7 +1330,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce() {
+    fn test_aggregation() {
         assert_compile!(|p| {
             p.input("num", |h| h.column::<i32>("n"))?;
             p.output("sum", |h| h.column::<i32>("n"))?;
@@ -1348,7 +1348,7 @@ mod tests {
     }
 
     #[test]
-    fn test_variadic_reduce() {
+    fn test_variadic_aggregation() {
         assert_compile!(|p| {
             p.input("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
             p.output("minSum", |h| h.column::<i32>("n"))?;
@@ -1373,7 +1373,7 @@ mod tests {
     }
 
     #[test]
-    fn test_group_by_reduce() {
+    fn test_group_by_aggregation() {
         assert_compile!(|p| {
             p.input("product", |h| {
                 h.column::<i32>("id")
@@ -1412,7 +1412,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_unbound_group_by() {
+    fn test_aggregation_unbound_group_by() {
         assert_compile_err!(
             &Error::ClauseNotRangeRestricted("x".into(), "x1".into(),),
             |p| {
@@ -1435,8 +1435,8 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_bound_target() {
-        assert_compile_err!(&Error::ReduceBoundTarget("x0".into()), |p| {
+    fn test_aggregation_bound_target() {
+        assert_compile_err!(&Error::AggregationBoundTarget("x0".into()), |p| {
             p.input("num", |h| h.column::<i32>("n"))?;
             p.output("sum", |h| h.column::<i32>("n"))?;
 
@@ -1454,8 +1454,8 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_group_by_target() {
-        assert_compile_err!(&Error::ReduceGroupByTarget("x0".into()), |p| {
+    fn test_aggregation_group_by_target() {
+        assert_compile_err!(&Error::AggregationGroupByTarget("x0".into()), |p| {
             p.input("num", |h| h.column::<i32>("n"))?;
             p.output("sum", |h| h.column::<i32>("n"))?;
 
@@ -1498,7 +1498,7 @@ mod tests {
     }
 
     #[test]
-    fn test_array_reduce() {
+    fn test_array_aggregation() {
         assert_compile!(|p| {
             p.input("num", |h| h.column::<i32>("n"))?;
             p.output("sum", |h| h.column::<i32>("n"))?;

@@ -16,7 +16,7 @@ use crate::{
             exit::Exit, insert::Insert, merge::Merge, purge::Purge, recursive::Loop, sinks::Sinks,
             sources::Sources, swap::Swap, Statement,
         },
-        Bindings, Reduce,
+        Aggregation, Bindings,
     },
     relation::{DefaultEDBRelation, DefaultIDBRelation, Relation},
     storage::blockstore::Blockstore,
@@ -245,7 +245,7 @@ where
         match operation {
             Operation::Search(inner) => self.handle_search(inner, blockstore, bindings),
             Operation::Project(inner) => self.handle_project(inner, blockstore, bindings),
-            Operation::Reduce(inner) => self.handle_reduce(inner, blockstore, bindings),
+            Operation::Aggregation(inner) => self.handle_aggregation(inner, blockstore, bindings),
         }?;
 
         Ok(true)
@@ -279,9 +279,9 @@ where
         Ok(true)
     }
 
-    fn handle_reduce<BS>(
+    fn handle_aggregation<BS>(
         &self,
-        agg: &Reduce<EF, IF, ER, IR>,
+        agg: &Aggregation<EF, IF, ER, IR>,
         blockstore: &BS,
         bindings: &Bindings,
     ) -> Result<bool>

@@ -187,7 +187,7 @@ fn term_polarity(term: &BodyTerm) -> Option<Polarity> {
         BodyTerm::Negation(_) => Some(Polarity::Negative),
         BodyTerm::GetLink(_) => None,
         BodyTerm::VarPredicate(_) => None,
-        BodyTerm::Reduce(_) => Some(Polarity::Negative),
+        BodyTerm::Aggregation(_) => Some(Polarity::Negative),
     }
 }
 
@@ -197,6 +197,6 @@ fn term_depends_on(term: &BodyTerm) -> Vec<Arc<Declaration>> {
         BodyTerm::Negation(inner) => vec![inner.relation()],
         BodyTerm::GetLink(_) => vec![],
         BodyTerm::VarPredicate(_) => vec![],
-        BodyTerm::Reduce(_) => vec![],
+        BodyTerm::Aggregation(_) => vec![],
     }
 }
