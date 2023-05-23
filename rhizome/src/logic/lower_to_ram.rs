@@ -11,9 +11,9 @@ use crate::{
     fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId, VarId},
     ram::{
-        self, AliasId, ExitBuilder, Formula, Insert, Loop, Merge, MergeRelations, NotInRelation,
-        Operation, Project, Purge, PurgeRelation, Reduce, ReduceRelation, RelationVersion, Search,
-        SearchRelation, SinksBuilder, SourcesBuilder, Statement, Swap, Term,
+        self, Aggregation, AggregationRelation, AliasId, ExitBuilder, Formula, Insert, Loop, Merge,
+        MergeRelations, NotInRelation, Operation, Project, Purge, PurgeRelation, RelationVersion,
+        Search, SearchRelation, SinksBuilder, SourcesBuilder, Statement, Swap, Term,
     },
     relation::{Relation, Source},
     value::Val,
@@ -694,7 +694,7 @@ where
                 idb,
             )
         }
-        Some(SemiNaiveTerm::Reduce(inner)) => {
+        Some(SemiNaiveTerm::Aggregation(inner)) => {
             let mut next_bindings = bindings.clone();
             let alias = next_alias.get(&inner.relation().id()).copied();
 
@@ -729,7 +729,7 @@ where
                 }
             }
 
-            let reduce_relation = match inner.relation().source() {
+            let aggregation_relation = match inner.relation().source() {
                 Source::Edb => {
                     let relation = Arc::clone(
                         edb.get(&(inner.relation().id(), RelationVersion::Total))
@@ -738,7 +738,7 @@ where
                             })?,
                     );
 
-                    ReduceRelation::Edb(relation)
+                    AggregationRelation::Edb(relation)
                 }
                 Source::Idb => {
                     let relation = Arc::clone(
@@ -748,7 +748,7 @@ where
                             })?,
                     );
 
-                    ReduceRelation::Idb(relation)
+                    AggregationRelation::Idb(relation)
                 }
             };
 
@@ -798,7 +798,7 @@ where
                 ));
             }
 
-            Ok(Operation::Reduce(Reduce::new(
+            Ok(Operation::Aggregation(Aggregation::new(
                 args,
                 inner.init().clone(),
                 inner.f(),
@@ -806,7 +806,7 @@ where
                 group_by_cols,
                 inner.relation().id(),
                 alias,
-                reduce_relation,
+                aggregation_relation,
                 formulae,
                 lower_rule_body_to_ram(
                     rule,
@@ -968,7 +968,7 @@ pub(crate) enum SemiNaiveTerm {
     VarPredicate(VarPredicate),
     Negation(Negation),
     GetLink(GetLink),
-    Reduce(super::ast::body_term::Reduce),
+    Aggregation(super::ast::body_term::Aggregation),
 }
 
 pub(crate) fn semi_naive_rewrites(rule: &Rule) -> Vec<Vec<SemiNaiveTerm>> {
@@ -986,8 +986,8 @@ pub(crate) fn semi_naive_rewrites(rule: &Rule) -> Vec<Vec<SemiNaiveTerm>> {
         non_relational_terms.push(SemiNaiveTerm::GetLink(get_link.clone()));
     }
 
-    for reduce in rule.reduce_terms() {
-        non_relational_terms.push(SemiNaiveTerm::Reduce(reduce.clone()));
+    for aggregation in rule.aggregation_terms() {
+        non_relational_terms.push(SemiNaiveTerm::Aggregation(aggregation.clone()));
     }
 
     if rule.rel_predicate_terms().is_empty() {
@@ -1057,7 +1057,7 @@ fn select_term(
             SemiNaiveTerm::VarPredicate(inner) => inner.is_vars_bound(bindings),
             SemiNaiveTerm::Negation(inner) => inner.is_vars_bound(bindings),
             SemiNaiveTerm::GetLink(_) => true,
-            SemiNaiveTerm::Reduce(_) => true,
+            SemiNaiveTerm::Aggregation(_) => true,
         })
         .max_by_key(|(_, term)| match term {
             SemiNaiveTerm::Negation(inner) => (4, inner.vars().len()),
@@ -1078,7 +1078,7 @@ fn select_term(
             SemiNaiveTerm::RelPredicate(_, RelationVersion::New) => {
                 panic!("New relation in semi-naive rule");
             }
-            SemiNaiveTerm::Reduce(inner) => (0, inner.bound_vars(bindings).len()),
+            SemiNaiveTerm::Aggregation(inner) => (0, inner.bound_vars(bindings).len()),
         })
         .map(|(index, _)| index);
 
@@ -1095,7 +1095,7 @@ fn update_bindings(bindings: &mut HashSet<VarId>, term: &SemiNaiveTerm) {
                 bindings.insert(var.id());
             }
         }
-        SemiNaiveTerm::Reduce(inner) => {
+        SemiNaiveTerm::Aggregation(inner) => {
             bindings.insert(inner.target().id());
         }
         SemiNaiveTerm::RelPredicate(inner, _) => {

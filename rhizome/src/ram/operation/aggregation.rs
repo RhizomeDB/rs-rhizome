@@ -11,7 +11,7 @@ use crate::{
     error::{error, Error},
     fact::traits::{EDBFact, Fact, IDBFact},
     id::{ColId, RelationId},
-    logic::ReduceClosure,
+    logic::AggregationClosure,
     pretty::Pretty,
     ram::{AliasId, BindingKey, Bindings, Formula, Term},
     relation::Relation,
@@ -23,7 +23,7 @@ use crate::{
 use super::Operation;
 
 #[derive(Clone, Debug)]
-pub(crate) enum ReduceRelation<EF, IF, ER, IR>
+pub(crate) enum AggregationRelation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
@@ -34,7 +34,7 @@ where
     Idb(Arc<RwLock<IR>>),
 }
 
-pub(crate) struct Reduce<EF, IF, ER, IR>
+pub(crate) struct Aggregation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
@@ -43,17 +43,17 @@ where
 {
     args: Vec<Term>,
     init: Option<Val>,
-    f: Arc<dyn ReduceClosure>,
+    f: Arc<dyn AggregationClosure>,
     group_by_cols: HashMap<ColId, Term>,
     target: Var,
     id: RelationId,
     alias: Option<AliasId>,
-    relation: ReduceRelation<EF, IF, ER, IR>,
+    relation: AggregationRelation<EF, IF, ER, IR>,
     when: Vec<Formula<EF, IF, ER, IR>>,
     operation: Box<Operation<EF, IF, ER, IR>>,
 }
 
-impl<EF, IF, ER, IR> Reduce<EF, IF, ER, IR>
+impl<EF, IF, ER, IR> Aggregation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
@@ -65,12 +65,12 @@ where
     pub(crate) fn new(
         args: Vec<Term>,
         init: Option<Val>,
-        f: Arc<dyn ReduceClosure>,
+        f: Arc<dyn AggregationClosure>,
         target: Var,
         group_by_cols: HashMap<ColId, Term>,
         id: RelationId,
         alias: Option<AliasId>,
-        relation: ReduceRelation<EF, IF, ER, IR>,
+        relation: AggregationRelation<EF, IF, ER, IR>,
         when: impl IntoIterator<Item = Formula<EF, IF, ER, IR>>,
         operation: Operation<EF, IF, ER, IR>,
     ) -> Self {
@@ -99,8 +99,8 @@ where
         BS: Blockstore,
     {
         match &self.relation {
-            ReduceRelation::Edb(relation) => self.do_apply(blockstore, bindings, relation),
-            ReduceRelation::Idb(relation) => self.do_apply(blockstore, bindings, relation),
+            AggregationRelation::Edb(relation) => self.do_apply(blockstore, bindings, relation),
+            AggregationRelation::Idb(relation) => self.do_apply(blockstore, bindings, relation),
         }
     }
 
@@ -167,7 +167,7 @@ where
                     .resolve::<BS, EF>(init_term, blockstore)?
                     .ok_or_else(|| {
                         Error::InternalRhizomeError(
-                            "argument to reduce failed to resolve".to_owned(),
+                            "argument to aggregation failed to resolve".to_owned(),
                         )
                     })?
             } else {
@@ -177,7 +177,7 @@ where
             }
         } else {
             return error(Error::InternalRhizomeError(format!(
-                "expected a single reduce binding, given: {}",
+                "expected a single aggregation binding, given: {}",
                 self.args.len()
             )));
         };
@@ -202,14 +202,14 @@ where
                     .resolve::<BS, EF>(term, blockstore)?
                     .ok_or_else(|| {
                         Error::InternalRhizomeError(
-                            "argument to reduce failed to resolve".to_owned(),
+                            "argument to aggregation failed to resolve".to_owned(),
                         )
                     })?;
 
                 args.push(resolved);
             }
 
-            result = self.do_reduce(result, args)?;
+            result = self.do_aggregation(result, args)?;
         }
 
         let mut next_bindings = bindings.clone();
@@ -218,16 +218,16 @@ where
         Ok(Some(next_bindings))
     }
 
-    fn do_reduce(&self, acc: Val, args: Vec<Val>) -> Result<Val> {
+    fn do_aggregation(&self, acc: Val, args: Vec<Val>) -> Result<Val> {
         (self.f)(acc, args).or_else(|_| {
             error(Error::InternalRhizomeError(
-                "failed to apply reduce".to_owned(),
+                "failed to apply aggregation".to_owned(),
             ))
         })
     }
 }
 
-impl<EF, IF, ER, IR> Debug for Reduce<EF, IF, ER, IR>
+impl<EF, IF, ER, IR> Debug for Aggregation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
@@ -235,7 +235,7 @@ where
     IR: Relation<Fact = IF>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Reduce")
+        f.debug_struct("Aggregation")
             .field("args", &self.args)
             .field("group_by_cols", &self.group_by_cols)
             .field("target", &self.target)
@@ -247,7 +247,7 @@ where
     }
 }
 
-impl<EF, IF, ER, IR> Pretty for Reduce<EF, IF, ER, IR>
+impl<EF, IF, ER, IR> Pretty for Aggregation<EF, IF, ER, IR>
 where
     EF: EDBFact,
     IF: IDBFact,
@@ -255,7 +255,7 @@ where
     IR: Relation<Fact = IF>,
 {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        // TODO: pretty print reduce; see https://github.com/RhizomeDB/rs-rhizome/issues/26
-        RcDoc::concat([RcDoc::text("TODO REDUCE "), self.operation().to_doc()])
+        // TODO: pretty print aggregation; see https://github.com/RhizomeDB/rs-rhizome/issues/26
+        RcDoc::concat([RcDoc::text("TODO AGGREGATION "), self.operation().to_doc()])
     }
 }

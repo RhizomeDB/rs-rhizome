@@ -6,24 +6,24 @@ use crate::{
     error::{error, Error},
     id::{ColId, VarId},
     logic::{
-        ast::{Declaration, Reduce},
-        ReduceClosure,
+        ast::{Aggregation, Declaration},
+        AggregationClosure,
     },
     types::ColType,
     value::Val,
     var::Var,
 };
 
-pub(crate) struct ReduceBuilder {
+pub(crate) struct AggregationBuilder {
     pub(super) init: Option<Val>,
     pub(super) target: Var,
     pub(super) vars: Vec<Var>,
     pub(super) bindings: Vec<(ColId, ColVal)>,
-    pub(super) f: Arc<dyn ReduceClosure>,
+    pub(super) f: Arc<dyn AggregationClosure>,
 }
 
-impl ReduceBuilder {
-    pub(crate) fn new(init: Option<Val>, target: Var, f: Arc<dyn ReduceClosure>) -> Self {
+impl AggregationBuilder {
+    pub(crate) fn new(init: Option<Val>, target: Var, f: Arc<dyn AggregationClosure>) -> Self {
         Self {
             init,
             target,
@@ -36,12 +36,12 @@ impl ReduceBuilder {
         self,
         relation: Arc<Declaration>,
         bound_vars: &mut HashMap<VarId, ColType>,
-    ) -> Result<Reduce> {
+    ) -> Result<Aggregation> {
         if bound_vars
             .insert(self.target.id(), self.target.typ())
             .is_some()
         {
-            return error(Error::ReduceBoundTarget(self.target.id()));
+            return error(Error::AggregationBoundTarget(self.target.id()));
         }
 
         let mut cols = HashMap::default();
@@ -70,7 +70,7 @@ impl ReduceBuilder {
                 }
                 ColVal::Binding(var) => {
                     if *var == self.target {
-                        return error(Error::ReduceGroupByTarget(var.id()));
+                        return error(Error::AggregationGroupByTarget(var.id()));
                     }
 
                     if col.col_type().unify(&var.typ()).is_err() {
@@ -87,13 +87,14 @@ impl ReduceBuilder {
             cols.insert(col_id, col_val);
         }
 
-        let reduce = Reduce::new(self.target, self.vars, self.init, relation, cols, self.f);
+        let aggregation =
+            Aggregation::new(self.target, self.vars, self.init, relation, cols, self.f);
 
-        Ok(reduce)
+        Ok(aggregation)
     }
 }
 
-impl Debug for ReduceBuilder {
+impl Debug for AggregationBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AggregationBuilder")
             .field("target", &self.target)

@@ -9,7 +9,7 @@ use anyhow::Result;
 use crate::{
     error::Error,
     id::{ColId, LinkId, VarId},
-    logic::{ReduceClosure, VarClosure},
+    logic::{AggregationClosure, VarClosure},
     value::Val,
     var::Var,
 };
@@ -23,7 +23,7 @@ pub enum BodyTerm {
     RelPredicate(RelPredicate),
     Negation(Negation),
     GetLink(GetLink),
-    Reduce(Reduce),
+    Aggregation(Aggregation),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -214,23 +214,23 @@ impl Debug for VarPredicate {
 }
 
 #[derive(Clone)]
-pub struct Reduce {
+pub struct Aggregation {
     target: Var,
     vars: Vec<Var>,
     init: Option<Val>,
     relation: Arc<Declaration>,
     group_by_cols: HashMap<ColId, ColVal>,
-    f: Arc<dyn ReduceClosure>,
+    f: Arc<dyn AggregationClosure>,
 }
 
-impl Reduce {
+impl Aggregation {
     pub fn new(
         target: Var,
         vars: Vec<Var>,
         init: Option<Val>,
         relation: Arc<Declaration>,
         group_by_cols: HashMap<ColId, ColVal>,
-        f: Arc<dyn ReduceClosure>,
+        f: Arc<dyn AggregationClosure>,
     ) -> Self {
         Self {
             target,
@@ -262,7 +262,7 @@ impl Reduce {
         &self.group_by_cols
     }
 
-    pub fn f(&self) -> Arc<dyn ReduceClosure> {
+    pub fn f(&self) -> Arc<dyn AggregationClosure> {
         Arc::clone(&self.f)
     }
 
@@ -281,9 +281,9 @@ impl Reduce {
     }
 }
 
-impl Debug for Reduce {
+impl Debug for Aggregation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Reduce")
+        f.debug_struct("Aggregation")
             .field("target", &self.target)
             .field("vars", &self.vars)
             .field("relation", &self.relation)

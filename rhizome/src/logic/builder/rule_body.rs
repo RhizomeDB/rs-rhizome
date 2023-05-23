@@ -8,7 +8,7 @@ use crate::{
     kernel,
     logic::{
         ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
-        ReduceClosure, VarClosure,
+        AggregationClosure, VarClosure,
     },
     types::{ColType, FromType, Type},
     value::Val,
@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    atom_bindings::AtomBindings, negation::NegationBuilder, reduce::ReduceBuilder,
+    aggregation::AggregationBuilder, atom_bindings::AtomBindings, negation::NegationBuilder,
     rel_predicate::RelPredicateBuilder, typed_vars_tuple::TypedVars,
 };
 
@@ -24,7 +24,7 @@ type RelPredicates = Vec<(String, RelPredicateBuilder)>;
 type Negations = Vec<(String, NegationBuilder)>;
 type GetLinks = Vec<(CidValue, LinkId, CidValue)>;
 type VarPredicates = Vec<(Vec<Var>, Arc<dyn VarClosure>)>;
-type Reduces = Vec<(String, ReduceBuilder)>;
+type Aggregations = Vec<(String, AggregationBuilder)>;
 type Relations = HashMap<String, Arc<Declaration>>;
 
 pub struct RuleBodyBuilder {
@@ -32,7 +32,7 @@ pub struct RuleBodyBuilder {
     negations: RefCell<Negations>,
     get_links: RefCell<GetLinks>,
     var_predicates: RefCell<VarPredicates>,
-    reduces: RefCell<Reduces>,
+    aggregations: RefCell<Aggregations>,
     relations: Rc<RefCell<Relations>>,
 }
 
@@ -49,7 +49,7 @@ impl RuleBodyBuilder {
             negations: RefCell::default(),
             get_links: RefCell::default(),
             var_predicates: RefCell::default(),
-            reduces: RefCell::default(),
+            aggregations: RefCell::default(),
             relations,
         }
     }
@@ -130,13 +130,13 @@ impl RuleBodyBuilder {
             body_terms.push(term);
         }
 
-        for (id, builder) in self.reduces.into_inner() {
+        for (id, builder) in self.aggregations.into_inner() {
             let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
                     return error(Error::UnrecognizedRelation(id));
                 };
 
-            let reduce = builder.finalize(declaration, bound_vars)?;
-            let term = BodyTerm::Reduce(reduce);
+            let aggregation = builder.finalize(declaration, bound_vars)?;
+            let term = BodyTerm::Aggregation(aggregation);
 
             body_terms.push(term);
         }
@@ -370,14 +370,14 @@ impl RuleBodyBuilder {
     {
         let vars_vec = vars.vars();
 
-        let f: Arc<dyn ReduceClosure> = Arc::new(move |acc, bindings| {
+        let f: Arc<dyn AggregationClosure> = Arc::new(move |acc, bindings| {
             let acc = acc.try_into()?;
             let vals = vars.args(bindings)?;
 
             Ok(f(acc, vals).into())
         });
 
-        let mut builder = ReduceBuilder::new(init.map(Into::into), target.into(), f);
+        let mut builder = AggregationBuilder::new(init.map(Into::into), target.into(), f);
 
         for var in vars_vec {
             builder.vars.push(var);
@@ -385,7 +385,9 @@ impl RuleBodyBuilder {
 
         args.bind(&mut builder.bindings);
 
-        self.reduces.borrow_mut().push((id.to_string(), builder));
+        self.aggregations
+            .borrow_mut()
+            .push((id.to_string(), builder));
 
         Ok(())
     }
