@@ -82,18 +82,23 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::ops::AddAssign;
 
     use anyhow::Result;
     use cid::Cid;
+    use num_traits::{WrappingMul, Zero};
+    use rhizome_macro::rhizome_fn;
 
     use crate::{
+        aggregation::Aggregate,
         assert_derives,
         fact::{
             btree_fact::BTreeFact,
             evac_fact::EVACFact,
             traits::{Fact, IDBFact},
         },
-        types::Any,
+        kernel::math,
+        types::{Any, RhizomeType},
         value::Val,
     };
 
@@ -579,6 +584,90 @@ mod tests {
     }
 
     #[test]
+    fn test_count() -> Result<()> {
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("count", |h| h.column::<i32>("n"))?;
+
+                p.rule::<(i32,)>("num", &|h, b, (x,)| {
+                    h.bind((("n", x),))?;
+                    b.search("evac", (("value", x),))?;
+
+                    Ok(())
+                })?;
+
+                p.rule::<(i32, i32)>("count", &|h, b, (count, n)| {
+                    h.bind((("n", count),))?;
+                    b.group_by(count, "num", (("n", n),), math::count())?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [
+                EVACFact::new(0, "n", 1, vec![]),
+                EVACFact::new(0, "n", 2, vec![]),
+                EVACFact::new(0, "n", 3, vec![]),
+                EVACFact::new(0, "n", 4, vec![]),
+                EVACFact::new(0, "n", 5, vec![]),
+            ],
+            [("count", [BTreeFact::new("count", [("n", 5),],),]),]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sum() -> Result<()> {
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("sum", |h| h.column::<i32>("n"))?;
+
+                p.rule::<(i32,)>("num", &|h, b, (x,)| {
+                    h.bind((("n", x),))?;
+                    b.search("evac", (("value", x),))?;
+
+                    Ok(())
+                })?;
+
+                p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
+                    h.bind((("n", sum),))?;
+                    b.group_by(sum, "num", (("n", n),), math::sum(n))?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [
+                EVACFact::new(0, "n", 1, vec![]),
+                EVACFact::new(0, "n", 2, vec![]),
+                EVACFact::new(0, "n", 3, vec![]),
+                EVACFact::new(0, "n", 4, vec![]),
+                EVACFact::new(0, "n", 5, vec![]),
+            ],
+            [("sum", [BTreeFact::new("sum", [("n", 15),],),]),]
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_reduce() -> Result<()> {
         assert_derives!(
             |p| {
@@ -607,30 +696,28 @@ mod tests {
 
                 p.rule::<(i32, i32)>("count", &|h, b, (count, n)| {
                     h.bind((("n", count),))?;
-                    b.count(count, "num", (("n", n),))?;
+                    b.group_by(count, "num", (("n", n),), math::count())?;
 
                     Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
                     h.bind((("n", sum),))?;
-                    b.sum(sum, n, "num", (("n", n),))?;
+                    b.group_by(sum, "num", (("n", n),), math::sum(n))?;
 
                     Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("min", &|h, b, (min, n)| {
                     h.bind((("n", min),))?;
-
-                    b.min(min, n, "num", (("n", n),))?;
+                    b.group_by(min, "num", (("n", n),), math::min(n))?;
 
                     Ok(())
                 })?;
 
                 p.rule::<(i32, i32)>("max", &|h, b, (max, n)| {
                     h.bind((("n", max),))?;
-
-                    b.max(max, n, "num", (("n", n),))?;
+                    b.group_by(max, "num", (("n", n),), math::max(n))?;
 
                     Ok(())
                 })?;
@@ -681,9 +768,7 @@ mod tests {
                 p.rule::<(i32, i32, i32)>("product", &|h, b, (x, y, z)| {
                     h.bind((("z", z),))?;
 
-                    b.fold(z, (x, y), "pair", (("x", x), ("y", y)), 0, |acc, (x, y)| {
-                        acc + x * y
-                    })?;
+                    b.group_by(z, "pair", (("x", x), ("y", y)), product(x, y))?;
 
                     Ok(())
                 })?;
@@ -723,9 +808,7 @@ mod tests {
                     h.bind((("x", x), ("y", y), ("z", z)))?;
 
                     b.search("pair", (("x", x), ("y", y)))?;
-                    b.fold(z, (x, y), "pair", (("x", x), ("y", y)), 0, |_, (x, y)| {
-                        x * y
-                    })?;
+                    b.group_by(z, "pair", (("x", x), ("y", y)), product(x, y))?;
 
                     Ok(())
                 })?;
@@ -805,5 +888,33 @@ mod tests {
                 ]
             )]
         );
+    }
+
+    #[derive(Debug)]
+    #[allow(unreachable_pub)]
+    pub struct Product<T: RhizomeType + AddAssign + WrappingMul + Zero>(T);
+
+    impl<T: RhizomeType + AddAssign + WrappingMul + Zero> Default for Product<T> {
+        fn default() -> Self {
+            Self(Zero::zero())
+        }
+    }
+
+    impl<T: RhizomeType + AddAssign + WrappingMul + Zero> Aggregate for Product<T> {
+        type Input = (T, T);
+        type Output = T;
+
+        fn step(&mut self, (a, b): (T, T)) {
+            self.0 += a * b;
+        }
+
+        fn finalize(&self) -> Option<Self::Output> {
+            Some(self.0.clone())
+        }
+    }
+
+    rhizome_fn! {
+        #[aggregate = Product]
+        fn product<T: RhizomeType + AddAssign + WrappingMul + Zero>(a: T, b: T) -> T;
     }
 }

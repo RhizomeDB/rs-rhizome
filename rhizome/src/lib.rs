@@ -13,6 +13,7 @@ pub(crate) mod logic;
 pub(crate) mod ram;
 pub(crate) mod relation;
 
+pub mod aggregation;
 pub mod error;
 pub mod fact;
 pub mod kernel;
@@ -24,9 +25,13 @@ pub mod types;
 pub mod value;
 pub mod var;
 
-pub use logic::{build, ProgramBuilder, RuleVars};
+pub use logic::{
+    build, AtomBinding, AtomBindings, ProgramBuilder, RuleBodyBuilder, RuleVars, TypedVars,
+};
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test_utils")))]
 pub mod test_utils;
+
+extern crate self as rhizome;

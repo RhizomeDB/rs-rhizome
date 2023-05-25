@@ -800,8 +800,7 @@ where
 
             Ok(Operation::Aggregation(Aggregation::new(
                 args,
-                inner.init().clone(),
-                inner.f(),
+                inner.agg(),
                 *inner.target(),
                 group_by_cols,
                 inner.relation().id(),

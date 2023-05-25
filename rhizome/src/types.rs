@@ -1,6 +1,7 @@
 use std::{
     fmt::{self, Display},
     mem,
+    sync::Arc,
 };
 
 use crate::{
@@ -20,9 +21,9 @@ pub enum ColType {
 impl ColType {
     pub fn new<T>() -> Self
     where
-        ColType: FromType<T>,
+        T: IntoColType,
     {
-        FromType::<T>::from_type()
+        T::into_col_type()
     }
 
     pub fn downcast(&self, downcast_to: &Type) -> Option<Type> {
@@ -61,96 +62,91 @@ impl ColType {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Any {}
 
-pub trait FromType<T> {
-    fn from_type() -> Self;
+pub trait IntoColType {
+    fn into_col_type() -> ColType;
 }
 
-impl<T> FromType<T> for ColType
-where
-    Type: FromType<T>,
-{
-    fn from_type() -> Self {
-        let t = FromType::<T>::from_type();
-
-        Self::Type(t)
+impl IntoColType for Any {
+    fn into_col_type() -> ColType {
+        ColType::Any
     }
 }
 
-impl FromType<Any> for ColType {
-    fn from_type() -> Self {
-        Self::Any
+impl IntoColType for bool {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::Bool)
     }
 }
 
-impl FromType<bool> for Type {
-    fn from_type() -> Self {
-        Self::Bool
+impl IntoColType for i8 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::S8)
     }
 }
 
-impl FromType<i8> for Type {
-    fn from_type() -> Self {
-        Self::S8
+impl IntoColType for u8 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::U8)
     }
 }
 
-impl FromType<u8> for Type {
-    fn from_type() -> Self {
-        Self::U8
+impl IntoColType for i16 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::S16)
     }
 }
 
-impl FromType<i16> for Type {
-    fn from_type() -> Self {
-        Self::S16
+impl IntoColType for u16 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::U16)
     }
 }
 
-impl FromType<u16> for Type {
-    fn from_type() -> Self {
-        Self::U16
+impl IntoColType for i32 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::S32)
     }
 }
 
-impl FromType<i32> for Type {
-    fn from_type() -> Self {
-        Self::S32
+impl IntoColType for u32 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::U32)
     }
 }
 
-impl FromType<u32> for Type {
-    fn from_type() -> Self {
-        Self::U32
+impl IntoColType for i64 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::S64)
     }
 }
 
-impl FromType<i64> for Type {
-    fn from_type() -> Self {
-        Self::S64
+impl IntoColType for u64 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::U64)
     }
 }
 
-impl FromType<u64> for Type {
-    fn from_type() -> Self {
-        Self::U64
+impl IntoColType for char {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::Char)
     }
 }
 
-impl FromType<char> for Type {
-    fn from_type() -> Self {
-        Self::Char
+impl IntoColType for &str {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::String)
     }
 }
 
-impl FromType<&str> for Type {
-    fn from_type() -> Self {
-        Self::String
+impl IntoColType for Arc<str> {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::String)
     }
 }
 
-impl FromType<Cid> for Type {
-    fn from_type() -> Self {
-        Self::Cid
+impl IntoColType for Cid {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::Cid)
     }
 }
 
@@ -177,17 +173,9 @@ pub enum Type {
     Char,
     String,
     Cid,
-    Js,
 }
 
 impl Type {
-    pub fn new<T>() -> Self
-    where
-        Self: FromType<T>,
-    {
-        FromType::<T>::from_type()
-    }
-
     pub fn check(&self, value: &Val) -> Result<()> {
         let other = &value.type_of();
 
@@ -222,9 +210,23 @@ impl Display for Type {
             Type::Char => "char",
             Type::String => "string",
             Type::Cid => "CID",
-            Type::Js => "Js",
         };
 
         f.write_str(s)
     }
 }
+
+pub trait RhizomeType: Clone + IntoColType + 'static {}
+
+impl RhizomeType for bool {}
+impl RhizomeType for i8 {}
+impl RhizomeType for u8 {}
+impl RhizomeType for i16 {}
+impl RhizomeType for u16 {}
+impl RhizomeType for i32 {}
+impl RhizomeType for u32 {}
+impl RhizomeType for i64 {}
+impl RhizomeType for u64 {}
+impl RhizomeType for char {}
+impl RhizomeType for Arc<str> {}
+impl RhizomeType for Cid {}

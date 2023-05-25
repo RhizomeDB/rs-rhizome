@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     id::VarId,
-    types::{ColType, FromType},
+    types::{ColType, IntoColType},
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -17,10 +17,10 @@ pub struct Var {
 impl Var {
     pub fn new<T>(id: &str) -> Self
     where
-        ColType: FromType<T>,
+        T: IntoColType,
     {
         let id = VarId::new(id);
-        let typ = FromType::<T>::from_type();
+        let typ = T::into_col_type();
 
         Self { id, typ }
     }
@@ -36,7 +36,7 @@ impl Var {
 
 impl<T> From<TypedVar<T>> for Var
 where
-    ColType: FromType<T>,
+    T: IntoColType,
 {
     fn from(value: TypedVar<T>) -> Self {
         Self::new::<T>(value.id().to_string().as_ref())
@@ -58,11 +58,11 @@ pub struct TypedVar<T> {
 
 impl<T> TypedVar<T>
 where
-    ColType: FromType<T>,
+    T: IntoColType,
 {
     pub fn new(id: &str) -> Self {
         let id = VarId::new(id);
-        let typ = FromType::<T>::from_type();
+        let typ = T::into_col_type();
 
         Self {
             id,
@@ -84,7 +84,10 @@ where
     }
 }
 
-impl<T> Display for TypedVar<T> {
+impl<T> Display for TypedVar<T>
+where
+    T: IntoColType,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("({} : {})", self.id, self.typ))
     }

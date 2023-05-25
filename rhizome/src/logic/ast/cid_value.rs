@@ -2,7 +2,7 @@ use cid::Cid;
 use derive_more::{IsVariant, TryInto};
 
 use crate::{
-    types::{ColType, FromType},
+    types::{ColType, IntoColType},
     var::{TypedVar, Var},
 };
 
@@ -20,7 +20,7 @@ impl From<Cid> for CidValue {
 
 impl<T> From<TypedVar<T>> for CidValue
 where
-    ColType: FromType<T>,
+    T: IntoColType,
 {
     fn from(value: TypedVar<T>) -> Self {
         let var = if let ColType::Any = value.typ() {

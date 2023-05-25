@@ -1,23 +1,22 @@
 use anyhow::Result;
-use num_traits::{One, Zero};
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, ops::Add, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc, sync::Arc};
 
 use crate::{
+    aggregation::{AggAcc, AggArgs, AggregateGroupBy, AggregateWrapper},
     error::{error, Error},
     id::{LinkId, VarId},
-    kernel,
     logic::{
         ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
-        AggregationClosure, VarClosure,
+        VarClosure,
     },
-    types::{ColType, FromType, Type},
-    value::Val,
+    types::{ColType, Type},
     var::{TypedVar, Var},
+    TypedVars,
 };
 
 use super::{
     aggregation::AggregationBuilder, atom_bindings::AtomBindings, negation::NegationBuilder,
-    rel_predicate::RelPredicateBuilder, typed_vars_tuple::TypedVars,
+    rel_predicate::RelPredicateBuilder,
 };
 
 type RelPredicates = Vec<(String, RelPredicateBuilder)>;
@@ -249,141 +248,28 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn fold<Target, Vars, Args, F>(
+    pub fn group_by<GroupBy, Agg, Args, Output>(
         &self,
-        target: TypedVar<Target>,
-        vars: Vars,
+        target: TypedVar<Output>,
         id: &str,
-        args: Args,
-        init: Target,
-        f: F,
+        group_by: GroupBy,
+        agg: Agg,
     ) -> Result<()>
     where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val>,
-        Type: FromType<Target>,
-        Vars: TypedVars + Send + Sync + 'static,
-        Args: AtomBindings,
-        F: Fn(Target, Vars::Args) -> Target + Send + Sync + 'static,
+        GroupBy: AtomBindings,
+        Agg: AggregateGroupBy<Args, Output>,
+        Args: AggArgs,
+        Output: AggAcc,
+        Agg::Aggregate: AggregateWrapper + 'static,
     {
-        self.do_fold(target, vars, id, args, Some(init), f)
-    }
+        let wrapper = Arc::new(Agg::Aggregate::default());
+        let mut builder = AggregationBuilder::new(target.into(), wrapper);
 
-    pub fn reduce<Target, Vars, Args, F>(
-        &self,
-        target: TypedVar<Target>,
-        vars: Vars,
-        id: &str,
-        args: Args,
-        f: F,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val>,
-        Type: FromType<Target>,
-        Vars: TypedVars + Send + Sync + 'static,
-        Args: AtomBindings,
-        F: Fn(Target, Vars::Args) -> Target + Send + Sync + 'static,
-    {
-        self.do_fold(target, vars, id, args, None, f)
-    }
-
-    // TODO: Find a good way of dynamically registering these
-    // https://github.com/RhizomeDB/rs-rhizome/issues/39
-    pub fn count<Target, Args>(&self, target: TypedVar<Target>, id: &str, args: Args) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Add + One + Zero + 'static,
-        Type: FromType<Target>,
-        Args: AtomBindings,
-    {
-        self.fold(target, (), id, args, Zero::zero(), kernel::math::count)
-    }
-
-    pub fn sum<Target, Vars, Args>(
-        &self,
-        target: TypedVar<Target>,
-        var: Vars,
-        id: &str,
-        args: Args,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Add + Zero + 'static,
-        Type: FromType<Target>,
-        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
-        Args: AtomBindings,
-    {
-        self.fold(target, var, id, args, Zero::zero(), kernel::math::sum)
-    }
-
-    pub fn min<Target, Vars, Args>(
-        &self,
-        target: TypedVar<Target>,
-        var: Vars,
-        id: &str,
-        args: Args,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Ord + 'static,
-        Type: FromType<Target>,
-        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
-        Args: AtomBindings,
-    {
-        self.reduce(target, var, id, args, kernel::math::min)
-    }
-
-    pub fn max<Target, Vars, Args>(
-        &self,
-        target: TypedVar<Target>,
-        var: Vars,
-        id: &str,
-        args: Args,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val> + Ord + 'static,
-        Type: FromType<Target>,
-        Vars: TypedVars<Args = Target> + Send + Sync + 'static,
-        Args: AtomBindings,
-    {
-        self.reduce(target, var, id, args, kernel::math::max)
-    }
-
-    fn do_fold<Target, Vars, Args, F>(
-        &self,
-        target: TypedVar<Target>,
-        vars: Vars,
-        id: &str,
-        args: Args,
-        init: Option<Target>,
-        f: F,
-    ) -> Result<()>
-    where
-        Val: TryInto<Target, Error = ()>,
-        Target: Into<Val>,
-        Type: FromType<Target>,
-        Vars: TypedVars + Send + Sync + 'static,
-        Args: AtomBindings,
-        F: Fn(Target, Vars::Args) -> Target + Send + Sync + 'static,
-    {
-        let vars_vec = vars.vars();
-
-        let f: Arc<dyn AggregationClosure> = Arc::new(move |acc, bindings| {
-            let acc = acc.try_into()?;
-            let vals = vars.args(bindings)?;
-
-            Ok(f(acc, vals).into())
-        });
-
-        let mut builder = AggregationBuilder::new(init.map(Into::into), target.into(), f);
-
-        for var in vars_vec {
+        for var in agg.as_args() {
             builder.vars.push(var);
         }
 
-        args.bind(&mut builder.bindings);
+        group_by.bind(&mut builder.bindings);
 
         self.aggregations
             .borrow_mut()
