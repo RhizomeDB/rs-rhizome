@@ -6,7 +6,10 @@ use crate::{
     relation::Relation,
 };
 
-pub use self::{program::ProgramBuilder, rule_vars::RuleVars};
+pub use self::{
+    atom_binding::AtomBinding, atom_bindings::AtomBindings, program::ProgramBuilder,
+    rule_body::RuleBodyBuilder, rule_vars::RuleVars, typed_vars::TypedVars,
+};
 
 use super::lower_to_ram;
 
@@ -21,7 +24,7 @@ mod rel_predicate;
 mod rule_body;
 mod rule_head;
 mod rule_vars;
-mod typed_vars_tuple;
+mod typed_vars;
 
 pub fn build<E, I, ER, IR, F>(f: F) -> Result<Program<E, I, ER, IR>>
 where
@@ -39,16 +42,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::cmp;
+
+    use std::{cmp, ops::AddAssign};
 
     use anyhow::Result;
     use cid::Cid;
+    use num_traits::Zero;
+    use rhizome_macro::rhizome_fn;
 
     use crate::{
+        aggregation::Aggregate,
         assert_compile, assert_compile_err,
         col_val::ColVal,
         error::Error,
-        types::{Any, ColType, Type},
+        kernel::math,
+        types::{Any, ColType, RhizomeType, Type},
         value::Val,
         var::{TypedVar, Var},
     };
@@ -1338,7 +1346,7 @@ mod tests {
             p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
                 h.bind((("n", sum),))?;
 
-                b.fold(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.group_by(sum, "num", (("n", n),), math::sum(n))?;
 
                 Ok(())
             })?;
@@ -1356,14 +1364,7 @@ mod tests {
             p.rule::<(i32, i32, i32)>("minSum", &|h, b, (sum, x, y)| {
                 h.bind((("n", sum),))?;
 
-                b.fold(
-                    sum,
-                    (x, y),
-                    "pair",
-                    (("x", x), ("y", y)),
-                    0,
-                    |acc, (x, y)| acc + cmp::min(x, y),
-                )?;
+                b.group_by(sum, "pair", (("x", x), ("y", y)), sum_of_min(x, y))?;
 
                 Ok(())
             })?;
@@ -1395,13 +1396,11 @@ mod tests {
                 h.bind((("category", category), ("stock", category_stock)))?;
 
                 b.search("product", (("category", category),))?;
-                b.fold(
+                b.group_by(
                     category_stock,
-                    (product_stock,),
                     "product",
                     (("category", category), ("stock", product_stock)),
-                    0,
-                    |acc, (x,)| acc + x,
+                    math::sum(product_stock),
                 )?;
 
                 Ok(())
@@ -1422,9 +1421,7 @@ mod tests {
                 p.rule::<(i32, i32, i32)>("ySum", &|h, b, (sum, x, y)| {
                     h.bind((("x", x), ("y", sum)))?;
 
-                    b.fold(sum, (y,), "pair", (("x", x), ("y", y)), 0, |acc, (y,)| {
-                        acc + y
-                    })?;
+                    b.group_by(sum, "pair", (("x", x), ("y", y)), math::sum(y))?;
 
                     Ok(())
                 })?;
@@ -1444,7 +1441,7 @@ mod tests {
                 h.bind((("n", sum),))?;
 
                 b.search("num", (("n", sum),))?;
-                b.fold(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.group_by(sum, "num", (("n", n),), math::sum(n))?;
 
                 Ok(())
             })?;
@@ -1462,7 +1459,7 @@ mod tests {
             p.rule::<(i32,)>("sum", &|h, b, (n,)| {
                 h.bind((("n", n),))?;
 
-                b.fold(n, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.group_by(n, "num", (("n", n),), math::sum(n))?;
 
                 Ok(())
             })?;
@@ -1505,7 +1502,7 @@ mod tests {
 
             p.rule::<[i32; 2]>("sum", &|h, b, [sum, n]| {
                 h.bind((("n", sum),))?;
-                b.fold(sum, (n,), "num", (("n", n),), 0, |acc, (x,)| acc + x)?;
+                b.group_by(sum, "num", (("n", n),), math::sum(n))?;
 
                 Ok(())
             })?;
@@ -1574,5 +1571,33 @@ mod tests {
 
             Ok(p)
         });
+    }
+
+    #[derive(Debug)]
+    #[allow(unreachable_pub)]
+    pub struct SumOfMin<T: RhizomeType + AddAssign + Ord + Zero>(T);
+
+    impl<T: RhizomeType + AddAssign + Ord + Zero> Default for SumOfMin<T> {
+        fn default() -> Self {
+            Self(Zero::zero())
+        }
+    }
+
+    impl<T: RhizomeType + AddAssign + Ord + Zero> Aggregate for SumOfMin<T> {
+        type Input = (T, T);
+        type Output = T;
+
+        fn step(&mut self, (a, b): (T, T)) {
+            self.0 += cmp::min(a, b);
+        }
+
+        fn finalize(&self) -> Option<Self::Output> {
+            Some(self.0.clone())
+        }
+    }
+
+    rhizome_fn! {
+        #[aggregate = SumOfMin]
+        fn sum_of_min<T: RhizomeType + AddAssign + Ord + Zero>(a: T, b: T) -> T;
     }
 }

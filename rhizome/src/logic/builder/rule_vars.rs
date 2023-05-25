@@ -1,7 +1,4 @@
-use crate::{
-    types::{ColType, FromType, Type},
-    var::TypedVar,
-};
+use crate::{types::IntoColType, var::TypedVar};
 
 pub trait RuleVars {
     type Vars;
@@ -11,7 +8,7 @@ pub trait RuleVars {
 
 impl<V0> RuleVars for V0
 where
-    Type: FromType<V0>,
+    V0: IntoColType,
 {
     type Vars = TypedVar<V0>;
 
@@ -25,7 +22,7 @@ macro_rules! impl_rule_vars_for_array {
         paste::item! {
             impl<T> RuleVars for [T; $n]
             where
-            ColType: FromType<T>,
+                T: IntoColType,
             {
                 type Vars = [TypedVar<T>; $n];
 
@@ -44,7 +41,7 @@ macro_rules! impl_rule_vars_for_tuple {
         paste::item! {
             impl<$([< V $Vs >],)*> RuleVars for ($([< V $Vs >],)*)
             where
-            $(Type: FromType<[< V $Vs >]>,)*
+                $([< V $Vs >]: IntoColType,)*
             {
                 type Vars = ($(TypedVar<[< V $Vs >]>,)*);
 

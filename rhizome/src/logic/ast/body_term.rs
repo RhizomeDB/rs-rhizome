@@ -7,10 +7,10 @@ use std::{
 use anyhow::Result;
 
 use crate::{
+    aggregation::AggregateWrapper,
     error::Error,
     id::{ColId, LinkId, VarId},
-    logic::{AggregationClosure, VarClosure},
-    value::Val,
+    logic::VarClosure,
     var::Var,
 };
 
@@ -217,28 +217,25 @@ impl Debug for VarPredicate {
 pub struct Aggregation {
     target: Var,
     vars: Vec<Var>,
-    init: Option<Val>,
     relation: Arc<Declaration>,
     group_by_cols: HashMap<ColId, ColVal>,
-    f: Arc<dyn AggregationClosure>,
+    agg: Arc<dyn AggregateWrapper>,
 }
 
 impl Aggregation {
     pub fn new(
         target: Var,
         vars: Vec<Var>,
-        init: Option<Val>,
         relation: Arc<Declaration>,
         group_by_cols: HashMap<ColId, ColVal>,
-        f: Arc<dyn AggregationClosure>,
+        f: Arc<dyn AggregateWrapper>,
     ) -> Self {
         Self {
             target,
             vars,
-            init,
             relation,
             group_by_cols,
-            f,
+            agg: f,
         }
     }
 
@@ -250,10 +247,6 @@ impl Aggregation {
         &self.vars
     }
 
-    pub fn init(&self) -> &Option<Val> {
-        &self.init
-    }
-
     pub fn relation(&self) -> Arc<Declaration> {
         Arc::clone(&self.relation)
     }
@@ -262,8 +255,8 @@ impl Aggregation {
         &self.group_by_cols
     }
 
-    pub fn f(&self) -> Arc<dyn AggregationClosure> {
-        Arc::clone(&self.f)
+    pub fn agg(&self) -> Arc<dyn AggregateWrapper> {
+        Arc::clone(&self.agg)
     }
 
     pub fn bound_vars(&self, bindings: &HashSet<VarId>) -> HashSet<VarId> {

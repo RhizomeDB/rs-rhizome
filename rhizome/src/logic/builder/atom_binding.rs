@@ -1,10 +1,4 @@
-use crate::{
-    col_val::ColVal,
-    id::ColId,
-    types::{ColType, FromType},
-    value::Val,
-    var::TypedVar,
-};
+use crate::{col_val::ColVal, id::ColId, types::IntoColType, value::Val, var::TypedVar};
 
 pub trait AtomBinding {
     fn into_pair(self) -> (ColId, ColVal);
@@ -13,7 +7,7 @@ pub trait AtomBinding {
 impl<C, T> AtomBinding for (C, TypedVar<T>)
 where
     C: Into<ColId>,
-    ColType: FromType<T>,
+    T: IntoColType,
 {
     fn into_pair(self) -> (ColId, ColVal) {
         (self.0.into(), ColVal::Binding(self.1.into()))

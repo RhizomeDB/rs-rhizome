@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::{
-    types::{FromType, Type},
+    types::IntoColType,
     value::Val,
     var::{TypedVar, Var},
 };
@@ -27,8 +27,7 @@ impl TypedVars for () {
 
 impl<V> TypedVars for TypedVar<V>
 where
-    Type: FromType<V>,
-    V: TryFrom<Val, Error = ()>,
+    V: IntoColType + TryFrom<Val, Error = ()>,
 {
     type Args = V;
 
@@ -41,14 +40,13 @@ where
     }
 }
 
-macro_rules! impl_typed_vars_tuple {
+macro_rules! impl_typed_vars {
     ($($Ts:expr),*) => {
         paste::item! {
             impl<$([< V $Ts >],)*> TypedVars for ($(TypedVar<[< V $Ts >]>,)*)
             where
                 $(
-                    Type: FromType<[< V $Ts >]>,
-                    [< V $Ts >]: TryFrom<Val, Error = ()>,
+                    [< V $Ts >]: IntoColType + TryFrom<Val, Error = ()>,
                 )*
             {
                 type Args = ($([< V $Ts >],)*);
@@ -71,11 +69,11 @@ macro_rules! impl_typed_vars_tuple {
     };
 }
 
-impl_typed_vars_tuple!(0);
-impl_typed_vars_tuple!(0, 1);
-impl_typed_vars_tuple!(0, 1, 2);
-impl_typed_vars_tuple!(0, 1, 2, 3);
-impl_typed_vars_tuple!(0, 1, 2, 3, 4);
-impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5);
-impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5, 6);
-impl_typed_vars_tuple!(0, 1, 2, 3, 4, 5, 6, 7);
+impl_typed_vars!(0);
+impl_typed_vars!(0, 1);
+impl_typed_vars!(0, 1, 2);
+impl_typed_vars!(0, 1, 2, 3);
+impl_typed_vars!(0, 1, 2, 3, 4);
+impl_typed_vars!(0, 1, 2, 3, 4, 5);
+impl_typed_vars!(0, 1, 2, 3, 4, 5, 6);
+impl_typed_vars!(0, 1, 2, 3, 4, 5, 6, 7);

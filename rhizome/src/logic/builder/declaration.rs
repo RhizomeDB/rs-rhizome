@@ -7,7 +7,7 @@ use crate::{
     id::{ColId, RelationId},
     logic::ast::{Declaration, Schema},
     relation::Source,
-    types::{ColType, FromType},
+    types::{ColType, IntoColType},
 };
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ impl DeclarationBuilder {
 
     pub fn column<C>(mut self, id: &str) -> Self
     where
-        ColType: FromType<C>,
+        C: IntoColType,
     {
         let id = ColId::new(id);
         let t = ColType::new::<C>();

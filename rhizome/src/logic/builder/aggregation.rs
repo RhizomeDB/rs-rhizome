@@ -5,29 +5,25 @@ use crate::{
     col_val::ColVal,
     error::{error, Error},
     id::{ColId, VarId},
-    logic::{
-        ast::{Aggregation, Declaration},
-        AggregationClosure,
-    },
+    logic::ast::{Aggregation, Declaration},
     types::ColType,
-    value::Val,
     var::Var,
 };
 
+use crate::aggregation::AggregateWrapper;
+
 pub(crate) struct AggregationBuilder {
-    pub(super) init: Option<Val>,
     pub(super) target: Var,
     pub(super) vars: Vec<Var>,
     pub(super) bindings: Vec<(ColId, ColVal)>,
-    pub(super) f: Arc<dyn AggregationClosure>,
+    pub(super) agg: Arc<dyn AggregateWrapper>,
 }
 
 impl AggregationBuilder {
-    pub(crate) fn new(init: Option<Val>, target: Var, f: Arc<dyn AggregationClosure>) -> Self {
+    pub(crate) fn new(target: Var, f: Arc<dyn AggregateWrapper>) -> Self {
         Self {
-            init,
             target,
-            f,
+            agg: f,
             vars: Vec::default(),
             bindings: Vec::default(),
         }
@@ -87,8 +83,7 @@ impl AggregationBuilder {
             cols.insert(col_id, col_val);
         }
 
-        let aggregation =
-            Aggregation::new(self.target, self.vars, self.init, relation, cols, self.f);
+        let aggregation = Aggregation::new(self.target, self.vars, relation, cols, self.agg);
 
         Ok(aggregation)
     }

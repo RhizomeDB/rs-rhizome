@@ -8,10 +8,10 @@ use std::{
 use pretty::RcDoc;
 
 use crate::{
+    aggregation::AggregateWrapper,
     error::{error, Error},
     fact::traits::{EDBFact, Fact, IDBFact},
     id::{ColId, RelationId},
-    logic::AggregationClosure,
     pretty::Pretty,
     ram::{AliasId, BindingKey, Bindings, Formula, Term},
     relation::Relation,
@@ -42,8 +42,7 @@ where
     IR: Relation<Fact = IF>,
 {
     args: Vec<Term>,
-    init: Option<Val>,
-    f: Arc<dyn AggregationClosure>,
+    agg: Arc<dyn AggregateWrapper>,
     group_by_cols: HashMap<ColId, Term>,
     target: Var,
     id: RelationId,
@@ -64,8 +63,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         args: Vec<Term>,
-        init: Option<Val>,
-        f: Arc<dyn AggregationClosure>,
+        f: Arc<dyn AggregateWrapper>,
         target: Var,
         group_by_cols: HashMap<ColId, Term>,
         id: RelationId,
@@ -78,8 +76,7 @@ where
 
         Self {
             args,
-            init,
-            f,
+            agg: f,
             target,
             group_by_cols,
             id,
@@ -135,54 +132,8 @@ where
             ))
         })?;
 
-        let mut fact_iter = relation.search(group_by_vals).peekable();
-
-        if fact_iter.peek().is_none() {
-            return Ok(None);
-        }
-
-        let mut result = if let Some(init) = self.init.clone() {
-            init
-        } else if self.args.len() == 1 {
-            // Safe because of the self.args.len() == 1 check above
-            let init_term = unsafe { self.args.get_unchecked(0) };
-
-            // Progress the iterator becaues we will use the first fact
-            // to compute the initial accumulator.
-            if let Some(fact) = fact_iter.next() {
-                let mut match_bindings = bindings.clone();
-
-                for k in fact.cols() {
-                    let fact_val = fact.col(&k).ok_or_else(|| {
-                        Error::InternalRhizomeError("expected column not found".to_owned())
-                    })?;
-
-                    match_bindings.insert(
-                        BindingKey::Relation(self.id, self.alias, k),
-                        fact_val.clone(),
-                    );
-                }
-
-                match_bindings
-                    .resolve::<BS, EF>(init_term, blockstore)?
-                    .ok_or_else(|| {
-                        Error::InternalRhizomeError(
-                            "argument to aggregation failed to resolve".to_owned(),
-                        )
-                    })?
-            } else {
-                return error(Error::InternalRhizomeError(
-                    "expected non-empty match results".to_owned(),
-                ));
-            }
-        } else {
-            return error(Error::InternalRhizomeError(format!(
-                "expected a single aggregation binding, given: {}",
-                self.args.len()
-            )));
-        };
-
-        for fact in fact_iter {
+        let mut result = self.agg.init();
+        for fact in relation.search(group_by_vals) {
             let mut match_bindings = bindings.clone();
 
             for k in fact.cols() {
@@ -209,21 +160,17 @@ where
                 args.push(resolved);
             }
 
-            result = self.do_aggregation(result, args)?;
+            result.step(args);
         }
 
-        let mut next_bindings = bindings.clone();
-        next_bindings.insert(BindingKey::Agg(self.id, self.alias, self.target), result);
+        if let Some(result) = result.finalize() {
+            let mut next_bindings = bindings.clone();
+            next_bindings.insert(BindingKey::Agg(self.id, self.alias, self.target), result);
 
-        Ok(Some(next_bindings))
-    }
-
-    fn do_aggregation(&self, acc: Val, args: Vec<Val>) -> Result<Val> {
-        (self.f)(acc, args).or_else(|_| {
-            error(Error::InternalRhizomeError(
-                "failed to apply aggregation".to_owned(),
-            ))
-        })
+            Ok(Some(next_bindings))
+        } else {
+            Ok(None)
+        }
     }
 }
 
