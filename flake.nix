@@ -60,6 +60,7 @@
           direnv
           self.packages.${system}.irust
           chromedriver # For rhizome-wasm browser tests
+          binaryen
         ] ++ format-pkgs ++ cargo-installs;
 
       shellHook = ''
