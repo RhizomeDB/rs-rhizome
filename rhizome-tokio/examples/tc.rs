@@ -1,10 +1,6 @@
 use anyhow::Result;
 use futures::{sink::unfold, StreamExt};
-use rhizome::{
-    fact::{btree_fact::BTreeFact, traits::EDBFact},
-    runtime::client::Client,
-    types::Any,
-};
+use rhizome::{fact::traits::EDBFact, runtime::client::Client, types::Any};
 use tokio::spawn;
 
 #[tokio::main]
@@ -49,6 +45,7 @@ async fn main() -> Result<()> {
                 Ok(p)
             })
             .await
+            .unwrap()
     });
 
     spawn(async move {
@@ -61,7 +58,7 @@ async fn main() -> Result<()> {
         .register_sink(
             "path",
             Box::new(|| {
-                Box::new(unfold((), move |(), fact: BTreeFact| async move {
+                Box::new(unfold((), move |(), fact| async move {
                     println!("{fact}");
 
                     Ok(())

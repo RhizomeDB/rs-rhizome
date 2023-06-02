@@ -49,8 +49,6 @@ pub enum Error {
     AggregationUnboundGroupBy(VarId, ColId, RelationId),
     #[error("Attempted to aggregate into a bound variable {0}")]
     AggregationBoundTarget(VarId),
-    #[error("Attempted to group by the target var {0}")]
-    AggregationGroupByTarget(VarId),
     #[error("Attempted to bind to CID of IDB relation {0}")]
     ContentAddressedIDB(RelationId),
 }

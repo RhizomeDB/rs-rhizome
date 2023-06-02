@@ -65,10 +65,6 @@ impl AggregationBuilder {
                     }
                 }
                 ColVal::Binding(var) => {
-                    if *var == self.target {
-                        return error(Error::AggregationGroupByTarget(var.id()));
-                    }
-
                     if col.col_type().unify(&var.typ()).is_err() {
                         return error(Error::ColumnValueTypeConflict(
                             relation.id(),
