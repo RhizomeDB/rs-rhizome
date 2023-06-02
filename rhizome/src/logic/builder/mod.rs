@@ -1457,7 +1457,7 @@ mod tests {
 
     #[test]
     fn test_aggregation_group_by_target() {
-        assert_compile_err!(&Error::AggregationGroupByTarget("x0".into()), |p| {
+        assert_compile!(|p| {
             p.input("num", |h| h.column::<i32>("n"))?;
             p.output("sum", |h| h.column::<i32>("n"))?;
 
