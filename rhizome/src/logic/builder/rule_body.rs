@@ -2,16 +2,14 @@ use anyhow::Result;
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc, sync::Arc};
 
 use crate::{
-    aggregation::{AggAcc, AggArgs, AggregateGroupBy, AggregateWrapper},
+    aggregation::{AggAcc, AggregateGroupBy, AggregateWrapper},
+    args::Args,
     error::{error, Error},
     id::{LinkId, VarId},
-    logic::{
-        ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
-        VarClosure,
-    },
+    logic::ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
+    predicate::{PredicateWhere, PredicateWrapper},
     types::{ColType, Type},
     var::{TypedVar, Var},
-    TypedVars,
 };
 
 use super::{
@@ -22,7 +20,7 @@ use super::{
 type RelPredicates = Vec<(String, RelPredicateBuilder)>;
 type Negations = Vec<(String, NegationBuilder)>;
 type GetLinks = Vec<(CidValue, LinkId, CidValue)>;
-type VarPredicates = Vec<(Vec<Var>, Arc<dyn VarClosure>)>;
+type VarPredicates = Vec<(Vec<Var>, Arc<dyn PredicateWrapper>)>;
 type Aggregations = Vec<(String, AggregationBuilder)>;
 type Relations = HashMap<String, Arc<Declaration>>;
 
@@ -230,36 +228,32 @@ impl RuleBodyBuilder {
         Ok(())
     }
 
-    pub fn predicate<Vars, F>(&self, vars: Vars, f: F) -> Result<()>
+    pub fn predicate<I, Pred>(&self, pred: Pred) -> Result<()>
     where
-        Vars: TypedVars + Send + Sync + 'static,
-        F: Fn(Vars::Args) -> bool + Send + Sync + 'static,
+        I: Args,
+        Pred: PredicateWhere<I>,
+        Pred::Predicate: PredicateWrapper,
     {
-        let vars_vec = vars.vars();
+        let args = pred.as_args();
+        let wrapper = Arc::new(pred.into_predicate());
 
-        let f: Arc<dyn VarClosure> = Arc::new(move |bindings| {
-            let vals = vars.args(bindings)?;
-
-            Ok(f(vals))
-        });
-
-        self.var_predicates.borrow_mut().push((vars_vec, f));
+        self.var_predicates.borrow_mut().push((args, wrapper));
 
         Ok(())
     }
 
-    pub fn group_by<GroupBy, Agg, Args, Output>(
+    pub fn group_by<GroupBy, Agg, I, O>(
         &self,
-        target: TypedVar<Output>,
+        target: TypedVar<O>,
         id: &str,
         group_by: GroupBy,
         agg: Agg,
     ) -> Result<()>
     where
         GroupBy: AtomBindings,
-        Agg: AggregateGroupBy<Args, Output>,
-        Args: AggArgs,
-        Output: AggAcc,
+        Agg: AggregateGroupBy<I, O>,
+        I: Args,
+        O: AggAcc,
         Agg::Aggregate: AggregateWrapper + 'static,
     {
         let wrapper = Arc::new(Agg::Aggregate::default());

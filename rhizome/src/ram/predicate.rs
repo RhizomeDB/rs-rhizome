@@ -5,23 +5,18 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    error::{error, Error},
-    logic::VarClosure,
-    pretty::Pretty,
-    value::Val,
-};
+use crate::{error::Error, predicate::PredicateWrapper, pretty::Pretty, value::Val};
 
 use super::Term;
 
 #[derive(Clone)]
 pub(crate) struct Predicate {
     args: Vec<Term>,
-    f: Arc<dyn VarClosure>,
+    f: Arc<dyn PredicateWrapper>,
 }
 
 impl Predicate {
-    pub(crate) fn new(args: Vec<Term>, f: Arc<dyn VarClosure>) -> Self {
+    pub(crate) fn new(args: Vec<Term>, f: Arc<dyn PredicateWrapper>) -> Self {
         Self { args, f }
     }
 
@@ -30,11 +25,10 @@ impl Predicate {
     }
 
     pub(crate) fn is_satisfied(&self, args: Vec<Val>) -> Result<bool> {
-        (self.f)(args).or_else(|_| {
-            error(Error::InternalRhizomeError(
-                "failed to apply predicate".to_owned(),
-            ))
-        })
+        Ok(self
+            .f
+            .apply(args)
+            .ok_or_else(|| Error::InternalRhizomeError("failed to apply predicate".to_owned()))?)
     }
 }
 

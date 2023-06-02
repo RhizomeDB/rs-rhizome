@@ -22,7 +22,13 @@ pub(crate) fn expand(input: RhizomeFunctionDecl) -> TokenStream {
         .find(|attr| attr.meta.path().is_ident("aggregate"))
         .cloned();
 
+    let is_predicate = attributes
+        .iter()
+        .find(|attr| attr.meta.path().is_ident("predicate"))
+        .cloned();
+
     attributes.retain(|attr| !attr.meta.path().is_ident("aggregate"));
+    attributes.retain(|attr| !attr.meta.path().is_ident("predicate"));
 
     let (ref arg_name, ref arg_type): (Vec<_>, Vec<_>) =
         args.iter().map(|arg| (&arg.name, &arg.ty)).unzip();
@@ -63,13 +69,13 @@ pub(crate) fn expand(input: RhizomeFunctionDecl) -> TokenStream {
         >;
     };
 
-    if let Some(agg_expr) = is_aggregate {
-        let input_type = if arg_name.is_empty() {
-            quote!((),)
-        } else {
-            quote!((#(#arg_type,)*),)
-        };
+    let input_type = if arg_name.is_empty() {
+        quote!((),)
+    } else {
+        quote!((#(#arg_type,)*),)
+    };
 
+    if let Some(agg_expr) = is_aggregate {
         let agg_expr = agg_expr.meta.require_name_value().unwrap().value.clone();
 
         tokens = quote! {
@@ -91,9 +97,31 @@ pub(crate) fn expand(input: RhizomeFunctionDecl) -> TokenStream {
                 }
             }
         }
-    } else {
+    } else if let Some(pred_expr) = is_predicate {
+        let pred_expr = pred_expr.meta.require_name_value().unwrap().value.clone();
+
         tokens = quote! {
             #tokens
+
+            impl #impl_generics ::rhizome::predicate::PredicateWhere<#input_type> for HelperType #ty_generics
+            #where_clause
+            {
+                type Predicate = #pred_expr<(#(#arg_type,)*)>;
+
+                fn into_predicate(self) -> Self::Predicate {
+                    Self::Predicate::default()
+                }
+
+                fn as_args(&self) -> Vec<Var> {
+                    let mut result = Vec::default();
+
+                    #(
+                        result.push(self.#arg_name);
+                    )*
+
+                    result
+                }
+            }
         }
     }
 

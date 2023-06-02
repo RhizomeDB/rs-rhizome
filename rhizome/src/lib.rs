@@ -14,20 +14,21 @@ pub(crate) mod ram;
 pub(crate) mod relation;
 
 pub mod aggregation;
+pub mod args;
 pub mod error;
 pub mod fact;
 pub mod kernel;
+pub mod predicate;
 pub mod pretty;
 pub mod runtime;
 pub mod storage;
 pub mod timestamp;
+pub mod typed_vars;
 pub mod types;
 pub mod value;
 pub mod var;
 
-pub use logic::{
-    build, AtomBinding, AtomBindings, ProgramBuilder, RuleBodyBuilder, RuleVars, TypedVars,
-};
+pub use logic::{build, AtomBinding, AtomBindings, ProgramBuilder, RuleBodyBuilder, RuleVars};
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
