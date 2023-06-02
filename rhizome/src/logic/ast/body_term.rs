@@ -10,7 +10,7 @@ use crate::{
     aggregation::AggregateWrapper,
     error::Error,
     id::{ColId, LinkId, VarId},
-    logic::VarClosure,
+    predicate::PredicateWrapper,
     var::Var,
 };
 
@@ -184,11 +184,11 @@ impl GetLink {
 #[derive(Clone)]
 pub struct VarPredicate {
     vars: Vec<Var>,
-    f: Arc<dyn VarClosure>,
+    f: Arc<dyn PredicateWrapper>,
 }
 
 impl VarPredicate {
-    pub fn new(vars: Vec<Var>, f: Arc<dyn VarClosure>) -> Self {
+    pub fn new(vars: Vec<Var>, f: Arc<dyn PredicateWrapper>) -> Self {
         Self { vars, f }
     }
 
@@ -196,7 +196,7 @@ impl VarPredicate {
         &self.vars
     }
 
-    pub fn f(&self) -> Arc<dyn VarClosure> {
+    pub fn f(&self) -> Arc<dyn PredicateWrapper> {
         Arc::clone(&self.f)
     }
 

@@ -6,7 +6,7 @@ use pretty::RcDoc;
 use crate::{
     fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId},
-    logic::VarClosure,
+    predicate::PredicateWrapper,
     pretty::Pretty,
     relation::Relation,
 };
@@ -50,7 +50,7 @@ where
         Self::NotIn(NotIn::new(id, version, cols, relation))
     }
 
-    pub(crate) fn predicate(terms: Vec<Term>, f: Arc<dyn VarClosure>) -> Self {
+    pub(crate) fn predicate(terms: Vec<Term>, f: Arc<dyn PredicateWrapper>) -> Self {
         Self::Predicate(Predicate::new(terms, f))
     }
 }

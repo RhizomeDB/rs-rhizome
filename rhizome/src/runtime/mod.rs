@@ -82,7 +82,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::ops::AddAssign;
+    use std::{
+        marker::PhantomData,
+        ops::{Add, AddAssign},
+    };
 
     use anyhow::Result;
     use cid::Cid;
@@ -97,7 +100,8 @@ mod tests {
             evac_fact::EVACFact,
             traits::{Fact, IDBFact},
         },
-        kernel::math,
+        kernel::{self, math},
+        predicate::Predicate,
         types::{Any, RhizomeType},
         value::Val,
     };
@@ -549,7 +553,63 @@ mod tests {
                     b.search("evac", (("value", x),))?;
                     b.search("evac", (("value", y),))?;
                     b.search("evac", (("value", z),))?;
-                    b.predicate((x, y, z), |(x, y, z)| x + y < z)?;
+
+                    b.predicate(is_triangle(x, y, z))?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [
+                EVACFact::new(0, "n", 1, vec![]),
+                EVACFact::new(0, "n", 2, vec![]),
+                EVACFact::new(0, "n", 3, vec![]),
+                EVACFact::new(0, "n", 4, vec![]),
+                EVACFact::new(0, "n", 5, vec![]),
+            ],
+            [(
+                "triangle",
+                [
+                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 3)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 4)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 4)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 1), ("b", 3), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 4)],),
+                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 2), ("b", 2), ("c", 5)],),
+                    BTreeFact::new("triangle", [("a", 3), ("b", 1), ("c", 5)],),
+                ]
+            )]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_user_defined_fun_predicate() -> Result<()> {
+        assert_derives!(
+            |p| {
+                p.input("evac", |h| {
+                    h.column::<Any>("entity")
+                        .column::<Any>("attribute")
+                        .column::<Any>("value")
+                })?;
+
+                p.output("triangle", |h| {
+                    h.column::<i32>("a").column::<i32>("b").column::<i32>("c")
+                })?;
+
+                p.rule::<(i32, i32, i32)>("triangle", &|h, b, (x, y, z)| {
+                    h.bind((("a", x), ("b", y), ("c", z)))?;
+
+                    b.search("evac", (("value", x),))?;
+                    b.search("evac", (("value", y),))?;
+                    b.search("evac", (("value", z),))?;
+
+                    b.predicate(kernel::when((x, y, z), |(x, y, z)| x + y < z))?;
 
                     Ok(())
                 })?;
@@ -916,5 +976,28 @@ mod tests {
     rhizome_fn! {
         #[aggregate = Product]
         fn product<T: RhizomeType + AddAssign + WrappingMul + Zero>(a: T, b: T) -> T;
+    }
+
+    #[derive(Debug)]
+    #[allow(unreachable_pub)]
+    pub struct IsTriangle<T>(PhantomData<T>);
+
+    impl<T> Default for IsTriangle<T> {
+        fn default() -> Self {
+            Self(Default::default())
+        }
+    }
+
+    impl<T: RhizomeType + Add<Output = T> + Ord> Predicate for IsTriangle<(T, T, T)> {
+        type Input = (T, T, T);
+
+        fn apply(&self, (a, b, c): Self::Input) -> Option<bool> {
+            Some(a + b < c)
+        }
+    }
+
+    rhizome_fn! {
+        #[predicate = IsTriangle]
+        fn is_triangle<T: RhizomeType + Add<Output = T> + Ord>(a: T, b: T, z: T) -> T;
     }
 }

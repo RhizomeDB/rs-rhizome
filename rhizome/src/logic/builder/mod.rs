@@ -8,7 +8,7 @@ use crate::{
 
 pub use self::{
     atom_binding::AtomBinding, atom_bindings::AtomBindings, program::ProgramBuilder,
-    rule_body::RuleBodyBuilder, rule_vars::RuleVars, typed_vars::TypedVars,
+    rule_body::RuleBodyBuilder, rule_vars::RuleVars,
 };
 
 use super::lower_to_ram;
@@ -24,7 +24,6 @@ mod rel_predicate;
 mod rule_body;
 mod rule_head;
 mod rule_vars;
-mod typed_vars;
 
 pub fn build<E, I, ER, IR, F>(f: F) -> Result<Program<E, I, ER, IR>>
 where
@@ -43,7 +42,11 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::{cmp, ops::AddAssign};
+    use std::{
+        cmp,
+        marker::PhantomData,
+        ops::{Add, AddAssign},
+    };
 
     use anyhow::Result;
     use cid::Cid;
@@ -56,6 +59,7 @@ mod tests {
         col_val::ColVal,
         error::Error,
         kernel::math,
+        predicate::Predicate,
         types::{Any, ColType, RhizomeType, Type},
         value::Val,
         var::{TypedVar, Var},
@@ -1328,7 +1332,8 @@ mod tests {
                 b.search("num", (("n", x),))?;
                 b.search("num", (("n", y),))?;
                 b.search("num", (("n", z),))?;
-                b.predicate((x, y, z), |(x, y, z)| x + y < z)?;
+
+                b.predicate(is_triangle(x, y, z))?;
 
                 Ok(())
             })?;
@@ -1599,5 +1604,28 @@ mod tests {
     rhizome_fn! {
         #[aggregate = SumOfMin]
         fn sum_of_min<T: RhizomeType + AddAssign + Ord + Zero>(a: T, b: T) -> T;
+    }
+
+    #[derive(Debug)]
+    #[allow(unreachable_pub)]
+    pub struct IsTriangle<T>(PhantomData<T>);
+
+    impl<T> Default for IsTriangle<T> {
+        fn default() -> Self {
+            Self(Default::default())
+        }
+    }
+
+    impl<T: RhizomeType + Add<Output = T> + Ord> Predicate for IsTriangle<(T, T, T)> {
+        type Input = (T, T, T);
+
+        fn apply(&self, (a, b, c): Self::Input) -> Option<bool> {
+            Some(a + b < c)
+        }
+    }
+
+    rhizome_fn! {
+        #[predicate = IsTriangle]
+        fn is_triangle<T: RhizomeType + Add<Output = T> + Ord>(a: T, b: T, z: T) -> T;
     }
 }
