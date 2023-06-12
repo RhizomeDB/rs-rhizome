@@ -109,6 +109,12 @@ impl From<&str> for Val {
     }
 }
 
+impl From<String> for Val {
+    fn from(value: String) -> Self {
+        Self::String(Arc::from(value))
+    }
+}
+
 impl From<Cid> for Val {
     fn from(value: Cid) -> Self {
         Self::Cid(value)
