@@ -1,6 +1,8 @@
 use crate::{types::IntoColType, value::Val};
 
 pub trait Args: Sized + Send + Sync + 'static {
+    // TODO: return an InternalRhizomeError instead of ()
+    #[allow(clippy::result_unit_err)]
     fn instantiate(bindings: Vec<Val>) -> Result<Self, ()>;
 }
 

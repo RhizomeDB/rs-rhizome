@@ -209,7 +209,7 @@ async fn handle_request(
 
                     Response::Set {
                         key,
-                        val: val.into(),
+                        val,
                         previous: Some(previous),
                         cid,
                     }
@@ -222,7 +222,7 @@ async fn handle_request(
 
                     Response::Set {
                         key,
-                        val: val.into(),
+                        val,
                         previous: None,
                         cid,
                     }
