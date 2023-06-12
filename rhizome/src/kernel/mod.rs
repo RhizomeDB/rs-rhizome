@@ -13,7 +13,7 @@ where
     V: TypedVars<Args = I>,
     F: Fn(I) -> bool + Send + Sync + 'static,
 {
-    FnPredicate(f, args, PhantomData::default())
+    FnPredicate(f, args, PhantomData)
 }
 
 pub struct FnPredicate<F, V, I>(F, V, PhantomData<I>)

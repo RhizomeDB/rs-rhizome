@@ -10,6 +10,9 @@ pub trait TypedVars {
     type Args;
 
     fn vars(&self) -> Vec<Var>;
+
+    // TODO: return an InternalRhizomeError instead of ()
+    #[allow(clippy::result_unit_err)]
     fn args(&self, bindings: Vec<Val>) -> Result<Self::Args, ()>;
 }
 
