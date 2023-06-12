@@ -7,7 +7,16 @@ authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
 
 [dev-dependencies]
 rhizome = { path = "../rhizome", version = "0.1" }
+rhizome-tokio = { path = "../rhizome-tokio", version = "0.1" }
+
+tokio = { version = "1.0.0", features = ["full", "tracing"] }
+tokio-util = { version = "0.7.0", features = ["full"] }
+tokio-stream = { version = "0.1" }
+futures = { version = "0.3.0", features = ["thread-pool"]}
+cid = { version = "0.10.0", features = ["serde-codec"] }
+serde = { version = "1.0" }
+serde_json = { version = "1.0" }
 
 [[example]]
-name = "counterparts"
-path = "counterparts.rs"
+name = "kv"
+path = "kv.rs"
