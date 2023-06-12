@@ -11,8 +11,7 @@ use crate::{
 };
 
 pub mod client;
-
-mod reactor;
+pub mod reactor;
 mod vm;
 
 pub type FactStream<F> = Box<dyn Stream<Item = F>>;
