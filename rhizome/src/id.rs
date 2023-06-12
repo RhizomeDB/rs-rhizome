@@ -1,11 +1,18 @@
+use core::fmt::{self, Debug};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, fmt::Display, marker::PhantomData};
 
 use crate::interner::Symbol;
 
-#[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Id<T, U>(Symbol, PhantomData<(T, U)>);
+
+impl<T, U> Debug for Id<T, U> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
 
 impl<T, U> Id<T, U> {
     pub fn new<S: AsRef<str>>(id: S) -> Self {
