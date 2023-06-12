@@ -197,6 +197,6 @@ fn term_depends_on(term: &BodyTerm) -> Vec<Arc<Declaration>> {
         BodyTerm::Negation(inner) => vec![inner.relation()],
         BodyTerm::GetLink(_) => vec![],
         BodyTerm::VarPredicate(_) => vec![],
-        BodyTerm::Aggregation(_) => vec![],
+        BodyTerm::Aggregation(inner) => vec![inner.relation()],
     }
 }
