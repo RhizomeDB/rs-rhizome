@@ -4,6 +4,7 @@ use std::{borrow::Borrow, fmt::Display, marker::PhantomData};
 use crate::interner::Symbol;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Id<T, U>(Symbol, PhantomData<(T, U)>);
 
 impl<T, U> Id<T, U> {
