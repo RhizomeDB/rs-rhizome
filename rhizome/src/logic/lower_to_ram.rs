@@ -392,6 +392,31 @@ where
         if !sinks_builder.relations.is_empty() {
             statements.push(Statement::Sinks(sinks_builder.finalize()));
         }
+
+        // Merge total into delta for subsequent strata
+        // TODO: this seems wrong and will lead to duplicate work across epochs. Will likely need to
+        // use the lattice based timestamps to resolve that.
+        for &relation in stratum.relations() {
+            let from_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let into_relation = Arc::clone(
+                idb.get(&(relation, RelationVersion::Delta))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
+
+            let merge = Merge::new(
+                relation,
+                RelationVersion::Total,
+                relation,
+                RelationVersion::Delta,
+                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
+            );
+
+            statements.push(Statement::Merge(merge));
+        }
     };
 
     Ok(statements)
