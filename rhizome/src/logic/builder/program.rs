@@ -6,6 +6,7 @@ use crate::{
     id::RelationId,
     logic::ast::{Clause, Declaration, Program, Rule},
     relation::Source,
+    types::Any,
 };
 
 use super::{
@@ -27,7 +28,7 @@ impl ProgramBuilder {
     where
         F: FnOnce(Self) -> Result<Self>,
     {
-        let builder = Self::default();
+        let builder = Self::default().install_preamble()?;
         let builder = f(builder)?;
 
         builder.finalize()
@@ -120,5 +121,15 @@ impl ProgramBuilder {
                 Ok(())
             }
         }
+    }
+
+    fn install_preamble(self) -> Result<Self> {
+        self.input("evac", |h| {
+            h.column::<Any>("entity")
+                .column::<Any>("attribute")
+                .column::<Any>("value")
+        })?;
+
+        Ok(self)
     }
 }

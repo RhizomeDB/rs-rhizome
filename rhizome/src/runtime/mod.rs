@@ -101,7 +101,7 @@ mod tests {
         },
         kernel::{self, math},
         predicate::Predicate,
-        types::{Any, RhizomeType},
+        types::RhizomeType,
         value::Val,
     };
 
@@ -159,12 +159,6 @@ mod tests {
     fn test_source_transitive_closure() -> Result<()> {
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
                 p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
@@ -226,12 +220,6 @@ mod tests {
 
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("result", |h| {
                     h.column::<i32>("entity").column::<i32>("value")
                 })?;
@@ -280,12 +268,6 @@ mod tests {
     fn test_negate_idb() -> Result<()> {
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("ignored", |h| h.column::<i32>("entity"))?;
 
                 p.output("result", |h| {
@@ -409,12 +391,6 @@ mod tests {
 
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("parent", |h| {
                     h.column::<i32>("tree")
                         .column::<Cid>("parent")
@@ -505,12 +481,6 @@ mod tests {
 
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("hop", |h| h.column::<Cid>("from").column::<Cid>("to"))?;
 
                 p.rule::<(Cid, Cid, Cid)>("hop", &|h, b, (from, via, to)| {
@@ -536,12 +506,6 @@ mod tests {
     fn test_user_defined_predicate() -> Result<()> {
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("triangle", |h| {
                     h.column::<i32>("a").column::<i32>("b").column::<i32>("c")
                 })?;
@@ -591,12 +555,6 @@ mod tests {
     fn test_user_defined_fun_predicate() -> Result<()> {
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("triangle", |h| {
                     h.column::<i32>("a").column::<i32>("b").column::<i32>("c")
                 })?;
@@ -646,12 +604,6 @@ mod tests {
     fn test_count() -> Result<()> {
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("num", |h| h.column::<i32>("n"))?;
                 p.output("count", |h| h.column::<i32>("n"))?;
 
@@ -688,12 +640,6 @@ mod tests {
     fn test_sum() -> Result<()> {
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("num", |h| h.column::<i32>("n"))?;
                 p.output("sum", |h| h.column::<i32>("n"))?;
 
@@ -730,12 +676,6 @@ mod tests {
     fn test_reduce() -> Result<()> {
         assert_derives!(
             |p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("num", |h| h.column::<i32>("n"))?;
                 p.output("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
 

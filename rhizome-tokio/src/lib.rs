@@ -15,7 +15,6 @@ mod tests {
     use rhizome::{
         fact::traits::{EDBFact, IDBFact},
         runtime::client::Client,
-        types::Any,
     };
 
     #[test]
@@ -28,12 +27,6 @@ mod tests {
         spawn(async move {
             reactor
                 .async_run(|p| {
-                    p.input("evac", |h| {
-                        h.column::<Any>("entity")
-                            .column::<Any>("attribute")
-                            .column::<Any>("value")
-                    })?;
-
                     p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
                     p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 
@@ -63,6 +56,7 @@ mod tests {
                     Ok(p)
                 })
                 .await
+                .unwrap()
         });
 
         spawn(async move {

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use futures::{sink::unfold, StreamExt};
-use rhizome::{fact::traits::EDBFact, runtime::client::Client, types::Any};
+use rhizome::{fact::traits::EDBFact, runtime::client::Client};
 use tokio::spawn;
 
 #[tokio::main]
@@ -10,12 +10,6 @@ async fn main() -> Result<()> {
     spawn(async move {
         reactor
             .async_run(|p| {
-                p.input("evac", |h| {
-                    h.column::<Any>("entity")
-                        .column::<Any>("attribute")
-                        .column::<Any>("value")
-                })?;
-
                 p.output("edge", |h| h.column::<i32>("from").column::<i32>("to"))?;
                 p.output("path", |h| h.column::<i32>("from").column::<i32>("to"))?;
 

@@ -8,7 +8,6 @@ use rhizome::{
     },
     kernel::math,
     runtime::{client::Client, reactor::Reactor},
-    types::Any,
     value::Val,
 };
 use tokio::{
@@ -348,12 +347,6 @@ impl Response {
 async fn run_reactor(reactor: Reactor) {
     reactor
         .async_run(|p| {
-            p.input("evac", |h| {
-                h.column::<Any>("entity")
-                    .column::<Any>("attribute")
-                    .column::<Any>("value")
-            })?;
-
             p.output("create", |h| {
                 h.column::<Cid>("cid")
                     .column::<i32>("key")
