@@ -140,7 +140,6 @@ mod tests {
         let cid = Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")?;
 
         assert_compile!(|p| {
-            p.input("evac", |h| h)?;
             p.output("p", |h| h.column::<Cid>("x"))?;
 
             p.rule::<(Cid,)>("p", &|h, b, (x,)| {
@@ -667,7 +666,6 @@ mod tests {
         assert_compile_err!(
             &Error::VarTypeConflict(Var::new::<i32>("x0"), Type::Cid),
             |p| {
-                p.input("evac", |h| h)?;
                 p.output("p", |h| h.column::<i32>("x"))?;
 
                 p.rule::<(i32, Cid)>("p", &|h, b, (x, y)| {
@@ -689,7 +687,6 @@ mod tests {
         assert_compile_err!(
             &Error::VarTypeConflict(Var::new::<i32>("x0"), Type::Cid),
             |p| {
-                p.input("evac", |h| h)?;
                 p.output("p", |h| h.column::<i32>("x"))?;
 
                 p.rule::<(i32,)>("p", &|h, b, (x,)| {
@@ -1545,7 +1542,6 @@ mod tests {
     #[test]
     fn test_search_cid_edb() {
         assert_compile!(|p| {
-            p.input("evac", |h| h)?;
             p.output("p", |h| h.column::<Cid>("x"))?;
 
             p.rule::<(Cid,)>("p", &|h, b, (x,)| {
