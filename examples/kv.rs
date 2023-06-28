@@ -4,6 +4,7 @@ use rhizome::{
     kernel::math,
     runtime::{client::Client, reactor::Reactor},
     tuple::{InputTuple, Tuple},
+    types::Any,
     value::Val,
 };
 use tokio::{
@@ -191,7 +192,7 @@ async fn handle_request(
 
             match previous {
                 Some((parent, previous)) => {
-                    let fact = InputTuple::new(key.clone(), "update", val.clone(), vec![parent]);
+                    let fact = InputTuple::new("kv", key.clone(), val.clone(), vec![parent]);
                     let cid = fact.cid().unwrap();
 
                     tx.send(fact).await.unwrap();
@@ -204,7 +205,7 @@ async fn handle_request(
                     }
                 }
                 None => {
-                    let fact = InputTuple::new(key.clone(), "create", val.clone(), vec![]);
+                    let fact = InputTuple::new("kv", key.clone(), val.clone(), vec![]);
                     let cid = fact.cid().unwrap();
 
                     tx.send(fact).await.unwrap();
@@ -334,107 +335,106 @@ impl Response {
 async fn run_reactor(reactor: Reactor) {
     reactor
         .async_run(|p| {
-            p.output("create", |h| {
+            p.output("set", |h| {
                 h.column::<Cid>("cid")
-                    .column::<i32>("key")
-                    .column::<i32>("val")
+                    .column::<i32>("store")
+                    .column::<Any>("key")
+                    .column::<Any>("val")
             })?;
 
-            p.output("update", |h| {
+            p.output("root", |h| {
                 h.column::<Cid>("cid")
-                    .column::<Cid>("parent")
-                    .column::<i32>("key")
-                    .column::<i32>("val")
+                    .column::<i32>("store")
+                    .column::<Any>("key")
             })?;
 
-            p.output("selectedWrite", |h| {
-                h.column::<Cid>("cid").column::<i32>("key")
-            })?;
+            p.output("child", |h| h.column::<Cid>("cid").column::<Cid>("parent"))?;
+            p.output("latestSibling", |h| h.column::<Cid>("cid"))?;
 
             p.output("head", |h| {
                 h.column::<Cid>("cid")
-                    .column::<i32>("key")
-                    .column::<i32>("val")
+                    .column::<i32>("store")
+                    .column::<Any>("key")
+                    .column::<Any>("val")
             })?;
 
-            p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, k, v)| {
-                h.bind((("cid", cid), ("key", k), ("val", v)))?;
+            p.rule::<(Cid, i32, Any, Any)>("set", &|h, b, (cid, store, k, v)| {
+                h.bind((("cid", cid), ("store", store), ("key", k), ("val", v)))?;
                 b.search_cid(
                     "evac",
                     cid,
-                    (("entity", k), ("attribute", "create"), ("value", v)),
+                    (("entity", store), ("attribute", k), ("value", v)),
                 )?;
 
                 Ok(())
             })?;
 
-            p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, k, v, parent)| {
-                h.bind((("cid", cid), ("key", k), ("val", v), ("parent", parent)))?;
+            p.rule::<(Cid, i32, Any)>("root", &|h, b, (cid, store, k)| {
+                h.bind((("cid", cid), ("store", store), ("key", k)))?;
 
-                b.search_cid(
-                    "evac",
-                    cid,
-                    (("entity", k), ("attribute", "update"), ("value", v)),
-                )?;
+                b.search("set", (("cid", cid), ("store", store), ("key", k)))?;
+                b.except("links", (("from", cid),))?;
+
+                Ok(())
+            })?;
+
+            p.rule::<(Cid, Cid, i32, Any)>("child", &|h, b, (cid, parent, store, k)| {
+                h.bind((("cid", cid), ("parent", parent)))?;
+
+                b.search("set", (("cid", cid), ("store", store), ("key", k)))?;
                 b.search("links", (("from", cid), ("to", parent)))?;
-                b.search("create", (("cid", parent), ("key", k)))?;
+                b.search("root", (("cid", parent), ("store", store), ("key", k)))?;
 
                 Ok(())
             })?;
 
-            p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, k, v, parent)| {
-                h.bind((("cid", cid), ("key", k), ("val", v), ("parent", parent)))?;
+            p.rule::<(Cid, Cid, i32, Any)>("child", &|h, b, (cid, parent, store, k)| {
+                h.bind((("cid", cid), ("parent", parent)))?;
 
-                b.search_cid(
-                    "evac",
-                    cid,
-                    (("entity", k), ("attribute", "update"), ("value", v)),
-                )?;
+                b.search("set", (("cid", cid), ("store", store), ("key", k)))?;
                 b.search("links", (("from", cid), ("to", parent)))?;
-                b.search("update", (("cid", parent), ("key", k)))?;
+                b.search("child", (("cid", parent),))?;
 
                 Ok(())
             })?;
 
-            p.rule::<(Cid, i32)>("selectedWrite", &|h, b, (cid, k)| {
-                h.bind((("cid", cid), ("key", k)))?;
+            p.rule::<(Cid, i32, Any)>("latestSibling", &|h, b, (cid, store, k)| {
+                h.bind((("cid", cid),))?;
 
-                b.search("create", (("key", k),))?;
-                b.group_by(cid, "create", (("key", k), ("cid", cid)), math::min(cid))?;
-
-                Ok(())
-            })?;
-
-            p.rule::<(Cid, Cid, i32)>("selectedWrite", &|h, b, (cid, parent, k)| {
-                h.bind((("cid", cid), ("key", k)))?;
-
-                b.search("selectedWrite", (("cid", parent), ("key", k)))?;
+                b.search("root", (("store", store), ("key", k)))?;
                 b.group_by(
                     cid,
-                    "update",
-                    (("parent", parent), ("cid", cid)),
+                    "root",
+                    (("cid", cid), ("store", store), ("key", k)),
                     math::min(cid),
                 )?;
 
                 Ok(())
             })?;
 
-            p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, k, v)| {
-                h.bind((("cid", cid), ("key", k), ("val", v)))?;
+            p.rule::<(Cid, Cid)>("latestSibling", &|h, b, (cid, parent)| {
+                h.bind((("cid", cid),))?;
 
-                b.search("selectedWrite", (("cid", cid), ("key", k)))?;
-                b.search("create", (("cid", cid), ("val", v)))?;
-                b.except("update", (("key", k), ("parent", cid)))?;
+                b.search("latestSibling", (("cid", parent),))?;
+                b.group_by(
+                    cid,
+                    "child",
+                    (("cid", cid), ("parent", parent)),
+                    math::min(cid),
+                )?;
 
                 Ok(())
             })?;
 
-            p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, k, v)| {
-                h.bind((("cid", cid), ("key", k), ("val", v)))?;
+            p.rule::<(Cid, i32, Any, Any)>("head", &|h, b, (cid, store, k, v)| {
+                h.bind((("cid", cid), ("store", store), ("key", k), ("val", v)))?;
 
-                b.search("selectedWrite", (("cid", cid), ("key", k)))?;
-                b.search("update", (("cid", cid), ("val", v)))?;
-                b.except("update", (("key", k), ("parent", cid)))?;
+                b.search("latestSibling", (("cid", cid),))?;
+                b.search(
+                    "set",
+                    (("cid", cid), ("store", store), ("key", k), ("val", v)),
+                )?;
+                b.except("child", (("parent", cid),))?;
 
                 Ok(())
             })?;
