@@ -10,6 +10,7 @@ use rhizome::{
     kernel::math,
     runtime::client::Client,
     tuple::{InputTuple, Tuple},
+    types::Any,
     value::Val,
 };
 use tokio::spawn;
@@ -21,107 +22,106 @@ async fn main() -> Result<()> {
     spawn(async move {
         reactor
             .async_run(|p| {
-                p.output("create", |h| {
+                p.output("set", |h| {
                     h.column::<Cid>("cid")
-                        .column::<i32>("key")
-                        .column::<i32>("val")
+                        .column::<Any>("store")
+                        .column::<Any>("key")
+                        .column::<Any>("val")
                 })?;
 
-                p.output("update", |h| {
+                p.output("root", |h| {
                     h.column::<Cid>("cid")
-                        .column::<Cid>("parent")
-                        .column::<i32>("key")
-                        .column::<i32>("val")
+                        .column::<Any>("store")
+                        .column::<Any>("key")
                 })?;
 
-                p.output("selectedWrite", |h| {
-                    h.column::<Cid>("cid").column::<i32>("key")
-                })?;
+                p.output("child", |h| h.column::<Cid>("cid").column::<Cid>("parent"))?;
+                p.output("latestSibling", |h| h.column::<Cid>("cid"))?;
 
                 p.output("head", |h| {
                     h.column::<Cid>("cid")
-                        .column::<i32>("key")
-                        .column::<i32>("val")
+                        .column::<Any>("store")
+                        .column::<Any>("key")
+                        .column::<Any>("val")
                 })?;
 
-                p.rule::<(Cid, i32, i32)>("create", &|h, b, (cid, k, v)| {
-                    h.bind((("cid", cid), ("key", k), ("val", v)))?;
+                p.rule::<(Cid, Any, Any, Any)>("set", &|h, b, (cid, store, k, v)| {
+                    h.bind((("cid", cid), ("store", store), ("key", k), ("val", v)))?;
                     b.search_cid(
                         "evac",
                         cid,
-                        (("entity", k), ("attribute", "create"), ("value", v)),
+                        (("entity", store), ("attribute", k), ("value", v)),
                     )?;
 
                     Ok(())
                 })?;
 
-                p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, k, v, parent)| {
-                    h.bind((("cid", cid), ("key", k), ("val", v), ("parent", parent)))?;
+                p.rule::<(Cid, Any, Any)>("root", &|h, b, (cid, store, k)| {
+                    h.bind((("cid", cid), ("store", store), ("key", k)))?;
 
-                    b.search_cid(
-                        "evac",
-                        cid,
-                        (("entity", k), ("attribute", "update"), ("value", v)),
-                    )?;
+                    b.search("set", (("cid", cid), ("store", store), ("key", k)))?;
+                    b.except("links", (("from", cid),))?;
+
+                    Ok(())
+                })?;
+
+                p.rule::<(Cid, Cid, Any, Any)>("child", &|h, b, (cid, parent, store, k)| {
+                    h.bind((("cid", cid), ("parent", parent)))?;
+
+                    b.search("set", (("cid", cid), ("store", store), ("key", k)))?;
                     b.search("links", (("from", cid), ("to", parent)))?;
-                    b.search("create", (("cid", parent), ("key", k)))?;
+                    b.search("root", (("cid", parent), ("store", store), ("key", k)))?;
 
                     Ok(())
                 })?;
 
-                p.rule::<(Cid, i32, i32, Cid)>("update", &|h, b, (cid, k, v, parent)| {
-                    h.bind((("cid", cid), ("key", k), ("val", v), ("parent", parent)))?;
+                p.rule::<(Cid, Cid, Any, Any)>("child", &|h, b, (cid, parent, store, k)| {
+                    h.bind((("cid", cid), ("parent", parent)))?;
 
-                    b.search_cid(
-                        "evac",
-                        cid,
-                        (("entity", k), ("attribute", "update"), ("value", v)),
-                    )?;
+                    b.search("set", (("cid", cid), ("store", store), ("key", k)))?;
                     b.search("links", (("from", cid), ("to", parent)))?;
-                    b.search("update", (("cid", parent), ("key", k)))?;
+                    b.search("child", (("cid", parent),))?;
 
                     Ok(())
                 })?;
 
-                p.rule::<(Cid, i32)>("selectedWrite", &|h, b, (cid, k)| {
-                    h.bind((("cid", cid), ("key", k)))?;
+                p.rule::<(Cid, Any, Any)>("latestSibling", &|h, b, (cid, store, k)| {
+                    h.bind((("cid", cid),))?;
 
-                    b.search("create", (("key", k),))?;
-                    b.group_by(cid, "create", (("key", k), ("cid", cid)), math::min(cid))?;
-
-                    Ok(())
-                })?;
-
-                p.rule::<(Cid, Cid, i32)>("selectedWrite", &|h, b, (cid, parent, k)| {
-                    h.bind((("cid", cid), ("key", k)))?;
-
-                    b.search("selectedWrite", (("cid", parent), ("key", k)))?;
+                    b.search("root", (("store", store), ("key", k)))?;
                     b.group_by(
                         cid,
-                        "update",
-                        (("parent", parent), ("cid", cid)),
+                        "root",
+                        (("cid", cid), ("store", store), ("key", k)),
                         math::min(cid),
                     )?;
 
                     Ok(())
                 })?;
 
-                p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, k, v)| {
-                    h.bind((("cid", cid), ("key", k), ("val", v)))?;
+                p.rule::<(Cid, Cid)>("latestSibling", &|h, b, (cid, parent)| {
+                    h.bind((("cid", cid),))?;
 
-                    b.search("selectedWrite", (("cid", cid), ("key", k)))?;
-                    b.search("create", (("cid", cid), ("val", v)))?;
-                    b.except("update", (("key", k), ("parent", cid)))?;
+                    b.search("latestSibling", (("cid", parent),))?;
+                    b.group_by(
+                        cid,
+                        "child",
+                        (("cid", cid), ("parent", parent)),
+                        math::min(cid),
+                    )?;
 
                     Ok(())
                 })?;
 
-                p.rule::<(Cid, i32, i32)>("head", &|h, b, (cid, k, v)| {
-                    h.bind((("cid", cid), ("key", k), ("val", v)))?;
+                p.rule::<(Cid, Any, Any, Any)>("head", &|h, b, (cid, store, k, v)| {
+                    h.bind((("cid", cid), ("store", store), ("key", k), ("val", v)))?;
 
-                    b.search("selectedWrite", (("cid", cid), ("key", k)))?;
-                    b.search("update", (("cid", cid), ("val", v)))?;
-                    b.except("update", (("key", k), ("parent", cid)))?;
+                    b.search("latestSibling", (("cid", cid),))?;
+                    b.search(
+                        "set",
+                        (("cid", cid), ("store", store), ("key", k), ("val", v)),
+                    )?;
+                    b.except("child", (("parent", cid),))?;
 
                     Ok(())
                 })?;
@@ -138,7 +138,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    let kv: Arc<RwLock<HashMap<Val, Val>>> = Arc::default();
+    let kv: Arc<RwLock<HashMap<(Val, Val), Val>>> = Arc::default();
 
     client
         .register_sink(
@@ -147,10 +147,11 @@ async fn main() -> Result<()> {
                 let kv = Arc::clone(&kv);
                 || {
                     Box::new(unfold(kv, move |kv, fact: Tuple| async move {
+                        let store = fact.col(&"store".into()).unwrap();
                         let k = fact.col(&"key".into()).unwrap();
                         let v = fact.col(&"val".into()).unwrap();
 
-                        kv.write().unwrap().insert(k, v);
+                        kv.write().unwrap().insert((store, k), v);
 
                         Ok(kv)
                     }))
@@ -159,22 +160,26 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    let e0 = InputTuple::new(0, "create", 0, vec![]);
-    let e1 = InputTuple::new(0, "update", 1, vec![e0.cid()?]);
-    let e2 = InputTuple::new(0, "update", 5, vec![e1.cid()?]);
-    let e3 = InputTuple::new(0, "update", 3, vec![e1.cid()?]);
-    let e4 = InputTuple::new(1, "create", 4, vec![]);
-    let e5 = InputTuple::new(0, "update", 14, vec![e0.cid()?]);
-    let e6 = InputTuple::new(0, "update", 15, vec![e0.cid()?]);
-    let e7 = InputTuple::new(0, "update", 9, vec![e4.cid()?]);
-    let e8 = InputTuple::new(0, "create", 12, vec![]);
-    let e9 = InputTuple::new(0, "create", 26, vec![]);
+    let e0 = InputTuple::new(0 as i32, 0, 0, vec![]);
+    let e1 = InputTuple::new(0 as i32, 0, 2, vec![e0.cid()?]);
+    let e2 = InputTuple::new(0 as i32, 0, 13, vec![e1.cid()?]);
+    let e3 = InputTuple::new(0 as i32, 0, 4, vec![e1.cid()?]);
+    let e4 = InputTuple::new(0 as i32, 1, 5, vec![]);
+    let e5 = InputTuple::new(0 as i32, 0, 44, vec![e0.cid()?]);
+    let e6 = InputTuple::new(0 as i32, 0, 15, vec![e0.cid()?]);
+    let e7 = InputTuple::new(0 as i32, 0, 9, vec![e4.cid()?]);
+    let e8 = InputTuple::new(0 as i32, 0, 12, vec![]);
+    let e9 = InputTuple::new(0 as i32, 0, 24, vec![]);
+    let e10 = InputTuple::new(0 as i32, 0, 25, vec![e5.cid()?]);
+    let e11 = InputTuple::new(1 as i32, 0, 2, vec![]);
 
     assert!(e2.cid()? < e3.cid()?);
     assert!(e5.cid()? < e1.cid()?);
     assert!(e5.cid()? < e6.cid()?);
     assert!(e0.cid()? < e8.cid()?);
     assert!(e0.cid()? > e9.cid()?);
+    assert!(e10.cid()? < e9.cid()?);
+    assert!(e11.cid()? < e0.cid()?);
 
     client.insert_fact(e0).await?;
     client.insert_fact(e1).await?;
@@ -186,20 +191,50 @@ async fn main() -> Result<()> {
     client.insert_fact(e7).await?;
     client.flush().await?;
 
-    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&14.into()));
-    assert_eq!(kv.read().unwrap().get(&Val::S32(1)), Some(&4.into()));
+    assert_eq!(
+        kv.read().unwrap().get(&(0.into(), 0.into())),
+        Some(&44.into())
+    );
+    assert_eq!(
+        kv.read().unwrap().get(&(0.into(), 1.into())),
+        Some(&5.into())
+    );
 
     // Adding a new root with a larger CID doesn't change the value
     client.insert_fact(e8).await?;
     client.flush().await?;
 
-    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&14.into()));
+    assert_eq!(
+        kv.read().unwrap().get(&(0.into(), 0.into())),
+        Some(&44.into())
+    );
 
     // Adding a new root with a smaller CID changes the value
     client.insert_fact(e9).await?;
     client.flush().await?;
 
-    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&26.into()));
+    assert_eq!(
+        kv.read().unwrap().get(&(0.into(), 0.into())),
+        Some(&24.into())
+    );
+
+    // Adding a new child under a previously latest write doesn't change the value
+    client.insert_fact(e10).await?;
+    client.flush().await?;
+
+    assert_eq!(
+        kv.read().unwrap().get(&(0.into(), 0.into())),
+        Some(&24.into())
+    );
+
+    // Writing a more recent value to another KV doesn't change the value in other KVs
+    client.insert_fact(e11).await?;
+    client.flush().await?;
+
+    assert_eq!(
+        kv.read().unwrap().get(&(0.into(), 0.into())),
+        Some(&24.into())
+    );
 
     println!("{:?}", kv.read().unwrap());
 
