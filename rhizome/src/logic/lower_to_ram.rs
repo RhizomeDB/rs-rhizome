@@ -786,7 +786,7 @@ pub(crate) fn lower_negation_to_ram(
 
     Ok(Formula::not_in(
         negation.relation().id(),
-        Version::Total,
+        version,
         cols,
         Arc::clone(not_in_relation),
     ))
