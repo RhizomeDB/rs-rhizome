@@ -6,23 +6,28 @@ use crate::{
     error::{error, Error},
     id::{ColId, RelationId},
     logic::ast::{Declaration, Schema},
-    relation::Source,
+    relation::{DefaultRelation, Relation, Source},
     types::{ColType, IntoColType},
 };
 
 #[derive(Debug)]
-pub struct DeclarationBuilder {
+pub struct DeclarationBuilder<R = DefaultRelation> {
     id: RelationId,
     cols: Vec<(ColId, Col)>,
     source: Source,
+    _marker: std::marker::PhantomData<R>,
 }
 
-impl DeclarationBuilder {
+impl<R> DeclarationBuilder<R>
+where
+    R: Relation + Default + 'static,
+{
     fn new(id: RelationId, source: Source) -> Self {
         Self {
             id,
             cols: Vec::default(),
             source,
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -38,7 +43,8 @@ impl DeclarationBuilder {
         }
 
         let schema = Schema::new(self.id, cols);
-        let declaration = Declaration::new(self.id, Arc::new(schema), self.source);
+        let declaration =
+            Declaration::new(self.id, Arc::new(schema), self.source, Box::<R>::default());
 
         Ok(declaration)
     }

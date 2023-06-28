@@ -7,10 +7,7 @@
 use futures::{sink::unfold, StreamExt};
 
 use js_sys::AsyncIterator;
-use rhizome::{
-    fact::{traits::Fact, DefaultIDBFact},
-    value::Val,
-};
+use rhizome::{tuple::Tuple, value::Val};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
@@ -112,7 +109,7 @@ impl Rhizome {
             .register_sink(
                 id,
                 Box::new(move || {
-                    Box::new(unfold(f, move |f, fact: DefaultIDBFact| async move {
+                    Box::new(unfold(f, move |f, fact: Tuple| async move {
                         let js_fact = js_sys::Object::new();
 
                         for col in fact.cols() {

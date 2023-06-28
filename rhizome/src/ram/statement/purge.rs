@@ -5,104 +5,40 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::{EDBFact, IDBFact},
-    id::RelationId,
     pretty::Pretty,
-    ram::RelationVersion,
-    relation::Relation,
+    relation::{Relation, RelationKey},
 };
 
 #[derive(Clone, Debug)]
-pub(crate) enum PurgeRelation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    Edb(Arc<RwLock<ER>>),
-    Idb(Arc<RwLock<IR>>),
+pub(crate) struct Purge {
+    relation_key: RelationKey,
+    relation: Arc<RwLock<Box<dyn Relation>>>,
 }
 
-impl<EF, IF, ER, IR> PurgeRelation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    pub(crate) fn apply(&self) -> Result<()> {
-        match self {
-            PurgeRelation::Edb(relation) => {
-                *relation.write().or_else(|_| {
-                    error(Error::InternalRhizomeError(
-                        "relation lock poisoned".to_owned(),
-                    ))
-                })? = ER::default()
-            }
-            PurgeRelation::Idb(relation) => {
-                *relation.write().or_else(|_| {
-                    error(Error::InternalRhizomeError(
-                        "relation lock poisoned".to_owned(),
-                    ))
-                })? = IR::default()
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Purge<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    id: RelationId,
-    version: RelationVersion,
-    relation: PurgeRelation<EF, IF, ER, IR>,
-}
-
-impl<EF, IF, ER, IR> Purge<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    pub(crate) fn new(
-        id: RelationId,
-        version: RelationVersion,
-        relation: PurgeRelation<EF, IF, ER, IR>,
-    ) -> Self {
+impl Purge {
+    pub(crate) fn new(relation_key: RelationKey, relation: Arc<RwLock<Box<dyn Relation>>>) -> Self {
         Self {
-            id,
-            version,
+            relation_key,
             relation,
         }
     }
 
     pub(crate) fn apply(&self) -> Result<()> {
-        self.relation.apply()
+        self.relation
+            .write()
+            .or_else(|_| {
+                error(Error::InternalRhizomeError(
+                    "relation lock poisoned".to_owned(),
+                ))
+            })?
+            .purge();
+
+        Ok(())
     }
 }
 
-impl<EF, IF, ER, IR> Pretty for Purge<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for Purge {
     fn to_doc(&self) -> RcDoc<'_, ()> {
-        RcDoc::concat([
-            RcDoc::text("purge "),
-            RcDoc::as_string(self.id),
-            RcDoc::text("_"),
-            RcDoc::as_string(self.version),
-        ])
+        RcDoc::concat([RcDoc::text("purge "), self.relation_key.to_doc()])
     }
 }

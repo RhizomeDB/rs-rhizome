@@ -5,10 +5,6 @@ use anyhow::Result;
 
 use crate::{
     error::{error, Error},
-    fact::{
-        traits::{EDBFact, IDBFact},
-        DefaultEDBFact, DefaultIDBFact,
-    },
     ram::{
         operation::{project::Project, search::Search, Operation},
         program::Program,
@@ -18,37 +14,22 @@ use crate::{
         },
         Aggregation, Bindings,
     },
-    relation::{DefaultEDBRelation, DefaultIDBRelation, Relation},
     storage::blockstore::Blockstore,
     timestamp::{DefaultTimestamp, Timestamp},
+    tuple::Tuple,
 };
 
-pub(crate) struct VM<
-    T = DefaultTimestamp,
-    EF = DefaultEDBFact,
-    IF = DefaultIDBFact,
-    ER = DefaultEDBRelation<EF>,
-    IR = DefaultIDBRelation<IF>,
-> where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+pub(crate) struct VM<T = DefaultTimestamp> {
     timestamp: T,
     pc: (usize, Option<usize>),
-    input: VecDeque<EF>,
-    output: VecDeque<IF>,
-    program: Program<EF, IF, ER, IR>,
+    input: VecDeque<Tuple>,
+    output: VecDeque<Tuple>,
+    program: Program,
 }
 
-impl<T, EF, IF, ER, IR> Debug for VM<T, EF, IF, ER, IR>
+impl<T> Debug for VM<T>
 where
     T: Timestamp,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-    EF: EDBFact,
-    IF: IDBFact,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VM")
@@ -58,15 +39,11 @@ where
     }
 }
 
-impl<T, EF, IF, ER, IR> VM<T, EF, IF, ER, IR>
+impl<T> VM<T>
 where
     T: Timestamp,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-    EF: EDBFact,
-    IF: IDBFact,
 {
-    pub(crate) fn new(program: Program<EF, IF, ER, IR>) -> Self {
+    pub(crate) fn new(program: Program) -> Self {
         Self {
             timestamp: T::default(),
             pc: (0, None),
@@ -80,13 +57,13 @@ where
         &self.timestamp
     }
 
-    pub(crate) fn push(&mut self, fact: EF) -> Result<()> {
+    pub(crate) fn push(&mut self, fact: Tuple) -> Result<()> {
         self.input.push_back(fact);
 
         Ok(())
     }
 
-    pub(crate) fn pop(&mut self) -> Result<Option<IF>> {
+    pub(crate) fn pop(&mut self) -> Result<Option<Tuple>> {
         let fact = self.output.pop_front();
 
         Ok(fact)
@@ -179,7 +156,7 @@ where
         }
     }
 
-    fn load_statement(&self) -> Result<Arc<Statement<EF, IF, ER, IR>>> {
+    fn load_statement(&self) -> Result<Arc<Statement>> {
         let outer_statement = self.program.statements().get(self.pc.0).ok_or_else(|| {
             Error::InternalRhizomeError("PC stepped past end of program".to_owned())
         })?;
@@ -204,11 +181,7 @@ where
         }
     }
 
-    fn handle_insert<BS>(
-        &mut self,
-        insert: &Insert<EF, IF, ER, IR>,
-        blockstore: &BS,
-    ) -> Result<bool>
+    fn handle_insert<BS>(&mut self, insert: &Insert, blockstore: &BS) -> Result<bool>
     where
         BS: Blockstore,
     {
@@ -220,11 +193,7 @@ where
         }
     }
 
-    fn handle_operation<BS>(
-        &mut self,
-        operation: &Operation<EF, IF, ER, IR>,
-        blockstore: &BS,
-    ) -> Result<bool>
+    fn handle_operation<BS>(&mut self, operation: &Operation, blockstore: &BS) -> Result<bool>
     where
         BS: Blockstore,
     {
@@ -235,7 +204,7 @@ where
 
     fn do_handle_operation<BS>(
         &self,
-        operation: &Operation<EF, IF, ER, IR>,
+        operation: &Operation,
         blockstore: &BS,
         bindings: &Bindings,
     ) -> Result<bool>
@@ -253,7 +222,7 @@ where
 
     fn handle_search<BS>(
         &self,
-        search: &Search<EF, IF, ER, IR>,
+        search: &Search,
         blockstore: &BS,
         bindings: &Bindings,
     ) -> Result<bool>
@@ -267,7 +236,7 @@ where
 
     fn handle_project<BS>(
         &self,
-        project: &Project<EF, IF, ER, IR>,
+        project: &Project,
         blockstore: &BS,
         bindings: &Bindings,
     ) -> Result<bool>
@@ -281,7 +250,7 @@ where
 
     fn handle_aggregation<BS>(
         &self,
-        agg: &Aggregation<EF, IF, ER, IR>,
+        agg: &Aggregation,
         blockstore: &BS,
         bindings: &Bindings,
     ) -> Result<bool>
@@ -295,25 +264,25 @@ where
         Ok(true)
     }
 
-    fn handle_merge(&self, merge: &Merge<EF, IF, ER, IR>) -> Result<bool> {
+    fn handle_merge(&self, merge: &Merge) -> Result<bool> {
         merge.apply()?;
 
         Ok(true)
     }
 
-    fn handle_swap(&self, swap: &Swap<IR>) -> Result<bool> {
+    fn handle_swap(&self, swap: &Swap) -> Result<bool> {
         swap.apply()?;
 
         Ok(true)
     }
 
-    fn handle_purge(&self, purge: &Purge<EF, IF, ER, IR>) -> Result<bool> {
+    fn handle_purge(&self, purge: &Purge) -> Result<bool> {
         purge.apply()?;
 
         Ok(true)
     }
 
-    fn handle_exit(&mut self, exit: &Exit<IF, IR>) -> Result<bool> {
+    fn handle_exit(&mut self, exit: &Exit) -> Result<bool> {
         if exit.apply()? {
             self.pc.1 = None;
         }
@@ -321,12 +290,12 @@ where
         Ok(true)
     }
 
-    fn handle_sources(&mut self, sources: &Sources<EF, ER>) -> Result<bool> {
+    fn handle_sources(&mut self, sources: &Sources) -> Result<bool> {
         Ok(sources.apply(&mut self.input)?
             || self.timestamp().epoch_start() == self.timestamp().clock_start())
     }
 
-    fn handle_sinks(&mut self, sinks: &Sinks<IF, IR>) -> Result<bool> {
+    fn handle_sinks(&mut self, sinks: &Sinks) -> Result<bool> {
         sinks.apply(&mut self.output)?;
 
         Ok(true)

@@ -8,49 +8,25 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::Fact,
-    id::RelationId,
     pretty::Pretty,
-    ram::RelationVersion,
-    relation::Relation,
+    relation::{Relation, RelationKey},
 };
 
-#[derive(Debug)]
-pub(crate) struct ExitBuilder<F, R>
-where
-    F: Fact,
-    R: Relation<Fact = F>,
-{
-    relations: HashMap<(RelationId, RelationVersion), Arc<RwLock<R>>>,
+#[derive(Debug, Default)]
+pub(crate) struct ExitBuilder {
+    relations: HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>>,
 }
 
-impl<F, R> Default for ExitBuilder<F, R>
-where
-    F: Fact,
-    R: Relation<Fact = F>,
-{
-    fn default() -> Self {
-        Self {
-            relations: HashMap::default(),
-        }
-    }
-}
-
-impl<F, R> ExitBuilder<F, R>
-where
-    F: Fact,
-    R: Relation<Fact = F>,
-{
+impl ExitBuilder {
     pub(crate) fn add_relation(
         &mut self,
-        id: RelationId,
-        version: RelationVersion,
-        relation: Arc<RwLock<R>>,
+        relation_key: RelationKey,
+        relation: Arc<RwLock<Box<dyn Relation>>>,
     ) {
-        self.relations.insert((id, version), relation);
+        self.relations.insert(relation_key, relation);
     }
 
-    pub(crate) fn finalize(self) -> Exit<F, R> {
+    pub(crate) fn finalize(self) -> Exit {
         Exit {
             relations: self.relations,
         }
@@ -58,19 +34,11 @@ where
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Exit<F, R>
-where
-    F: Fact,
-    R: Relation<Fact = F>,
-{
-    relations: HashMap<(RelationId, RelationVersion), Arc<RwLock<R>>>,
+pub(crate) struct Exit {
+    relations: HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>>,
 }
 
-impl<F, R> Exit<F, R>
-where
-    F: Fact,
-    R: Relation<Fact = F>,
-{
+impl Exit {
     pub(crate) fn apply(&self) -> Result<bool> {
         for relation in self.relations.values() {
             let is_empty = relation
@@ -91,19 +59,13 @@ where
     }
 }
 
-impl<F, R> Pretty for Exit<F, R>
-where
-    F: Fact,
-    R: Relation<Fact = F>,
-{
+impl Pretty for Exit {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relations_doc = RcDoc::intersperse(
-            self.relations.keys().map(|(id, version)| {
+            self.relations.keys().map(|relation_key| {
                 RcDoc::concat([
                     RcDoc::text("count("),
-                    RcDoc::as_string(id),
-                    RcDoc::text("_"),
-                    RcDoc::as_string(version),
+                    relation_key.to_doc(),
                     RcDoc::text(") == 0"),
                 ])
             }),

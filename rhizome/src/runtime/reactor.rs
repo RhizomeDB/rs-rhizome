@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rhizome_runtime::Runtime;
-use std::{collections::HashMap, fmt::Debug, marker::PhantomData};
+use std::{collections::HashMap, fmt::Debug};
 
 use futures::{
     channel::{
@@ -13,56 +13,34 @@ use futures::{
 use crate::{
     build,
     error::Error,
-    fact::{
-        traits::{EDBFact, IDBFact},
-        DefaultEDBFact, DefaultIDBFact,
-    },
     id::RelationId,
     logic::ProgramBuilder,
-    relation::{DefaultEDBRelation, DefaultIDBRelation, Relation},
     storage::{blockstore::Blockstore, memory::MemoryBlockstore, DefaultCodec, DEFAULT_MULTIHASH},
     timestamp::{DefaultTimestamp, Timestamp},
+    tuple::Tuple,
 };
 
 use super::{vm::VM, ClientCommand, ClientEvent, SinkCommand, StreamEvent};
 
-pub struct Reactor<
-    T = DefaultTimestamp,
-    BS = MemoryBlockstore,
-    E = DefaultEDBFact,
-    I = DefaultIDBFact,
-    ER = DefaultEDBRelation<E>,
-    IR = DefaultIDBRelation<I>,
-> where
+pub struct Reactor<T = DefaultTimestamp, BS = MemoryBlockstore>
+where
     T: Timestamp,
-    E: EDBFact,
-    I: IDBFact,
-    ER: Relation<Fact = E>,
-    IR: Relation<Fact = I>,
 {
     runtime: Runtime,
     blockstore: BS,
-    sinks: HashMap<RelationId, Vec<mpsc::Sender<SinkCommand<I>>>>,
-    command_rx: mpsc::Receiver<ClientCommand<E, I>>,
+    sinks: HashMap<RelationId, Vec<mpsc::Sender<SinkCommand>>>,
+    command_rx: mpsc::Receiver<ClientCommand>,
     event_tx: mpsc::Sender<ClientEvent<T>>,
-    stream_rx: mpsc::Receiver<StreamEvent<E>>,
-    stream_tx: mpsc::Sender<StreamEvent<E>>,
-    _marker: PhantomData<(ER, IR)>,
+    stream_rx: mpsc::Receiver<StreamEvent>,
+    stream_tx: mpsc::Sender<StreamEvent>,
 }
 
-impl<T, BS, E, I, ER, IR> Reactor<T, BS, E, I, ER, IR>
+impl<T, BS> Reactor<T, BS>
 where
     T: Timestamp,
     BS: Blockstore,
-    E: EDBFact + 'static,
-    I: IDBFact + 'static,
-    ER: Relation<Fact = E>,
-    IR: Relation<Fact = I>,
 {
-    pub fn new(
-        command_rx: Receiver<ClientCommand<E, I>>,
-        event_tx: Sender<ClientEvent<T>>,
-    ) -> Self
+    pub fn new(command_rx: Receiver<ClientCommand>, event_tx: Sender<ClientEvent<T>>) -> Self
 where {
         let (stream_tx, stream_rx) = mpsc::channel(10);
 
@@ -74,7 +52,6 @@ where {
             event_tx,
             stream_tx,
             stream_rx,
-            _marker: PhantomData,
         }
     }
 
@@ -83,7 +60,7 @@ where {
         F: FnOnce(ProgramBuilder) -> Result<ProgramBuilder>,
     {
         let program = build(f)?;
-        let mut vm = VM::<T, E, I, ER, IR>::new(program);
+        let mut vm = VM::<T>::new(program);
 
         loop {
             // Poll for any future and then run all ready futures
@@ -125,11 +102,7 @@ where {
         }
     }
 
-    async fn handle_command(
-        &mut self,
-        vm: &mut VM<T, E, I, ER, IR>,
-        command: ClientCommand<E, I>,
-    ) -> Result<()> {
+    async fn handle_command(&mut self, vm: &mut VM<T>, command: ClientCommand) -> Result<()> {
         match command {
             ClientCommand::Flush(sender) => {
                 let mut handles = Vec::default();
@@ -151,15 +124,32 @@ where {
                     .send(())
                     .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
-            ClientCommand::InsertFact(fact, sender) => {
+            ClientCommand::InsertFact(input_fact, sender) => {
                 self.blockstore.put_serializable(
-                    &fact,
+                    &input_fact,
                     #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                     DefaultCodec::default(),
                     DEFAULT_MULTIHASH,
                 )?;
 
+                let cid = input_fact.cid()?;
+                let fact = Tuple::new(
+                    "evac",
+                    [
+                        ("entity", input_fact.entity()),
+                        ("attribute", input_fact.attr()),
+                        ("value", input_fact.val()),
+                    ],
+                    Some(cid),
+                );
+
                 vm.push(fact)?;
+
+                for link in input_fact.links() {
+                    let fact = Tuple::new("links", [("from", cid), ("to", *link)], None);
+
+                    vm.push(fact)?;
+                }
 
                 sender
                     .send(())
@@ -213,21 +203,34 @@ where {
         Ok(())
     }
 
-    async fn handle_event(
-        &mut self,
-        vm: &mut VM<T, E, I, ER, IR>,
-        event: StreamEvent<E>,
-    ) -> Result<()> {
+    async fn handle_event(&mut self, vm: &mut VM<T>, event: StreamEvent) -> Result<()> {
         match event {
-            StreamEvent::Fact(fact) => {
+            StreamEvent::Fact(input_fact) => {
                 self.blockstore.put_serializable(
-                    &fact,
+                    &input_fact,
                     #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                     DefaultCodec::default(),
                     DEFAULT_MULTIHASH,
                 )?;
 
+                let cid = input_fact.cid()?;
+                let fact = Tuple::new(
+                    "evac",
+                    [
+                        ("entity", input_fact.entity()),
+                        ("attribute", input_fact.attr()),
+                        ("value", input_fact.val()),
+                    ],
+                    Some(cid),
+                );
+
                 vm.push(fact)?;
+
+                for link in input_fact.links() {
+                    let fact = Tuple::new("links", [("from", cid), ("to", *link)], None);
+
+                    vm.push(fact)?;
+                }
             }
         };
 
@@ -235,11 +238,9 @@ where {
     }
 }
 
-impl<T, BS, E, I> Debug for Reactor<T, BS, E, I>
+impl<T, BS> Debug for Reactor<T, BS>
 where
     T: Timestamp,
-    E: EDBFact + 'static,
-    I: IDBFact + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Reactor").finish()

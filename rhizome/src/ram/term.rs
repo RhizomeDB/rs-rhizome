@@ -2,7 +2,7 @@ use derive_more::{From, IsVariant, TryInto};
 use pretty::RcDoc;
 
 use crate::{
-    id::{ColId, LinkId, RelationId},
+    id::{ColId, RelationId},
     pretty::Pretty,
     value::Val,
     var::Var,
@@ -13,7 +13,6 @@ use super::AliasId;
 #[derive(Clone, Debug, From, IsVariant, TryInto)]
 pub enum Term {
     Lit(Val),
-    Link(LinkId, Box<Term>),
     Col(RelationId, Option<AliasId>, ColId),
     Cid(RelationId, Option<AliasId>),
     Agg(RelationId, Option<AliasId>, Var),
@@ -36,9 +35,6 @@ impl Pretty for Term {
         }
 
         match self {
-            Term::Link(link_id, term) => {
-                RcDoc::concat([RcDoc::as_string(link_id), RcDoc::text("@"), term.to_doc()])
-            }
             Term::Col(relation_id, alias_id, col_id) => RcDoc::concat([
                 relation_binding(relation_id, alias_id),
                 RcDoc::text("."),

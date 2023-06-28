@@ -1,18 +1,32 @@
-use crate::{id::RelationId, relation::Source};
+use crate::{
+    id::RelationId,
+    relation::{Relation, Source},
+};
 use std::sync::Arc;
 
 use super::Schema;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Declaration {
     id: RelationId,
     schema: Arc<Schema>,
     source: Source,
+    relation: Box<dyn Relation>,
 }
 
 impl Declaration {
-    pub fn new(id: RelationId, schema: Arc<Schema>, source: Source) -> Self {
-        Self { id, schema, source }
+    pub fn new(
+        id: RelationId,
+        schema: Arc<Schema>,
+        source: Source,
+        relation: Box<dyn Relation>,
+    ) -> Self {
+        Self {
+            id,
+            schema,
+            source,
+            relation,
+        }
     }
 
     pub fn id(&self) -> RelationId {
@@ -25,5 +39,9 @@ impl Declaration {
 
     pub fn source(&self) -> Source {
         self.source
+    }
+
+    pub fn relation(&self) -> Box<dyn Relation> {
+        dyn_clone::clone_box(&*self.relation)
     }
 }

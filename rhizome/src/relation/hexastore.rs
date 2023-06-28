@@ -5,12 +5,13 @@ use std::{
 };
 
 use anyhow::Result;
+use as_any::Downcast;
 use derive_more::AsRef;
 
 use crate::{
     error::{error, Error},
-    fact::traits::EDBFact,
     id::ColId,
+    tuple::Tuple,
     value::Val,
 };
 
@@ -64,7 +65,7 @@ where
 
 impl<T> Hexastore<T>
 where
-    T: Ord,
+    T: Ord + 'static,
 {
     pub(crate) fn len(&self) -> usize {
         self.eva.values().fold(0, |acc, v1| {
@@ -91,6 +92,15 @@ where
             (Some(e), Some(a), None) => Self::index_contains_2(&self.eav, e, a),
             (Some(e), Some(a), Some(v)) => Self::index_contains_3(&self.eav, e, a, v),
         }
+    }
+
+    pub(crate) fn purge(&mut self) {
+        self.eav.clear();
+        self.eva.clear();
+        self.aev.clear();
+        self.ave.clear();
+        self.vea.clear();
+        self.vae.clear();
     }
 
     pub(crate) fn insert(&mut self, bindings: Vec<(ColId, Val)>, val: T) -> Result<()> {
@@ -163,15 +173,13 @@ where
         }
     }
 
-    pub(crate) fn merge(&self, other: &Self) -> Self {
-        Self {
-            eav: Self::index_merge(&self.eav, &other.eav),
-            eva: Self::index_merge(&self.eva, &other.eva),
-            aev: Self::index_merge(&self.aev, &other.aev),
-            ave: Self::index_merge(&self.ave, &other.ave),
-            vea: Self::index_merge(&self.vea, &other.vea),
-            vae: Self::index_merge(&self.vae, &other.vae),
-        }
+    pub(crate) fn merge(&mut self, rhs: &Self) {
+        Self::index_merge(&mut self.eav, &rhs.eav);
+        Self::index_merge(&mut self.eva, &rhs.eva);
+        Self::index_merge(&mut self.aev, &rhs.aev);
+        Self::index_merge(&mut self.ave, &rhs.ave);
+        Self::index_merge(&mut self.vea, &rhs.vea);
+        Self::index_merge(&mut self.vae, &rhs.vae);
     }
 
     fn bindings_to_cols(
@@ -326,10 +334,7 @@ where
             .map_or(BTreeSet::new(), |v3| v3.iter().map(Arc::as_ref).collect())
     }
 
-    fn index_merge<K1, K2, K3>(
-        lhs: &Index<K1, K2, K3, T>,
-        rhs: &Index<K1, K2, K3, T>,
-    ) -> Index<K1, K2, K3, T>
+    fn index_merge<K1, K2, K3>(lhs: &mut Index<K1, K2, K3, T>, rhs: &Index<K1, K2, K3, T>)
     where
         K1: Key,
         K2: Key,
@@ -337,72 +342,64 @@ where
     {
         Self::index_merge_layer(lhs, rhs, |l1, r1| {
             Self::index_merge_layer(l1, r1, |l2, r2| {
-                Self::index_merge_layer(l2, r2, |l3, r3| BTreeSet::union(l3, r3).cloned().collect())
+                Self::index_merge_layer(l2, r2, |l3, r3| l3.extend(r3.iter().cloned()))
             })
         })
     }
 
-    fn index_merge_layer<K, V, F>(lhs: &Layer<K, V>, rhs: &Layer<K, V>, f: F) -> Layer<K, V>
+    fn index_merge_layer<K, V, F>(lhs_layer: &mut Layer<K, V>, rhs_layer: &Layer<K, V>, f: F)
     where
         K: Key,
         V: Clone,
-        F: Fn(&V, &V) -> V,
+        F: Fn(&mut V, &V),
     {
-        let mut r = Layer::new();
+        let mut new = Vec::default();
+        {
+            let mut lhs = lhs_layer.iter_mut();
+            let mut rhs = rhs_layer.iter();
+            let mut lhs_cur = lhs.next();
+            let mut rhs_cur = rhs.next();
 
-        let mut lhs = lhs.iter();
-        let mut rhs = rhs.iter();
-        let mut lhs_cur = lhs.next();
-        let mut rhs_cur = rhs.next();
-
-        loop {
-            match (lhs_cur, rhs_cur) {
-                (None, None) => break,
-                (Some((k1, m1)), None) => {
-                    r.insert(k1.clone(), m1.clone());
-
-                    lhs_cur = lhs.next();
-                    rhs_cur = None;
-                }
-                (None, Some((k2, m2))) => {
-                    r.insert(k2.clone(), m2.clone());
-
-                    lhs_cur = None;
-                    rhs_cur = rhs.next();
-                }
-                (Some((k1, v1)), Some((k2, v2))) => match k1.cmp(k2) {
-                    Ordering::Less => {
-                        r.insert(k1.clone(), v1.clone());
-
+            loop {
+                match (lhs_cur, rhs_cur) {
+                    (None, None) => break,
+                    (Some(_), None) => {
                         lhs_cur = lhs.next();
-                        rhs_cur = Some((k2, v2));
+                        rhs_cur = None;
                     }
-                    Ordering::Greater => {
-                        r.insert(k2.clone(), v2.clone());
+                    (None, Some((k2, v2))) => {
+                        new.push((k2.clone(), v2.clone()));
 
-                        lhs_cur = Some((k1, v1));
+                        lhs_cur = None;
                         rhs_cur = rhs.next();
                     }
-                    Ordering::Equal => {
-                        r.insert(k1.clone(), f(v1, v2));
+                    (Some((k1, v1)), Some((k2, v2))) => match k1.cmp(k2) {
+                        Ordering::Less => {
+                            lhs_cur = lhs.next();
+                            rhs_cur = Some((k2, v2));
+                        }
+                        Ordering::Greater => {
+                            new.push((k2.clone(), v2.clone()));
 
-                        lhs_cur = lhs.next();
-                        rhs_cur = rhs.next();
-                    }
-                },
+                            lhs_cur = Some((k1, v1));
+                            rhs_cur = rhs.next();
+                        }
+                        Ordering::Equal => {
+                            f(v1, v2);
+
+                            lhs_cur = lhs.next();
+                            rhs_cur = rhs.next();
+                        }
+                    },
+                }
             }
         }
 
-        r
+        lhs_layer.extend(new);
     }
 }
 
-impl<T> Relation for Hexastore<T>
-where
-    T: EDBFact,
-{
-    type Fact = T;
-
+impl Relation for Hexastore<Tuple> {
     fn len(&self) -> usize {
         self.len()
     }
@@ -415,18 +412,26 @@ where
         self.contains(bindings)
     }
 
-    fn search(&self, bindings: Vec<(ColId, Val)>) -> Box<dyn Iterator<Item = &'_ Self::Fact> + '_> {
+    fn search(&self, bindings: Vec<(ColId, Val)>) -> Box<dyn Iterator<Item = &'_ Tuple> + '_> {
         let iterator = self.search(bindings).into_iter();
 
         Box::new(iterator)
     }
 
-    fn insert(&mut self, bindings: Vec<(ColId, Val)>, val: Self::Fact) {
+    fn purge(&mut self) {
+        self.purge()
+    }
+
+    fn insert(&mut self, bindings: Vec<(ColId, Val)>, val: Tuple) {
         self.insert(bindings, val).unwrap()
     }
 
-    fn merge(&self, rhs: &Self) -> Self {
-        self.merge(rhs)
+    fn merge(&mut self, rhs: &dyn Relation) {
+        if let Some(rhs) = rhs.downcast_ref::<Self>() {
+            self.merge(rhs)
+        } else {
+            panic!("Attempted to merge incompatible relations");
+        }
     }
 }
 
@@ -870,42 +875,42 @@ mod tests {
             5,
         )?;
 
-        let hexastore = hexastore1.merge(&hexastore2);
+        hexastore1.merge(&hexastore2);
 
-        assert_eq!(hexastore.len(), 7);
+        assert_eq!(hexastore1.len(), 7);
 
         assert_eq!(
-            hexastore.search(vec![]),
+            hexastore1.search(vec![]),
             BTreeSet::from_iter(&[0, 1, 2, 3, 4, 5, 6])
         );
 
         assert_eq!(
-            hexastore.search(vec![(ColId::new("entity"), 0.into())]),
+            hexastore1.search(vec![(ColId::new("entity"), 0.into())]),
             BTreeSet::from_iter(&[0, 3])
         );
 
         assert_eq!(
-            hexastore.search(vec![(ColId::new("entity"), 1.into())]),
+            hexastore1.search(vec![(ColId::new("entity"), 1.into())]),
             BTreeSet::from_iter(&[1, 4])
         );
 
         assert_eq!(
-            hexastore.search(vec![(ColId::new("entity"), 2.into())]),
+            hexastore1.search(vec![(ColId::new("entity"), 2.into())]),
             BTreeSet::from_iter(&[2, 5, 6])
         );
 
         assert_eq!(
-            hexastore.search(vec![(ColId::new("attribute"), "name".into())]),
+            hexastore1.search(vec![(ColId::new("attribute"), "name".into())]),
             BTreeSet::from_iter(&[0, 1, 2])
         );
 
         assert_eq!(
-            hexastore.search(vec![(ColId::new("attribute"), "residence".into())]),
+            hexastore1.search(vec![(ColId::new("attribute"), "residence".into())]),
             BTreeSet::from_iter(&[3, 4, 5, 6])
         );
 
         assert_eq!(
-            hexastore.search(vec![(ColId::new("attribute"), "age".into())]),
+            hexastore1.search(vec![(ColId::new("attribute"), "age".into())]),
             BTreeSet::from_iter(&[])
         );
 

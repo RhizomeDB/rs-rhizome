@@ -1,6 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_debug_implementations, rust_2018_idioms)]
-#![deny(unreachable_pub, private_in_public)]
+// #![deny(unreachable_pub, private_in_public)]
 
 //! rhizome
 
@@ -16,13 +16,13 @@ pub(crate) mod relation;
 pub mod aggregation;
 pub mod args;
 pub mod error;
-pub mod fact;
 pub mod kernel;
 pub mod predicate;
 pub mod pretty;
 pub mod runtime;
 pub mod storage;
 pub mod timestamp;
+pub mod tuple;
 pub mod typed_vars;
 pub mod types;
 pub mod value;

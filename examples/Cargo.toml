@@ -6,16 +6,16 @@ edition = "2021"
 authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
 
 [dev-dependencies]
+cid = { version = "0.10.0", features = ["serde-codec"] }
+futures = { version = "0.3.0", features = ["thread-pool"] }
 rhizome = { path = "../rhizome", version = "0.1" }
 rhizome-tokio = { path = "../rhizome-tokio", version = "0.1" }
-
-tokio = { version = "1.0.0", features = ["full", "tracing"] }
-tokio-util = { version = "0.7.0", features = ["full"] }
-tokio-stream = { version = "0.1" }
-futures = { version = "0.3.0", features = ["thread-pool"]}
-cid = { version = "0.10.0", features = ["serde-codec"] }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
+
+tokio = { version = "1.0.0", features = ["full", "tracing"] }
+tokio-stream = { version = "0.1" }
+tokio-util = { version = "0.7.0", features = ["full"] }
 
 [[example]]
 name = "kv"

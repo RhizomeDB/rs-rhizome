@@ -1,13 +1,9 @@
 use cid::Cid;
 use futures::sink::unfold;
 use rhizome::{
-    fact::{
-        btree_fact::BTreeFact,
-        evac_fact::EVACFact,
-        traits::{EDBFact, Fact},
-    },
     kernel::math,
     runtime::{client::Client, reactor::Reactor},
+    tuple::{InputTuple, Tuple},
     value::Val,
 };
 use tokio::{
@@ -28,7 +24,7 @@ use std::{
 
 #[derive(Debug, Default)]
 struct Database {
-    bs: RwLock<HashMap<Cid, EVACFact>>,
+    bs: RwLock<HashMap<Cid, InputTuple>>,
     map: RwLock<HashMap<String, (Cid, String)>>,
 }
 
@@ -55,7 +51,7 @@ enum Response {
         entries: Vec<Cid>,
     },
     Dump {
-        entries: Vec<EVACFact>,
+        entries: Vec<InputTuple>,
     },
     List {
         entries: Vec<(String, String)>,
@@ -74,7 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(&addr).await?;
     println!("Listening on: {}", addr);
 
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<EVACFact>(1);
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<InputTuple>(1);
     let db = Arc::new(Database::default());
 
     let (mut client, mut client_rx, reactor) = Client::new();
@@ -90,7 +86,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         let db = Arc::clone(&db);
 
                         || {
-                            Box::new(unfold(db, move |db, fact: BTreeFact| async move {
+                            Box::new(unfold(db, move |db, fact: Tuple| async move {
                                 let Some(Val::Cid(cid)) = fact.col(&"cid".into()) else {
                                 panic!("cid is not a cid");
                             };
@@ -119,7 +115,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             loop {
                 select! {
                     command = rx.recv() => if let Some(fact) = command {
-                        db.bs.write().unwrap().insert(fact.cid().unwrap().unwrap(), fact.clone());
+                        db.bs.write().unwrap().insert(fact.cid().unwrap(), fact.clone());
 
                         client.insert_fact(fact).await.unwrap();
                     }
@@ -173,7 +169,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 async fn handle_request(
     line: &str,
     db: &Database,
-    tx: &tokio::sync::mpsc::Sender<EVACFact>,
+    tx: &tokio::sync::mpsc::Sender<InputTuple>,
 ) -> Response {
     let request = match Request::parse(line) {
         Ok(req) => req,
@@ -195,14 +191,8 @@ async fn handle_request(
 
             match previous {
                 Some((parent, previous)) => {
-                    let fact = EVACFact::new(
-                        key.clone(),
-                        "update",
-                        val.clone(),
-                        vec![("parent".into(), parent)],
-                    );
-
-                    let cid = fact.cid().unwrap().unwrap();
+                    let fact = InputTuple::new(key.clone(), "update", val.clone(), vec![parent]);
+                    let cid = fact.cid().unwrap();
 
                     tx.send(fact).await.unwrap();
 
@@ -214,8 +204,8 @@ async fn handle_request(
                     }
                 }
                 None => {
-                    let fact = EVACFact::new(key.clone(), "create", val.clone(), vec![]);
-                    let cid = fact.cid().unwrap().unwrap();
+                    let fact = InputTuple::new(key.clone(), "create", val.clone(), vec![]);
+                    let cid = fact.cid().unwrap();
 
                     tx.send(fact).await.unwrap();
 
@@ -235,7 +225,7 @@ async fn handle_request(
             stream.write_all(b"DUMP\n").await.unwrap();
 
             let mut buf = String::new();
-            let facts: Vec<EVACFact> = match stream.read_line(&mut buf).await {
+            let facts: Vec<InputTuple> = match stream.read_line(&mut buf).await {
                 Ok(_) => serde_json::from_str(&buf).unwrap(),
                 _ => panic!(),
             };
@@ -243,10 +233,7 @@ async fn handle_request(
                 tx.send(fact.clone()).await.unwrap();
             }
 
-            let entries = facts
-                .into_iter()
-                .map(|f| f.cid().unwrap().unwrap())
-                .collect();
+            let entries = facts.into_iter().map(|f| f.cid().unwrap()).collect();
 
             Response::Pull { entries }
         }
@@ -389,7 +376,7 @@ async fn run_reactor(reactor: Reactor) {
                     cid,
                     (("entity", k), ("attribute", "update"), ("value", v)),
                 )?;
-                b.get_link(cid, "parent", parent)?;
+                b.search("links", (("from", cid), ("to", parent)))?;
                 b.search("create", (("cid", parent), ("key", k)))?;
 
                 Ok(())
@@ -403,7 +390,7 @@ async fn run_reactor(reactor: Reactor) {
                     cid,
                     (("entity", k), ("attribute", "update"), ("value", v)),
                 )?;
-                b.get_link(cid, "parent", parent)?;
+                b.search("links", (("from", cid), ("to", parent)))?;
                 b.search("update", (("cid", parent), ("key", k)))?;
 
                 Ok(())

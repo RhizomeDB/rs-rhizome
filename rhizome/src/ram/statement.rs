@@ -1,11 +1,7 @@
 use derive_more::IsVariant;
 use pretty::RcDoc;
 
-use crate::{
-    fact::traits::{EDBFact, IDBFact},
-    pretty::Pretty,
-    relation::Relation,
-};
+use crate::pretty::Pretty;
 
 pub(crate) mod exit;
 pub(crate) mod insert;
@@ -28,30 +24,18 @@ pub(crate) use swap::*;
 // TODO: Flatten the AST by replacing `Loop` with `Push` and `Pop`;
 // see https://github.com/RhizomeDB/rs-rhizome/issues/29
 #[derive(Debug, IsVariant)]
-pub(crate) enum Statement<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    Insert(Insert<EF, IF, ER, IR>),
-    Merge(Merge<EF, IF, ER, IR>),
-    Swap(Swap<IR>),
-    Purge(Purge<EF, IF, ER, IR>),
-    Loop(Loop<EF, IF, ER, IR>),
-    Exit(Exit<IF, IR>),
-    Sources(Sources<EF, ER>),
-    Sinks(Sinks<IF, IR>),
+pub(crate) enum Statement {
+    Insert(Insert),
+    Merge(Merge),
+    Swap(Swap),
+    Purge(Purge),
+    Loop(Loop),
+    Exit(Exit),
+    Sources(Sources),
+    Sinks(Sinks),
 }
 
-impl<EF, IF, ER, IR> Pretty for Statement<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for Statement {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         match self {
             Statement::Insert(inner) => inner.to_doc(),

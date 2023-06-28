@@ -8,44 +8,28 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::EDBFact,
     id::{ColId, RelationId},
     pretty::Pretty,
     relation::Relation,
+    tuple::Tuple,
     value::Val,
 };
 
-#[derive(Debug)]
-pub(crate) struct SourcesBuilder<F, R>
-where
-    F: EDBFact,
-    R: Relation<Fact = F>,
-{
-    relations: HashMap<RelationId, Arc<RwLock<R>>>,
+#[derive(Debug, Default)]
+pub(crate) struct SourcesBuilder {
+    relations: HashMap<RelationId, Arc<RwLock<Box<dyn Relation>>>>,
 }
 
-impl<F, R> Default for SourcesBuilder<F, R>
-where
-    F: EDBFact,
-    R: Relation<Fact = F>,
-{
-    fn default() -> Self {
-        Self {
-            relations: HashMap::default(),
-        }
-    }
-}
-
-impl<F, R> SourcesBuilder<F, R>
-where
-    F: EDBFact,
-    R: Relation<Fact = F>,
-{
-    pub(crate) fn add_relation(&mut self, id: RelationId, relation: Arc<RwLock<R>>) {
+impl SourcesBuilder {
+    pub(crate) fn add_relation(
+        &mut self,
+        id: RelationId,
+        relation: Arc<RwLock<Box<dyn Relation>>>,
+    ) {
         self.relations.insert(id, relation);
     }
 
-    pub(crate) fn finalize(self) -> Sources<F, R> {
+    pub(crate) fn finalize(self) -> Sources {
         Sources {
             relations: self.relations,
         }
@@ -53,20 +37,12 @@ where
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Sources<F, R>
-where
-    F: EDBFact,
-    R: Relation<Fact = F>,
-{
-    relations: HashMap<RelationId, Arc<RwLock<R>>>,
+pub(crate) struct Sources {
+    relations: HashMap<RelationId, Arc<RwLock<Box<dyn Relation>>>>,
 }
 
-impl<F, R> Sources<F, R>
-where
-    F: EDBFact,
-    R: Relation<Fact = F>,
-{
-    pub(crate) fn apply(&self, input: &mut VecDeque<F>) -> Result<bool> {
+impl Sources {
+    pub(crate) fn apply(&self, input: &mut VecDeque<Tuple>) -> Result<bool> {
         let mut has_new_facts = false;
 
         while let Some(fact) = input.pop_front() {
@@ -97,11 +73,7 @@ where
     }
 }
 
-impl<F, R> Pretty for Sources<F, R>
-where
-    F: EDBFact,
-    R: Relation<Fact = F>,
-{
+impl Pretty for Sources {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relations_doc = RcDoc::intersperse(
             self.relations.keys().map(RcDoc::as_string),

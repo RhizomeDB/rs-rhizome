@@ -19,15 +19,12 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        fact::{DefaultEDBFact, DefaultIDBFact},
         ram::{
             formula::Formula,
             operation::{project::Project, search::Search, Operation},
-            relation_version::RelationVersion,
             term::Term,
-            SearchRelation,
         },
-        relation::{DefaultEDBRelation, DefaultIDBRelation},
+        relation::{DefaultRelation, Version},
         value::Val,
     };
 
@@ -37,29 +34,22 @@ mod tests {
     fn test_pretty() -> Result<()> {
         let formula = Formula::not_in(
             "person".into(),
-            RelationVersion::Total,
+            Version::Total,
             [("age", Term::Lit(Val::U32(29)))],
-            crate::ram::NotInRelation::Edb(Arc::new(RwLock::new(DefaultEDBRelation::default()))),
+            Arc::new(RwLock::new(Box::new(DefaultRelation::default()))),
         );
 
-        let project = Operation::Project(Project::<
-            DefaultEDBFact,
-            DefaultIDBFact,
-            DefaultEDBRelation<DefaultEDBFact>,
-            DefaultIDBRelation<DefaultIDBFact>,
-        >::new(
-            "person".into(),
-            RelationVersion::Total,
+        let project = Operation::Project(Project::new(
+            ("person".into(), Version::Total),
             hashmap! {"age" => Term::Lit(Val::S32(29))},
             vec![],
-            Arc::default(),
+            Arc::new(RwLock::new(Box::new(DefaultRelation::default()))),
         ));
 
         let ast = Operation::Search(Search::new(
-            "person".into(),
+            ("person".into(), Version::Total),
             None,
-            RelationVersion::Total,
-            SearchRelation::Edb(Arc::new(RwLock::new(DefaultEDBRelation::default()))),
+            Arc::new(RwLock::new(Box::new(DefaultRelation::default()))),
             vec![("name".into(), Term::Lit(Val::String("Quinn".into())))],
             [formula],
             project,

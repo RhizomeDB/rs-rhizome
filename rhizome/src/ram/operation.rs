@@ -1,11 +1,7 @@
 use derive_more::IsVariant;
 use pretty::RcDoc;
 
-use crate::{
-    fact::traits::{EDBFact, IDBFact},
-    pretty::Pretty,
-    relation::Relation,
-};
+use crate::pretty::Pretty;
 
 pub(crate) mod aggregation;
 pub(crate) mod project;
@@ -16,25 +12,13 @@ pub(crate) use project::*;
 pub(crate) use search::*;
 
 #[derive(Debug, IsVariant)]
-pub(crate) enum Operation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    Search(Search<EF, IF, ER, IR>),
-    Project(Project<EF, IF, ER, IR>),
-    Aggregation(Aggregation<EF, IF, ER, IR>),
+pub(crate) enum Operation {
+    Search(Search),
+    Project(Project),
+    Aggregation(Aggregation),
 }
 
-impl<EF, IF, ER, IR> Pretty for Operation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for Operation {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         match self {
             Operation::Search(inner) => inner.to_doc(),

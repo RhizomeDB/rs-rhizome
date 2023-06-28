@@ -3,41 +3,10 @@ mod rvg;
 
 pub use rvg::*;
 
-use crate::{
-    fact::{DefaultEDBFact, DefaultIDBFact},
-    ram::Program,
-    relation::{DefaultEDBRelation, DefaultIDBRelation},
-    ProgramBuilder,
-};
-use anyhow::Result;
-
-#[allow(dead_code)]
-pub(crate) fn build_easy<F>(
-    f: F,
-) -> Result<
-    Program<
-        DefaultEDBFact,
-        DefaultIDBFact,
-        DefaultEDBRelation<DefaultEDBFact>,
-        DefaultIDBRelation<DefaultIDBFact>,
-    >,
->
-where
-    F: FnOnce(ProgramBuilder) -> Result<ProgramBuilder>,
-{
-    crate::build::<
-        DefaultEDBFact,
-        DefaultIDBFact,
-        DefaultEDBRelation<DefaultEDBFact>,
-        DefaultIDBRelation<DefaultIDBFact>,
-        F,
-    >(f)
-}
-
 #[macro_export]
 macro_rules! assert_compile {
     ($program_closure:expr) => {
-        match $crate::test_utils::build_easy($program_closure) {
+        match $crate::logic::builder::build($program_closure) {
             std::result::Result::Ok(v) => v,
             std::result::Result::Err(e) => {
                 panic!("Failed to build program: {:?}", e);
@@ -49,7 +18,7 @@ macro_rules! assert_compile {
 #[macro_export]
 macro_rules! assert_compile_err {
     ($err:expr, $program_closure:expr) => {
-        match $crate::test_utils::build_easy($program_closure) {
+        match $crate::logic::builder::build($program_closure) {
             std::result::Result::Ok(_) => {
                 panic!("Expected an error, but compilation succeeded!");
             }
@@ -65,7 +34,7 @@ macro_rules! assert_derives {
     ($program_closure:expr, $expected:expr) => {
         assert_derives!(
             $program_closure,
-            Vec::<$crate::fact::evac_fact::EVACFact>::default(),
+            Vec::<$crate::tuple::InputTuple>::default(),
             $expected
         );
     };
@@ -87,17 +56,34 @@ macro_rules! assert_derives {
         let mut bs = $crate::storage::memory::MemoryBlockstore::default();
         let mut vm = <$crate::runtime::vm::VM>::new(program);
 
-        for fact in &$edb {
+        for input_fact in $edb {
             $crate::storage::blockstore::Blockstore::put_serializable(
                 &mut bs,
-                fact,
+                &input_fact,
                 #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                 $crate::storage::DefaultCodec::default(),
                 $crate::storage::DEFAULT_MULTIHASH,
             )
             .unwrap();
 
-            vm.push(fact.clone()).unwrap();
+            let cid = input_fact.cid().unwrap();
+            let fact = $crate::tuple::Tuple::new(
+                "evac",
+                [
+                    ("entity", input_fact.entity()),
+                    ("attribute", input_fact.attr()),
+                    ("value", input_fact.val()),
+                ],
+                Some(cid),
+            );
+
+            vm.push(fact).unwrap();
+
+            for link in input_fact.links() {
+                let fact = Tuple::new("links", [("from", cid), ("to", *link)], None);
+
+                vm.push(fact).unwrap();
+            }
         }
 
         match vm.step_epoch(&bs) {

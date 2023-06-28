@@ -5,44 +5,34 @@ use rhizome_runtime::MaybeSend;
 
 use crate::{
     error::Error,
-    fact::traits::{EDBFact, IDBFact},
     id::RelationId,
     timestamp::Timestamp,
+    tuple::{InputTuple, Tuple},
 };
 
 pub mod client;
 pub mod reactor;
 mod vm;
 
-pub type FactStream<F> = Box<dyn Stream<Item = F>>;
-pub type FactSink<F> = Box<dyn Sink<F, Error = Error>>;
+pub type FactStream = Box<dyn Stream<Item = InputTuple>>;
+pub type FactSink = Box<dyn Sink<Tuple, Error = Error>>;
 
-pub trait CreateStream<T>: (FnOnce() -> FactStream<T>) + MaybeSend {}
-pub trait CreateSink<T>: (FnOnce() -> FactSink<T>) + MaybeSend {}
+pub trait CreateStream: (FnOnce() -> FactStream) + MaybeSend {}
+pub trait CreateSink: (FnOnce() -> FactSink) + MaybeSend {}
 
-impl<F, T> CreateStream<T> for F
-where
-    F: FnOnce() -> FactStream<T> + MaybeSend,
-    T: EDBFact,
-{
-}
+impl<F> CreateStream for F where F: FnOnce() -> FactStream + MaybeSend {}
 
-impl<F, T> CreateSink<T> for F
-where
-    F: FnOnce() -> FactSink<T> + MaybeSend,
-    T: IDBFact,
-{
+impl<F> CreateSink for F where F: FnOnce() -> FactSink + MaybeSend {}
+
+#[derive(Debug)]
+pub enum StreamEvent {
+    Fact(InputTuple),
 }
 
 #[derive(Debug)]
-pub enum StreamEvent<T> {
-    Fact(T),
-}
-
-#[derive(Debug)]
-pub enum SinkCommand<T> {
+pub enum SinkCommand {
     Flush(oneshot::Sender<()>),
-    ProcessFact(T),
+    ProcessFact(Tuple),
 }
 
 #[derive(Debug)]
@@ -53,22 +43,14 @@ where
     ReachedFixedpoint(T),
 }
 
-pub enum ClientCommand<E, I>
-where
-    E: EDBFact,
-    I: IDBFact,
-{
+pub enum ClientCommand {
     Flush(oneshot::Sender<()>),
-    InsertFact(E, oneshot::Sender<()>),
-    RegisterStream(RelationId, Box<dyn CreateStream<E>>, oneshot::Sender<()>),
-    RegisterSink(RelationId, Box<dyn CreateSink<I>>, oneshot::Sender<()>),
+    InsertFact(Box<InputTuple>, oneshot::Sender<()>),
+    RegisterStream(RelationId, Box<dyn CreateStream>, oneshot::Sender<()>),
+    RegisterSink(RelationId, Box<dyn CreateSink>, oneshot::Sender<()>),
 }
 
-impl<E, I> Debug for ClientCommand<E, I>
-where
-    E: EDBFact,
-    I: IDBFact,
-{
+impl Debug for ClientCommand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ClientCommand::Flush(_) => f.debug_tuple("Flush").finish(),
@@ -94,11 +76,6 @@ mod tests {
     use crate::{
         aggregation::Aggregate,
         assert_derives,
-        fact::{
-            btree_fact::BTreeFact,
-            evac_fact::EVACFact,
-            traits::{Fact, IDBFact},
-        },
         kernel::{self, math},
         predicate::Predicate,
         types::RhizomeType,
@@ -140,16 +117,16 @@ mod tests {
             [(
                 "path",
                 [
-                    BTreeFact::new("path", [("from", 0), ("to", 1)],),
-                    BTreeFact::new("path", [("from", 0), ("to", 2)],),
-                    BTreeFact::new("path", [("from", 0), ("to", 3)],),
-                    BTreeFact::new("path", [("from", 0), ("to", 4)],),
-                    BTreeFact::new("path", [("from", 1), ("to", 2)],),
-                    BTreeFact::new("path", [("from", 1), ("to", 3)],),
-                    BTreeFact::new("path", [("from", 1), ("to", 4)],),
-                    BTreeFact::new("path", [("from", 2), ("to", 3)],),
-                    BTreeFact::new("path", [("from", 2), ("to", 4)],),
-                    BTreeFact::new("path", [("from", 3), ("to", 4)],),
+                    Tuple::new("path", [("from", 0), ("to", 1)], None),
+                    Tuple::new("path", [("from", 0), ("to", 2)], None),
+                    Tuple::new("path", [("from", 0), ("to", 3)], None),
+                    Tuple::new("path", [("from", 0), ("to", 4)], None),
+                    Tuple::new("path", [("from", 1), ("to", 2)], None),
+                    Tuple::new("path", [("from", 1), ("to", 3)], None),
+                    Tuple::new("path", [("from", 1), ("to", 4)], None),
+                    Tuple::new("path", [("from", 2), ("to", 3)], None),
+                    Tuple::new("path", [("from", 2), ("to", 4)], None),
+                    Tuple::new("path", [("from", 3), ("to", 4)], None),
                 ]
             )]
         );
@@ -188,24 +165,24 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "to", 1, vec![]),
-                EVACFact::new(1, "to", 2, vec![]),
-                EVACFact::new(2, "to", 3, vec![]),
-                EVACFact::new(3, "to", 4, vec![]),
+                InputTuple::new(0, "to", 1, []),
+                InputTuple::new(1, "to", 2, []),
+                InputTuple::new(2, "to", 3, []),
+                InputTuple::new(3, "to", 4, []),
             ],
             [(
                 "path",
                 [
-                    BTreeFact::new("path", [("from", 0), ("to", 1)]),
-                    BTreeFact::new("path", [("from", 0), ("to", 2)]),
-                    BTreeFact::new("path", [("from", 0), ("to", 3)]),
-                    BTreeFact::new("path", [("from", 0), ("to", 4)]),
-                    BTreeFact::new("path", [("from", 1), ("to", 2)]),
-                    BTreeFact::new("path", [("from", 1), ("to", 3)]),
-                    BTreeFact::new("path", [("from", 1), ("to", 4)]),
-                    BTreeFact::new("path", [("from", 2), ("to", 3)]),
-                    BTreeFact::new("path", [("from", 2), ("to", 4)]),
-                    BTreeFact::new("path", [("from", 3), ("to", 4)]),
+                    Tuple::new("path", [("from", 0), ("to", 1)], None),
+                    Tuple::new("path", [("from", 0), ("to", 2)], None),
+                    Tuple::new("path", [("from", 0), ("to", 3)], None),
+                    Tuple::new("path", [("from", 0), ("to", 4)], None),
+                    Tuple::new("path", [("from", 1), ("to", 2)], None),
+                    Tuple::new("path", [("from", 1), ("to", 3)], None),
+                    Tuple::new("path", [("from", 1), ("to", 4)], None),
+                    Tuple::new("path", [("from", 2), ("to", 3)], None),
+                    Tuple::new("path", [("from", 2), ("to", 4)], None),
+                    Tuple::new("path", [("from", 3), ("to", 4)], None),
                 ]
             )]
         );
@@ -242,21 +219,21 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "value", 0, vec![]),
-                EVACFact::new(0, "value", 1, vec![]),
-                EVACFact::new(1, "value", 2, vec![]),
-                EVACFact::new(2, "value", 2, vec![]),
-                EVACFact::new(3, "value", 23, vec![]),
-                EVACFact::new(1, "ignored", true, vec![]),
-                EVACFact::new(2, "ignored", false, vec![]),
-                EVACFact::new(3, "ignored", true, vec![("foo".into(), cid)]),
+                InputTuple::new(0, "value", 0, []),
+                InputTuple::new(0, "value", 1, []),
+                InputTuple::new(1, "value", 2, []),
+                InputTuple::new(2, "value", 2, []),
+                InputTuple::new(3, "value", 23, []),
+                InputTuple::new(1, "ignored", true, []),
+                InputTuple::new(2, "ignored", false, []),
+                InputTuple::new(3, "ignored", true, [cid]),
             ],
             [(
                 "result",
                 [
-                    BTreeFact::new("result", [("entity", 0), ("value", 0)]),
-                    BTreeFact::new("result", [("entity", 0), ("value", 1)]),
-                    BTreeFact::new("result", [("entity", 2), ("value", 2)]),
+                    Tuple::new("result", [("entity", 0), ("value", 0)], None),
+                    Tuple::new("result", [("entity", 0), ("value", 1)], None),
+                    Tuple::new("result", [("entity", 2), ("value", 2)], None),
                 ]
             )]
         );
@@ -291,17 +268,17 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "value", 0, vec![]),
-                EVACFact::new(0, "value", 1, vec![]),
-                EVACFact::new(1, "value", 2, vec![]),
-                EVACFact::new(2, "value", 2, vec![]),
+                InputTuple::new(0, "value", 0, []),
+                InputTuple::new(0, "value", 1, []),
+                InputTuple::new(1, "value", 2, []),
+                InputTuple::new(2, "value", 2, []),
             ],
             [(
                 "result",
                 [
-                    BTreeFact::new("result", [("entity", 0), ("value", 0)]),
-                    BTreeFact::new("result", [("entity", 0), ("value", 1)]),
-                    BTreeFact::new("result", [("entity", 2), ("value", 2)]),
+                    Tuple::new("result", [("entity", 0), ("value", 0)], None),
+                    Tuple::new("result", [("entity", 0), ("value", 1)], None),
+                    Tuple::new("result", [("entity", 2), ("value", 2)], None),
                 ]
             )]
         );
@@ -311,79 +288,87 @@ mod tests {
 
     #[test]
     fn test_get_link() -> Result<()> {
-        let f00 = EVACFact::new(0, "node", 0, vec![]);
-        let f01 = EVACFact::new(0, "node", 0, vec![("parent".into(), f00.cid()?.unwrap())]);
-        let f02 = EVACFact::new(0, "node", 0, vec![("parent".into(), f01.cid()?.unwrap())]);
-        let f03 = EVACFact::new(0, "node", 0, vec![("parent".into(), f02.cid()?.unwrap())]);
-        let f04 = EVACFact::new(0, "node", 1, vec![("parent".into(), f02.cid()?.unwrap())]);
-        let f10 = EVACFact::new(1, "node", 0, vec![("parent".into(), f00.cid()?.unwrap())]);
-        let f11 = EVACFact::new(1, "node", 0, vec![("parent".into(), f10.cid()?.unwrap())]);
-        let f12 = EVACFact::new(1, "node", 0, vec![("parent".into(), f11.cid()?.unwrap())]);
+        let f00 = InputTuple::new(0, "node", 0, []);
+        let f01 = InputTuple::new(0, "node", 0, [f00.cid()?]);
+        let f02 = InputTuple::new(0, "node", 0, [f01.cid()?]);
+        let f03 = InputTuple::new(0, "node", 0, [f02.cid()?]);
+        let f04 = InputTuple::new(0, "node", 1, [f02.cid()?]);
+        let f10 = InputTuple::new(1, "node", 0, [f00.cid()?]);
+        let f11 = InputTuple::new(1, "node", 0, [f10.cid()?]);
+        let f12 = InputTuple::new(1, "node", 0, [f11.cid()?]);
 
         let idb = [
             (
                 "root",
                 vec![
-                    BTreeFact::new(
+                    Tuple::new(
                         "root",
-                        [("tree", Val::S32(0)), ("id", Val::Cid(f00.cid()?.unwrap()))],
+                        [("tree", Val::S32(0)), ("id", Val::Cid(f00.cid()?))],
+                        None,
                     ),
-                    BTreeFact::new(
+                    Tuple::new(
                         "root",
-                        [("tree", Val::S32(1)), ("id", Val::Cid(f10.cid()?.unwrap()))],
+                        [("tree", Val::S32(1)), ("id", Val::Cid(f10.cid()?))],
+                        None,
                     ),
                 ],
             ),
             (
                 "parent",
                 vec![
-                    BTreeFact::new(
+                    Tuple::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f00.cid()?.unwrap())),
-                            ("child", Val::Cid(f01.cid()?.unwrap())),
+                            ("parent", Val::Cid(f00.cid()?)),
+                            ("child", Val::Cid(f01.cid()?)),
                         ],
+                        None,
                     ),
-                    BTreeFact::new(
+                    Tuple::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f01.cid()?.unwrap())),
-                            ("child", Val::Cid(f02.cid()?.unwrap())),
+                            ("parent", Val::Cid(f01.cid()?)),
+                            ("child", Val::Cid(f02.cid()?)),
                         ],
+                        None,
                     ),
-                    BTreeFact::new(
+                    Tuple::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f02.cid()?.unwrap())),
-                            ("child", Val::Cid(f03.cid()?.unwrap())),
+                            ("parent", Val::Cid(f02.cid()?)),
+                            ("child", Val::Cid(f03.cid()?)),
                         ],
+                        None,
                     ),
-                    BTreeFact::new(
+                    Tuple::new(
                         "parent",
                         [
                             ("tree", Val::S32(0)),
-                            ("parent", Val::Cid(f02.cid()?.unwrap())),
-                            ("child", Val::Cid(f04.cid()?.unwrap())),
+                            ("parent", Val::Cid(f02.cid()?)),
+                            ("child", Val::Cid(f04.cid()?)),
                         ],
+                        None,
                     ),
-                    BTreeFact::new(
+                    Tuple::new(
                         "parent",
                         [
                             ("tree", Val::S32(1)),
-                            ("parent", Val::Cid(f10.cid()?.unwrap())),
-                            ("child", Val::Cid(f11.cid()?.unwrap())),
+                            ("parent", Val::Cid(f10.cid()?)),
+                            ("child", Val::Cid(f11.cid()?)),
                         ],
+                        None,
                     ),
-                    BTreeFact::new(
+                    Tuple::new(
                         "parent",
                         [
                             ("tree", Val::S32(1)),
-                            ("parent", Val::Cid(f11.cid()?.unwrap())),
-                            ("child", Val::Cid(f12.cid()?.unwrap())),
+                            ("parent", Val::Cid(f11.cid()?)),
+                            ("child", Val::Cid(f12.cid()?)),
                         ],
+                        None,
                     ),
                 ],
             ),
@@ -405,7 +390,7 @@ mod tests {
                     b.search_cid("evac", parent, (("entity", tree),))?;
                     b.search_cid("evac", child, (("entity", tree),))?;
 
-                    b.get_link(child, "parent", parent)?;
+                    b.search("links", (("from", child), ("to", parent)))?;
 
                     Ok(())
                 })?;
@@ -430,51 +415,41 @@ mod tests {
 
     #[test]
     fn test_get_link_one_hop() -> Result<()> {
-        let f0 = EVACFact::new(0, "node", 0, vec![]);
-        let f1 = EVACFact::new(0, "node", 0, vec![("to".into(), f0.cid()?.unwrap())]);
-        let f2 = EVACFact::new(0, "node", 0, vec![("to".into(), f1.cid()?.unwrap())]);
-        let f3 = EVACFact::new(0, "node", 0, vec![("to".into(), f1.cid()?.unwrap())]);
-        let f4 = EVACFact::new(0, "node", 0, vec![("to".into(), f2.cid()?.unwrap())]);
-        let f5 = EVACFact::new(0, "node", 0, vec![("to".into(), f3.cid()?.unwrap())]);
-        let f6 = EVACFact::new(0, "node", 0, vec![("to".into(), f4.cid()?.unwrap())]);
+        let f0 = InputTuple::new(0, "node", 0, []);
+        let f1 = InputTuple::new(0, "node", 0, [f0.cid()?]);
+        let f2 = InputTuple::new(0, "node", 0, [f1.cid()?]);
+        let f3 = InputTuple::new(0, "node", 0, [f1.cid()?]);
+        let f4 = InputTuple::new(0, "node", 0, [f2.cid()?]);
+        let f5 = InputTuple::new(0, "node", 0, [f3.cid()?]);
+        let f6 = InputTuple::new(0, "node", 0, [f4.cid()?]);
 
         let idb = [(
             "hop",
             vec![
-                BTreeFact::new(
+                Tuple::new(
                     "hop",
-                    [
-                        ("from", Val::Cid(f2.cid()?.unwrap())),
-                        ("to", Val::Cid(f0.cid()?.unwrap())),
-                    ],
+                    [("from", Val::Cid(f2.cid()?)), ("to", Val::Cid(f0.cid()?))],
+                    None,
                 ),
-                BTreeFact::new(
+                Tuple::new(
                     "hop",
-                    [
-                        ("from", Val::Cid(f3.cid()?.unwrap())),
-                        ("to", Val::Cid(f0.cid()?.unwrap())),
-                    ],
+                    [("from", Val::Cid(f3.cid()?)), ("to", Val::Cid(f0.cid()?))],
+                    None,
                 ),
-                BTreeFact::new(
+                Tuple::new(
                     "hop",
-                    [
-                        ("from", Val::Cid(f4.cid()?.unwrap())),
-                        ("to", Val::Cid(f1.cid()?.unwrap())),
-                    ],
+                    [("from", Val::Cid(f4.cid()?)), ("to", Val::Cid(f1.cid()?))],
+                    None,
                 ),
-                BTreeFact::new(
+                Tuple::new(
                     "hop",
-                    [
-                        ("from", Val::Cid(f5.cid()?.unwrap())),
-                        ("to", Val::Cid(f1.cid()?.unwrap())),
-                    ],
+                    [("from", Val::Cid(f5.cid()?)), ("to", Val::Cid(f1.cid()?))],
+                    None,
                 ),
-                BTreeFact::new(
+                Tuple::new(
                     "hop",
-                    [
-                        ("from", Val::Cid(f6.cid()?.unwrap())),
-                        ("to", Val::Cid(f2.cid()?.unwrap())),
-                    ],
+                    [("from", Val::Cid(f6.cid()?)), ("to", Val::Cid(f2.cid()?))],
+                    None,
                 ),
             ],
         )];
@@ -487,8 +462,8 @@ mod tests {
                     h.bind((("from", from), ("to", to)))?;
 
                     b.search_cid("evac", from, ())?;
-                    b.get_link(from, "to", via)?;
-                    b.get_link(via, "to", to)?;
+                    b.search("links", (("from", from), ("to", via)))?;
+                    b.search("links", (("from", via), ("to", to)))?;
 
                     Ok(())
                 })?;
@@ -525,25 +500,25 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "n", 1, vec![]),
-                EVACFact::new(0, "n", 2, vec![]),
-                EVACFact::new(0, "n", 3, vec![]),
-                EVACFact::new(0, "n", 4, vec![]),
-                EVACFact::new(0, "n", 5, vec![]),
+                InputTuple::new(0, "n", 1, []),
+                InputTuple::new(0, "n", 2, []),
+                InputTuple::new(0, "n", 3, []),
+                InputTuple::new(0, "n", 4, []),
+                InputTuple::new(0, "n", 5, []),
             ],
             [(
                 "triangle",
                 [
-                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 3)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 4)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 4)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 3), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 4)],),
-                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 2), ("b", 2), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 3), ("b", 1), ("c", 5)],),
+                    Tuple::new("triangle", [("a", 1), ("b", 1), ("c", 3)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 1), ("c", 4)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 1), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 2), ("c", 4)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 2), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 3), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 2), ("b", 1), ("c", 4)], None),
+                    Tuple::new("triangle", [("a", 2), ("b", 1), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 2), ("b", 2), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 3), ("b", 1), ("c", 5)], None),
                 ]
             )]
         );
@@ -574,25 +549,25 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "n", 1, vec![]),
-                EVACFact::new(0, "n", 2, vec![]),
-                EVACFact::new(0, "n", 3, vec![]),
-                EVACFact::new(0, "n", 4, vec![]),
-                EVACFact::new(0, "n", 5, vec![]),
+                InputTuple::new(0, "n", 1, []),
+                InputTuple::new(0, "n", 2, []),
+                InputTuple::new(0, "n", 3, []),
+                InputTuple::new(0, "n", 4, []),
+                InputTuple::new(0, "n", 5, []),
             ],
             [(
                 "triangle",
                 [
-                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 3)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 4)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 1), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 4)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 2), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 1), ("b", 3), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 4)],),
-                    BTreeFact::new("triangle", [("a", 2), ("b", 1), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 2), ("b", 2), ("c", 5)],),
-                    BTreeFact::new("triangle", [("a", 3), ("b", 1), ("c", 5)],),
+                    Tuple::new("triangle", [("a", 1), ("b", 1), ("c", 3)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 1), ("c", 4)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 1), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 2), ("c", 4)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 2), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 1), ("b", 3), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 2), ("b", 1), ("c", 4)], None),
+                    Tuple::new("triangle", [("a", 2), ("b", 1), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 2), ("b", 2), ("c", 5)], None),
+                    Tuple::new("triangle", [("a", 3), ("b", 1), ("c", 5)], None),
                 ]
             )]
         );
@@ -624,13 +599,13 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "n", 1, vec![]),
-                EVACFact::new(0, "n", 2, vec![]),
-                EVACFact::new(0, "n", 3, vec![]),
-                EVACFact::new(0, "n", 4, vec![]),
-                EVACFact::new(0, "n", 5, vec![]),
+                InputTuple::new(0, "n", 1, []),
+                InputTuple::new(0, "n", 2, []),
+                InputTuple::new(0, "n", 3, []),
+                InputTuple::new(0, "n", 4, []),
+                InputTuple::new(0, "n", 5, []),
             ],
-            [("count", [BTreeFact::new("count", [("n", 5),],),]),]
+            [("count", [Tuple::new("count", [("n", 5),], None),]),]
         );
 
         Ok(())
@@ -660,13 +635,13 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "n", 1, vec![]),
-                EVACFact::new(0, "n", 2, vec![]),
-                EVACFact::new(0, "n", 3, vec![]),
-                EVACFact::new(0, "n", 4, vec![]),
-                EVACFact::new(0, "n", 5, vec![]),
+                InputTuple::new(0, "n", 1, []),
+                InputTuple::new(0, "n", 2, []),
+                InputTuple::new(0, "n", 3, []),
+                InputTuple::new(0, "n", 4, []),
+                InputTuple::new(0, "n", 5, []),
             ],
-            [("sum", [BTreeFact::new("sum", [("n", 15),],),]),]
+            [("sum", [Tuple::new("sum", [("n", 15),], None),]),]
         );
 
         Ok(())
@@ -724,17 +699,17 @@ mod tests {
                 Ok(p)
             },
             [
-                EVACFact::new(0, "n", 1, vec![]),
-                EVACFact::new(0, "n", 2, vec![]),
-                EVACFact::new(0, "n", 3, vec![]),
-                EVACFact::new(0, "n", 4, vec![]),
-                EVACFact::new(0, "n", 5, vec![]),
+                InputTuple::new(0, "n", 1, []),
+                InputTuple::new(0, "n", 2, []),
+                InputTuple::new(0, "n", 3, []),
+                InputTuple::new(0, "n", 4, []),
+                InputTuple::new(0, "n", 5, []),
             ],
             [
-                ("count", [BTreeFact::new("count", [("n", 5),],),]),
-                ("sum", [BTreeFact::new("sum", [("n", 15),],),]),
-                ("min", [BTreeFact::new("min", [("n", 1),],),]),
-                ("max", [BTreeFact::new("max", [("n", 5),],),]),
+                ("count", [Tuple::new("count", [("n", 5),], None),]),
+                ("sum", [Tuple::new("sum", [("n", 15),], None),]),
+                ("min", [Tuple::new("min", [("n", 1),], None),]),
+                ("max", [Tuple::new("max", [("n", 5),], None),]),
             ]
         );
 
@@ -774,7 +749,7 @@ mod tests {
 
                 Ok(p)
             },
-            [("product", [BTreeFact::new("product", [("z", 225),],),]),]
+            [("product", [Tuple::new("product", [("z", 225),], None),]),]
         );
     }
 
@@ -817,31 +792,31 @@ mod tests {
             [(
                 "product",
                 [
-                    BTreeFact::new("product", [("x", 1), ("y", 1), ("z", 1),],),
-                    BTreeFact::new("product", [("x", 1), ("y", 2), ("z", 2),],),
-                    BTreeFact::new("product", [("x", 1), ("y", 3), ("z", 3),],),
-                    BTreeFact::new("product", [("x", 1), ("y", 4), ("z", 4),],),
-                    BTreeFact::new("product", [("x", 1), ("y", 5), ("z", 5),],),
-                    BTreeFact::new("product", [("x", 2), ("y", 1), ("z", 2),],),
-                    BTreeFact::new("product", [("x", 2), ("y", 2), ("z", 4),],),
-                    BTreeFact::new("product", [("x", 2), ("y", 3), ("z", 6),],),
-                    BTreeFact::new("product", [("x", 2), ("y", 4), ("z", 8),],),
-                    BTreeFact::new("product", [("x", 2), ("y", 5), ("z", 10),],),
-                    BTreeFact::new("product", [("x", 3), ("y", 1), ("z", 3),],),
-                    BTreeFact::new("product", [("x", 3), ("y", 2), ("z", 6),],),
-                    BTreeFact::new("product", [("x", 3), ("y", 3), ("z", 9),],),
-                    BTreeFact::new("product", [("x", 3), ("y", 4), ("z", 12),],),
-                    BTreeFact::new("product", [("x", 3), ("y", 5), ("z", 15),],),
-                    BTreeFact::new("product", [("x", 4), ("y", 1), ("z", 4),],),
-                    BTreeFact::new("product", [("x", 4), ("y", 2), ("z", 8),],),
-                    BTreeFact::new("product", [("x", 4), ("y", 3), ("z", 12),],),
-                    BTreeFact::new("product", [("x", 4), ("y", 4), ("z", 16),],),
-                    BTreeFact::new("product", [("x", 4), ("y", 5), ("z", 20),],),
-                    BTreeFact::new("product", [("x", 5), ("y", 1), ("z", 5),],),
-                    BTreeFact::new("product", [("x", 5), ("y", 2), ("z", 10),],),
-                    BTreeFact::new("product", [("x", 5), ("y", 3), ("z", 15),],),
-                    BTreeFact::new("product", [("x", 5), ("y", 4), ("z", 20),],),
-                    BTreeFact::new("product", [("x", 5), ("y", 5), ("z", 25),],),
+                    Tuple::new("product", [("x", 1), ("y", 1), ("z", 1),], None),
+                    Tuple::new("product", [("x", 1), ("y", 2), ("z", 2),], None),
+                    Tuple::new("product", [("x", 1), ("y", 3), ("z", 3),], None),
+                    Tuple::new("product", [("x", 1), ("y", 4), ("z", 4),], None),
+                    Tuple::new("product", [("x", 1), ("y", 5), ("z", 5),], None),
+                    Tuple::new("product", [("x", 2), ("y", 1), ("z", 2),], None),
+                    Tuple::new("product", [("x", 2), ("y", 2), ("z", 4),], None),
+                    Tuple::new("product", [("x", 2), ("y", 3), ("z", 6),], None),
+                    Tuple::new("product", [("x", 2), ("y", 4), ("z", 8),], None),
+                    Tuple::new("product", [("x", 2), ("y", 5), ("z", 10),], None),
+                    Tuple::new("product", [("x", 3), ("y", 1), ("z", 3),], None),
+                    Tuple::new("product", [("x", 3), ("y", 2), ("z", 6),], None),
+                    Tuple::new("product", [("x", 3), ("y", 3), ("z", 9),], None),
+                    Tuple::new("product", [("x", 3), ("y", 4), ("z", 12),], None),
+                    Tuple::new("product", [("x", 3), ("y", 5), ("z", 15),], None),
+                    Tuple::new("product", [("x", 4), ("y", 1), ("z", 4),], None),
+                    Tuple::new("product", [("x", 4), ("y", 2), ("z", 8),], None),
+                    Tuple::new("product", [("x", 4), ("y", 3), ("z", 12),], None),
+                    Tuple::new("product", [("x", 4), ("y", 4), ("z", 16),], None),
+                    Tuple::new("product", [("x", 4), ("y", 5), ("z", 20),], None),
+                    Tuple::new("product", [("x", 5), ("y", 1), ("z", 5),], None),
+                    Tuple::new("product", [("x", 5), ("y", 2), ("z", 10),], None),
+                    Tuple::new("product", [("x", 5), ("y", 3), ("z", 15),], None),
+                    Tuple::new("product", [("x", 5), ("y", 4), ("z", 20),], None),
+                    Tuple::new("product", [("x", 5), ("y", 5), ("z", 25),], None),
                 ]
             ),]
         );
@@ -879,11 +854,11 @@ mod tests {
             [(
                 "pair2",
                 [
-                    BTreeFact::new("pair2", [("id", "a"), ("x", "1"), ("y", "2")],),
-                    BTreeFact::new("pair2", [("id", "a"), ("x", "1"), ("y", "6")],),
-                    BTreeFact::new("pair2", [("id", "a"), ("x", "5"), ("y", "2")],),
-                    BTreeFact::new("pair2", [("id", "a"), ("x", "5"), ("y", "6")],),
-                    BTreeFact::new("pair2", [("id", "b"), ("x", "3"), ("y", "4")],),
+                    Tuple::new("pair2", [("id", "a"), ("x", "1"), ("y", "2")], None),
+                    Tuple::new("pair2", [("id", "a"), ("x", "1"), ("y", "6")], None),
+                    Tuple::new("pair2", [("id", "a"), ("x", "5"), ("y", "2")], None),
+                    Tuple::new("pair2", [("id", "a"), ("x", "5"), ("y", "6")], None),
+                    Tuple::new("pair2", [("id", "b"), ("x", "3"), ("y", "4")], None),
                 ]
             )]
         );
