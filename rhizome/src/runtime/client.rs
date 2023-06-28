@@ -1,23 +1,18 @@
 use anyhow::Result;
-use std::{fmt::Debug, marker::PhantomData};
+use std::fmt::Debug;
 
 use futures::{
     channel::{mpsc, oneshot},
     SinkExt,
 };
 
-use crate::{
-    fact::{DefaultEDBFact, DefaultIDBFact},
-    id::RelationId,
-    timestamp::DefaultTimestamp,
-};
+use crate::{id::RelationId, timestamp::DefaultTimestamp, tuple::InputTuple};
 
 use super::{reactor::Reactor, ClientCommand, ClientEvent, CreateSink, CreateStream};
 
 #[derive(Debug)]
 pub struct Client {
-    command_tx: mpsc::Sender<ClientCommand<DefaultEDBFact, DefaultIDBFact>>,
-    _marker: PhantomData<DefaultIDBFact>,
+    command_tx: mpsc::Sender<ClientCommand>,
 }
 
 impl Client {
@@ -25,10 +20,7 @@ impl Client {
         let (command_tx, command_rx) = mpsc::channel(1);
         let (event_tx, event_rx) = mpsc::channel(1);
 
-        let client = Self {
-            command_tx,
-            _marker: PhantomData,
-        };
+        let client = Self { command_tx };
 
         let reactor = <Reactor>::new(command_rx, event_tx);
 
@@ -45,11 +37,11 @@ impl Client {
         Ok(())
     }
 
-    pub async fn insert_fact(&mut self, fact: DefaultEDBFact) -> Result<()> {
+    pub async fn insert_fact(&mut self, fact: InputTuple) -> Result<()> {
         let (tx, rx) = oneshot::channel();
 
         self.command_tx
-            .send(ClientCommand::InsertFact(fact, tx))
+            .send(ClientCommand::InsertFact(Box::new(fact), tx))
             .await?;
 
         rx.await?;
@@ -57,11 +49,7 @@ impl Client {
         Ok(())
     }
 
-    pub async fn register_stream(
-        &mut self,
-        id: &str,
-        f: Box<dyn CreateStream<DefaultEDBFact>>,
-    ) -> Result<()> {
+    pub async fn register_stream(&mut self, id: &str, f: Box<dyn CreateStream>) -> Result<()> {
         let id = RelationId::new(id);
         let (tx, rx) = oneshot::channel();
 
@@ -74,11 +62,7 @@ impl Client {
         Ok(())
     }
 
-    pub async fn register_sink(
-        &mut self,
-        id: &str,
-        f: Box<dyn CreateSink<DefaultIDBFact>>,
-    ) -> Result<()> {
+    pub async fn register_sink(&mut self, id: &str, f: Box<dyn CreateSink>) -> Result<()> {
         let id = RelationId::new(id);
         let (tx, rx) = oneshot::channel();
 

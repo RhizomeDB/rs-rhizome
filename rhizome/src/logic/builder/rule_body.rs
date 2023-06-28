@@ -5,10 +5,10 @@ use crate::{
     aggregation::{AggAcc, AggregateGroupBy, AggregateWrapper},
     args::Args,
     error::{error, Error},
-    id::{LinkId, VarId},
-    logic::ast::{BodyTerm, CidValue, Declaration, GetLink, VarPredicate},
+    id::VarId,
+    logic::ast::{BodyTerm, CidValue, Declaration, VarPredicate},
     predicate::{PredicateWhere, PredicateWrapper},
-    types::{ColType, Type},
+    types::ColType,
     var::{TypedVar, Var},
 };
 
@@ -19,7 +19,6 @@ use super::{
 
 type RelPredicates = Vec<(String, RelPredicateBuilder)>;
 type Negations = Vec<(String, NegationBuilder)>;
-type GetLinks = Vec<(CidValue, LinkId, CidValue)>;
 type VarPredicates = Vec<(Vec<Var>, Arc<dyn PredicateWrapper>)>;
 type Aggregations = Vec<(String, AggregationBuilder)>;
 type Relations = HashMap<String, Arc<Declaration>>;
@@ -27,7 +26,6 @@ type Relations = HashMap<String, Arc<Declaration>>;
 pub struct RuleBodyBuilder {
     rel_predicates: RefCell<RelPredicates>,
     negations: RefCell<Negations>,
-    get_links: RefCell<GetLinks>,
     var_predicates: RefCell<VarPredicates>,
     aggregations: RefCell<Aggregations>,
     relations: Rc<RefCell<Relations>>,
@@ -44,7 +42,6 @@ impl RuleBodyBuilder {
         Self {
             rel_predicates: RefCell::default(),
             negations: RefCell::default(),
-            get_links: RefCell::default(),
             var_predicates: RefCell::default(),
             aggregations: RefCell::default(),
             relations,
@@ -61,38 +58,6 @@ impl RuleBodyBuilder {
 
             let predicate = builder.finalize(declaration, bound_vars)?;
             let term = BodyTerm::RelPredicate(predicate);
-
-            body_terms.push(term);
-        }
-
-        for (cid, link_id, value) in self.get_links.into_inner() {
-            if let CidValue::Var(var) = cid {
-                if var.typ().unify(&ColType::Type(Type::Cid)).is_err() {
-                    return error(Error::VarTypeConflict(var, Type::Cid));
-                }
-
-                if let Some(bound_type) = bound_vars.insert(var.id(), ColType::Type(Type::Cid)) {
-                    if bound_type.unify(&ColType::Type(Type::Cid)).is_err() {
-                        return error(Error::VarTypeConflict(var, Type::Cid));
-                    }
-                } else {
-                    return error(Error::ClauseNotDomainIndependent(var.id()));
-                }
-            }
-
-            if let CidValue::Var(var) = value {
-                if var.typ().unify(&ColType::Type(Type::Cid)).is_err() {
-                    return error(Error::VarTypeConflict(var, Type::Cid));
-                }
-
-                if let Some(bound_type) = bound_vars.insert(var.id(), ColType::Type(Type::Cid)) {
-                    if bound_type.unify(&ColType::Type(Type::Cid)).is_err() {
-                        return error(Error::VarTypeConflict(var, Type::Cid));
-                    }
-                }
-            }
-
-            let term = BodyTerm::GetLink(GetLink::new(cid, vec![(link_id, value)])?);
 
             body_terms.push(term);
         }
@@ -209,21 +174,6 @@ impl RuleBodyBuilder {
         f(&builder)?;
 
         self.negations.borrow_mut().push((id.to_string(), builder));
-
-        Ok(())
-    }
-
-    pub fn get_link<C, L, V>(&self, cid: C, link_id: L, value: V) -> Result<()>
-    where
-        C: Into<CidValue>,
-        L: AsRef<str>,
-        V: Into<CidValue>,
-    {
-        let cid = cid.into();
-        let link_id = LinkId::new(link_id);
-        let value = value.into();
-
-        self.get_links.borrow_mut().push((cid, link_id, value));
 
         Ok(())
     }

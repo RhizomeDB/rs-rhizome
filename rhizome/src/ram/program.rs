@@ -2,48 +2,26 @@ use std::sync::Arc;
 
 use pretty::RcDoc;
 
-use crate::{
-    fact::traits::{EDBFact, IDBFact},
-    pretty::Pretty,
-    relation::Relation,
-};
+use crate::pretty::Pretty;
 
 use super::Statement;
 
 #[derive(Debug)]
-pub struct Program<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    statements: Vec<Arc<Statement<EF, IF, ER, IR>>>,
+pub struct Program {
+    statements: Vec<Arc<Statement>>,
 }
 
-impl<EF, IF, ER, IR> Program<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    pub(crate) fn new(statements: Vec<Arc<Statement<EF, IF, ER, IR>>>) -> Self {
+impl Program {
+    pub(crate) fn new(statements: Vec<Arc<Statement>>) -> Self {
         Self { statements }
     }
 
-    pub(crate) fn statements(&self) -> &[Arc<Statement<EF, IF, ER, IR>>] {
+    pub(crate) fn statements(&self) -> &[Arc<Statement>] {
         &self.statements
     }
 }
 
-impl<EF, IF, ER, IR> Pretty for Program<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for Program {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::intersperse(
             self.statements().iter().map(|statement| statement.to_doc()),

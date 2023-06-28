@@ -63,6 +63,5 @@ macro_rules! new_id {
 }
 
 new_id!(ColId);
-new_id!(LinkId);
 new_id!(RelationId);
 new_id!(VarId);

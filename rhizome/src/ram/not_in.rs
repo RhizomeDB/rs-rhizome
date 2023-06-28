@@ -8,54 +8,27 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::{EDBFact, IDBFact},
-    id::{ColId, RelationId},
+    id::ColId,
     pretty::Pretty,
-    relation::Relation,
+    relation::{Relation, RelationKey},
     storage::blockstore::Blockstore,
     value::Val,
 };
 
-use super::{Bindings, RelationVersion, Term};
+use super::{Bindings, Term};
 
 #[derive(Clone, Debug)]
-pub(crate) enum NotInRelation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    Edb(Arc<RwLock<ER>>),
-    Idb(Arc<RwLock<IR>>),
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct NotIn<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    id: RelationId,
+pub(crate) struct NotIn {
+    relation_key: RelationKey,
     cols: HashMap<ColId, Term>,
-    version: RelationVersion,
-    relation: NotInRelation<EF, IF, ER, IR>,
+    relation: Arc<RwLock<Box<dyn Relation>>>,
 }
 
-impl<EF, IF, ER, IR> NotIn<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl NotIn {
     pub(crate) fn new<A, T>(
-        id: RelationId,
-        version: RelationVersion,
+        relation_key: RelationKey,
         cols: impl IntoIterator<Item = (A, T)>,
-        relation: NotInRelation<EF, IF, ER, IR>,
+        relation: Arc<RwLock<Box<dyn Relation>>>,
     ) -> Self
     where
         A: Into<ColId>,
@@ -67,8 +40,7 @@ where
             .collect();
 
         Self {
-            id,
-            version,
+            relation_key,
             cols,
             relation,
         }
@@ -85,7 +57,7 @@ where
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in self.cols() {
-            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore)? {
+            if let Some(val) = bindings.resolve::<BS>(term, blockstore)? {
                 bound.push((*id, <Val>::clone(&val)));
             } else {
                 return error(Error::InternalRhizomeError(format!(
@@ -95,34 +67,19 @@ where
             }
         }
 
-        match &self.relation {
-            NotInRelation::Edb(relation) => Ok(!relation
-                .read()
-                .or_else(|_| {
-                    error(Error::InternalRhizomeError(
-                        "relation lock poisoned".to_owned(),
-                    ))
-                })?
-                .contains(bound)),
-            NotInRelation::Idb(relation) => Ok(!relation
-                .read()
-                .or_else(|_| {
-                    error(Error::InternalRhizomeError(
-                        "relation lock poisoned".to_owned(),
-                    ))
-                })?
-                .contains(bound)),
-        }
+        Ok(!self
+            .relation
+            .read()
+            .or_else(|_| {
+                error(Error::InternalRhizomeError(
+                    "relation lock poisoned".to_owned(),
+                ))
+            })?
+            .contains(bound))
     }
 }
 
-impl<EF, IF, ER, IR> Pretty for NotIn<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for NotIn {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let cols_doc = RcDoc::intersperse(
             self.cols().iter().map(|(col, term)| {
@@ -138,9 +95,7 @@ where
             cols_doc,
             RcDoc::text(")"),
             RcDoc::text(" notin "),
-            RcDoc::as_string(self.id),
-            RcDoc::text("_"),
-            RcDoc::as_string(self.version),
+            self.relation_key.to_doc(),
         ])
     }
 }

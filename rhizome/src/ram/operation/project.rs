@@ -1,7 +1,6 @@
 use anyhow::Result;
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     sync::{Arc, RwLock},
 };
 
@@ -9,44 +8,29 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::{EDBFact, IDBFact},
-    id::{ColId, RelationId},
+    id::ColId,
     pretty::Pretty,
-    ram::{term::Term, Bindings, Formula, RelationVersion},
-    relation::Relation,
+    ram::{term::Term, Bindings, Formula},
+    relation::{Relation, RelationKey},
     storage::blockstore::Blockstore,
+    tuple::Tuple,
     value::Val,
 };
 
 #[derive(Clone, Debug)]
-pub(crate) struct Project<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    id: RelationId,
-    version: RelationVersion,
+pub(crate) struct Project {
+    relation_key: RelationKey,
     cols: HashMap<ColId, Term>,
-    relation: Arc<RwLock<IR>>,
-    formulae: Vec<Formula<EF, IF, ER, IR>>,
-    _marker: PhantomData<(EF, ER)>,
+    relation: Arc<RwLock<Box<dyn Relation>>>,
+    formulae: Vec<Formula>,
 }
 
-impl<EF, IF, ER, IR> Project<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Project {
     pub(crate) fn new<A, T>(
-        id: RelationId,
-        version: RelationVersion,
+        relation_key: RelationKey,
         cols: impl IntoIterator<Item = (A, T)>,
-        formulae: Vec<Formula<EF, IF, ER, IR>>,
-        into: Arc<RwLock<IR>>,
+        formulae: Vec<Formula>,
+        relation: Arc<RwLock<Box<dyn Relation>>>,
     ) -> Self
     where
         A: Into<ColId>,
@@ -58,12 +42,10 @@ where
             .collect();
 
         Self {
-            id,
-            version,
+            relation_key,
             cols,
             formulae,
-            relation: into,
-            _marker: PhantomData,
+            relation,
         }
     }
 
@@ -72,7 +54,7 @@ where
         BS: Blockstore,
     {
         for formula in self.formulae.iter() {
-            if !bindings.is_formula_satisfied::<BS, EF, IF, ER, IR>(formula, blockstore)? {
+            if !bindings.is_formula_satisfied::<BS>(formula, blockstore)? {
                 return Ok(());
             }
         }
@@ -80,14 +62,14 @@ where
         let mut bound: Vec<(ColId, Val)> = Vec::default();
 
         for (id, term) in &self.cols {
-            if let Some(val) = bindings.resolve::<BS, EF>(term, blockstore)? {
+            if let Some(val) = bindings.resolve::<BS>(term, blockstore)? {
                 bound.push((*id, <Val>::clone(&val)));
             } else {
                 return Ok(());
             }
         }
 
-        let fact = IF::new(self.id, bound.clone());
+        let fact = Tuple::new(self.relation_key.0, bound.clone(), None);
 
         self.relation
             .write()
@@ -102,13 +84,7 @@ where
     }
 }
 
-impl<EF, IF, ER, IR> Pretty for Project<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for Project {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let cols_doc = RcDoc::intersperse(
             self.cols.iter().map(|(col, term)| {
@@ -143,9 +119,7 @@ where
             when_doc,
             RcDoc::text(")"),
             RcDoc::text(" into "),
-            RcDoc::as_string(self.id),
-            RcDoc::text("_"),
-            RcDoc::as_string(self.version),
+            self.relation_key.to_doc(),
         ])
     }
 }

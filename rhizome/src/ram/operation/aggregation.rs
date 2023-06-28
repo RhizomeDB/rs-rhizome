@@ -10,7 +10,6 @@ use pretty::RcDoc;
 use crate::{
     aggregation::AggregateWrapper,
     error::{error, Error},
-    fact::traits::{EDBFact, Fact, IDBFact},
     id::{ColId, RelationId},
     pretty::Pretty,
     ram::{AliasId, BindingKey, Bindings, Formula, Term},
@@ -22,43 +21,19 @@ use crate::{
 
 use super::Operation;
 
-#[derive(Clone, Debug)]
-pub(crate) enum AggregationRelation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    Edb(Arc<RwLock<ER>>),
-    Idb(Arc<RwLock<IR>>),
-}
-
-pub(crate) struct Aggregation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+pub(crate) struct Aggregation {
     args: Vec<Term>,
     agg: Arc<dyn AggregateWrapper>,
     group_by_cols: HashMap<ColId, Term>,
     target: Var,
     id: RelationId,
     alias: Option<AliasId>,
-    relation: AggregationRelation<EF, IF, ER, IR>,
-    when: Vec<Formula<EF, IF, ER, IR>>,
-    operation: Box<Operation<EF, IF, ER, IR>>,
+    relation: Arc<RwLock<Box<dyn Relation>>>,
+    when: Vec<Formula>,
+    operation: Box<Operation>,
 }
 
-impl<EF, IF, ER, IR> Aggregation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Aggregation {
     // TODO: This struct is a mess and needs to be cleaned up.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -68,9 +43,9 @@ where
         group_by_cols: HashMap<ColId, Term>,
         id: RelationId,
         alias: Option<AliasId>,
-        relation: AggregationRelation<EF, IF, ER, IR>,
-        when: impl IntoIterator<Item = Formula<EF, IF, ER, IR>>,
-        operation: Operation<EF, IF, ER, IR>,
+        relation: Arc<RwLock<Box<dyn Relation>>>,
+        when: impl IntoIterator<Item = Formula>,
+        operation: Operation,
     ) -> Self {
         let when = when.into_iter().collect();
 
@@ -87,7 +62,7 @@ where
         }
     }
 
-    pub(crate) fn operation(&self) -> &Operation<EF, IF, ER, IR> {
+    pub(crate) fn operation(&self) -> &Operation {
         &self.operation
     }
 
@@ -95,27 +70,10 @@ where
     where
         BS: Blockstore,
     {
-        match &self.relation {
-            AggregationRelation::Edb(relation) => self.do_apply(blockstore, bindings, relation),
-            AggregationRelation::Idb(relation) => self.do_apply(blockstore, bindings, relation),
-        }
-    }
-
-    fn do_apply<BS, F, R>(
-        &self,
-        blockstore: &BS,
-        bindings: &Bindings,
-        relation: &Arc<RwLock<R>>,
-    ) -> Result<Option<Bindings>>
-    where
-        BS: Blockstore,
-        F: Fact,
-        R: Relation<Fact = F>,
-    {
         let mut group_by_vals: Vec<(ColId, Val)> = Vec::default();
         for (col_id, col_term) in &self.group_by_cols {
             let col_val = bindings
-                .resolve::<BS, EF>(col_term, blockstore)?
+                .resolve::<BS>(col_term, blockstore)?
                 .ok_or_else(|| {
                     Error::InternalRhizomeError(format!(
                         "expected term to resolve for col: {}",
@@ -126,7 +84,7 @@ where
             group_by_vals.push((*col_id, <Val>::clone(&col_val)));
         }
 
-        let relation = relation.read().or_else(|_| {
+        let relation = self.relation.read().or_else(|_| {
             error(Error::InternalRhizomeError(
                 "relation lock poisoned".to_owned(),
             ))
@@ -149,13 +107,14 @@ where
 
             let mut args = Vec::default();
             for term in self.args.iter() {
-                let resolved = match_bindings
-                    .resolve::<BS, EF>(term, blockstore)?
-                    .ok_or_else(|| {
-                        Error::InternalRhizomeError(
-                            "argument to aggregation failed to resolve".to_owned(),
-                        )
-                    })?;
+                let resolved =
+                    match_bindings
+                        .resolve::<BS>(term, blockstore)?
+                        .ok_or_else(|| {
+                            Error::InternalRhizomeError(
+                                "argument to aggregation failed to resolve".to_owned(),
+                            )
+                        })?;
 
                 args.push(resolved);
             }
@@ -174,13 +133,7 @@ where
     }
 }
 
-impl<EF, IF, ER, IR> Debug for Aggregation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Debug for Aggregation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Aggregation")
             .field("args", &self.args)
@@ -194,13 +147,7 @@ where
     }
 }
 
-impl<EF, IF, ER, IR> Pretty for Aggregation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for Aggregation {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         // TODO: pretty print aggregation; see https://github.com/RhizomeDB/rs-rhizome/issues/26
         RcDoc::concat([RcDoc::text("TODO AGGREGATION "), self.operation().to_doc()])

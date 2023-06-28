@@ -1,6 +1,6 @@
 use anyhow::Result;
 use futures::{sink::unfold, StreamExt};
-use rhizome::{fact::traits::EDBFact, runtime::client::Client};
+use rhizome::{runtime::client::Client, tuple::InputTuple};
 use tokio::spawn;
 
 #[tokio::main]
@@ -61,10 +61,18 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    client.insert_fact(EDBFact::new(0, "to", 1, vec![])).await?;
-    client.insert_fact(EDBFact::new(1, "to", 2, vec![])).await?;
-    client.insert_fact(EDBFact::new(2, "to", 3, vec![])).await?;
-    client.insert_fact(EDBFact::new(3, "to", 4, vec![])).await?;
+    client
+        .insert_fact(InputTuple::new(0, "to", 1, vec![]))
+        .await?;
+    client
+        .insert_fact(InputTuple::new(1, "to", 2, vec![]))
+        .await?;
+    client
+        .insert_fact(InputTuple::new(2, "to", 3, vec![]))
+        .await?;
+    client
+        .insert_fact(InputTuple::new(3, "to", 4, vec![]))
+        .await?;
 
     client.flush().await?;
 

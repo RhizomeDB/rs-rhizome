@@ -1,11 +1,13 @@
 use anyhow::Result;
+use cid::Cid;
 use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::{
     error::{error, Error},
     id::RelationId,
     logic::ast::{Clause, Declaration, Program, Rule},
-    relation::Source,
+    relation::{Bistore, Hexastore, Relation, Source},
+    tuple::Tuple,
     types::Any,
 };
 
@@ -45,12 +47,20 @@ impl ProgramBuilder {
     where
         F: FnOnce(DeclarationBuilder) -> DeclarationBuilder,
     {
+        self.indexed_input(id, f)
+    }
+
+    pub fn indexed_input<R, F>(&self, id: &str, f: F) -> Result<()>
+    where
+        R: Relation + Default,
+        F: FnOnce(DeclarationBuilder<R>) -> DeclarationBuilder<R>,
+    {
         if let Some(relation) = self.relations.borrow().get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));
         }
 
         let rel_id = RelationId::new(id);
-        let relation = DeclarationBuilder::build(rel_id, Source::Edb, f)?;
+        let relation = DeclarationBuilder::<R>::build(rel_id, Source::Edb, f)?;
 
         self.relations
             .borrow_mut()
@@ -63,12 +73,20 @@ impl ProgramBuilder {
     where
         F: FnOnce(DeclarationBuilder) -> DeclarationBuilder,
     {
+        self.indexed_output(id, f)
+    }
+
+    pub fn indexed_output<R, F>(&self, id: &str, f: F) -> Result<()>
+    where
+        R: Relation + Default,
+        F: FnOnce(DeclarationBuilder<R>) -> DeclarationBuilder<R>,
+    {
         if let Some(relation) = self.relations.borrow().get(&id.to_owned()) {
             return error(Error::ConflictingRelationDeclaration(relation.id()));
         }
 
         let rel_id = RelationId::new(id);
-        let relation = DeclarationBuilder::build(rel_id, Source::Idb, f)?;
+        let relation = DeclarationBuilder::<R>::build(rel_id, Source::Idb, f)?;
 
         self.relations
             .borrow_mut()
@@ -124,10 +142,14 @@ impl ProgramBuilder {
     }
 
     fn install_preamble(self) -> Result<Self> {
-        self.input("evac", |h| {
+        self.indexed_input::<Hexastore<Tuple>, _>("evac", |h| {
             h.column::<Any>("entity")
                 .column::<Any>("attribute")
                 .column::<Any>("value")
+        })?;
+
+        self.indexed_input::<Bistore<Tuple>, _>("links", |h| {
+            h.column::<Cid>("from").column::<Cid>("to")
         })?;
 
         Ok(self)

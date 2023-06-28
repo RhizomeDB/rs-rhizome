@@ -8,35 +8,28 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    id::RelationId,
     pretty::Pretty,
-    ram::RelationVersion,
+    relation::{Relation, RelationKey},
 };
 
 #[derive(Clone, Debug)]
-pub(crate) struct Swap<R> {
-    left_id: RelationId,
-    right_id: RelationId,
-    left_version: RelationVersion,
-    right_version: RelationVersion,
-    left: Arc<RwLock<R>>,
-    right: Arc<RwLock<R>>,
+pub(crate) struct Swap {
+    left_key: RelationKey,
+    right_key: RelationKey,
+    left: Arc<RwLock<Box<dyn Relation>>>,
+    right: Arc<RwLock<Box<dyn Relation>>>,
 }
 
-impl<R> Swap<R> {
+impl Swap {
     pub(crate) fn new(
-        left_id: RelationId,
-        left_version: RelationVersion,
-        right_id: RelationId,
-        right_version: RelationVersion,
-        left: Arc<RwLock<R>>,
-        right: Arc<RwLock<R>>,
+        left_key: RelationKey,
+        right_key: RelationKey,
+        left: Arc<RwLock<Box<dyn Relation>>>,
+        right: Arc<RwLock<Box<dyn Relation>>>,
     ) -> Self {
         Self {
-            left_id,
-            left_version,
-            right_id,
-            right_version,
+            left_key,
+            right_key,
             left,
             right,
         }
@@ -61,17 +54,13 @@ impl<R> Swap<R> {
     }
 }
 
-impl<R> Pretty for Swap<R> {
+impl Pretty for Swap {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         RcDoc::concat([
             RcDoc::text("swap "),
-            RcDoc::as_string(self.left_id),
-            RcDoc::text("_"),
-            RcDoc::as_string(self.left_version),
+            self.left_key.to_doc(),
             RcDoc::text(" and "),
-            RcDoc::as_string(self.right_id),
-            RcDoc::text("_"),
-            RcDoc::as_string(self.right_version),
+            self.right_key.to_doc(),
         ])
     }
 }

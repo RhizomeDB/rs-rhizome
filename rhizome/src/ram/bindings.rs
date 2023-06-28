@@ -1,11 +1,9 @@
 use anyhow::Result;
 
 use crate::{
-    error::{error, Error},
-    fact::traits::{EDBFact, IDBFact},
+    error::Error,
     id::{ColId, RelationId},
-    relation::Relation,
-    storage::{blockstore::Blockstore, DefaultCodec},
+    storage::blockstore::Blockstore,
     value::Val,
     var::Var,
 };
@@ -29,28 +27,11 @@ impl Bindings {
         self.0.insert(key, term);
     }
 
-    pub(crate) fn resolve<BS, EF>(&self, term: &Term, blockstore: &BS) -> Result<Option<Val>>
+    pub(crate) fn resolve<BS>(&self, term: &Term, _blockstore: &BS) -> Result<Option<Val>>
     where
         BS: Blockstore,
-        EF: EDBFact,
     {
         match term {
-            Term::Link(link_id, cid_term) => {
-                if let Some(cid_val) = self.resolve::<BS, EF>(cid_term, blockstore)? {
-                    let Val::Cid(cid) = cid_val else {
-                   return error(Error::InternalRhizomeError("expected term to resolve to CID".to_owned()));
-                };
-
-                    let Ok(Some(fact)) = blockstore.get_serializable::<DefaultCodec, EF>(&cid) else {
-                        return Ok(None);
-                    };
-
-                    Ok(fact.link(*link_id))
-                } else {
-                    Ok(None)
-                }
-            }
-
             Term::Col(relation_id, alias, col_id) => Ok(self
                 .0
                 .get(&BindingKey::Relation(*relation_id, *alias, *col_id))
@@ -69,22 +50,18 @@ impl Bindings {
         }
     }
 
-    pub(crate) fn is_formula_satisfied<BS, EF, IF, ER, IR>(
+    pub(crate) fn is_formula_satisfied<BS>(
         &self,
-        formula: &Formula<EF, IF, ER, IR>,
+        formula: &Formula,
         blockstore: &BS,
     ) -> Result<bool>
     where
         BS: Blockstore,
-        EF: EDBFact,
-        IF: IDBFact,
-        ER: Relation<Fact = EF>,
-        IR: Relation<Fact = IF>,
     {
         match formula {
             Formula::Equality(inner) => {
-                let left = self.resolve::<BS, EF>(inner.left(), blockstore)?;
-                let right = self.resolve::<BS, EF>(inner.right(), blockstore)?;
+                let left = self.resolve::<BS>(inner.left(), blockstore)?;
+                let right = self.resolve::<BS>(inner.right(), blockstore)?;
 
                 Ok(left == right)
             }
@@ -92,7 +69,7 @@ impl Bindings {
             Formula::Predicate(inner) => {
                 let mut args = Vec::default();
                 for term in inner.args() {
-                    let resolved = self.resolve::<BS, EF>(term, blockstore)?.ok_or_else(|| {
+                    let resolved = self.resolve::<BS>(term, blockstore)?.ok_or_else(|| {
                         Error::InternalRhizomeError(
                             "argument to predicate failed to resolve".to_owned(),
                         )

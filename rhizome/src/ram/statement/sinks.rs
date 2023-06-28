@@ -8,43 +8,27 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::IDBFact,
     id::RelationId,
     pretty::Pretty,
     relation::Relation,
+    tuple::Tuple,
 };
 
-#[derive(Debug)]
-pub(crate) struct SinksBuilder<F, R>
-where
-    F: IDBFact,
-    R: Relation<Fact = F>,
-{
-    pub(crate) relations: HashMap<RelationId, Arc<RwLock<R>>>,
+#[derive(Debug, Default)]
+pub(crate) struct SinksBuilder {
+    pub(crate) relations: HashMap<RelationId, Arc<RwLock<Box<dyn Relation>>>>,
 }
 
-impl<F, R> Default for SinksBuilder<F, R>
-where
-    F: IDBFact,
-    R: Relation<Fact = F>,
-{
-    fn default() -> Self {
-        Self {
-            relations: HashMap::default(),
-        }
-    }
-}
-
-impl<F, R> SinksBuilder<F, R>
-where
-    F: IDBFact,
-    R: Relation<Fact = F>,
-{
-    pub(crate) fn add_relation(&mut self, id: RelationId, relation: Arc<RwLock<R>>) {
+impl SinksBuilder {
+    pub(crate) fn add_relation(
+        &mut self,
+        id: RelationId,
+        relation: Arc<RwLock<Box<dyn Relation>>>,
+    ) {
         self.relations.insert(id, relation);
     }
 
-    pub(crate) fn finalize(self) -> Sinks<F, R> {
+    pub(crate) fn finalize(self) -> Sinks {
         Sinks {
             relations: self.relations,
         }
@@ -52,20 +36,12 @@ where
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Sinks<F, R>
-where
-    F: IDBFact,
-    R: Relation<Fact = F>,
-{
-    relations: HashMap<RelationId, Arc<RwLock<R>>>,
+pub(crate) struct Sinks {
+    relations: HashMap<RelationId, Arc<RwLock<Box<dyn Relation>>>>,
 }
 
-impl<F, R> Sinks<F, R>
-where
-    F: IDBFact,
-    R: Relation<Fact = F>,
-{
-    pub(crate) fn apply(&self, output: &mut VecDeque<F>) -> Result<()> {
+impl Sinks {
+    pub(crate) fn apply(&self, output: &mut VecDeque<Tuple>) -> Result<()> {
         for relation in self.relations.values() {
             for fact in relation
                 .read()
@@ -84,11 +60,7 @@ where
     }
 }
 
-impl<F, R> Pretty for Sinks<F, R>
-where
-    F: IDBFact,
-    R: Relation<Fact = F>,
-{
+impl Pretty for Sinks {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relations_doc = RcDoc::intersperse(
             self.relations.keys().map(RcDoc::as_string),

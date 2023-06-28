@@ -5,68 +5,40 @@ use pretty::RcDoc;
 
 use crate::{
     error::{error, Error},
-    fact::traits::{EDBFact, Fact, IDBFact},
-    id::{ColId, RelationId},
+    id::ColId,
     pretty::Pretty,
-    ram::{alias_id::AliasId, formula::Formula, BindingKey, Bindings, RelationVersion, Term},
-    relation::Relation,
+    ram::{alias_id::AliasId, formula::Formula, BindingKey, Bindings, Term},
+    relation::{Relation, RelationKey},
     storage::blockstore::Blockstore,
     value::Val,
 };
 
 use super::Operation;
 
-#[derive(Clone, Debug)]
-pub(crate) enum SearchRelation<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    Edb(Arc<RwLock<ER>>),
-    Idb(Arc<RwLock<IR>>),
-}
-
 #[derive(Debug)]
-pub(crate) struct Search<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    id: RelationId,
+pub(crate) struct Search {
+    relation_key: RelationKey,
     alias: Option<AliasId>,
-    version: RelationVersion,
-    relation: SearchRelation<EF, IF, ER, IR>,
+    relation: Arc<RwLock<Box<dyn Relation>>>,
     bindings: Vec<(ColId, Term)>,
-    when: Vec<Formula<EF, IF, ER, IR>>,
-    operation: Box<Operation<EF, IF, ER, IR>>,
+    when: Vec<Formula>,
+    operation: Box<Operation>,
 }
 
-impl<EF, IF, ER, IR> Search<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Search {
     pub(crate) fn new(
-        id: RelationId,
+        relation_key: RelationKey,
         alias: Option<AliasId>,
-        version: RelationVersion,
-        relation: SearchRelation<EF, IF, ER, IR>,
+        relation: Arc<RwLock<Box<dyn Relation>>>,
         bindings: Vec<(ColId, Term)>,
-        when: impl IntoIterator<Item = Formula<EF, IF, ER, IR>>,
-        operation: Operation<EF, IF, ER, IR>,
+        when: impl IntoIterator<Item = Formula>,
+        operation: Operation,
     ) -> Self {
         let when = when.into_iter().collect();
 
         Self {
-            id,
+            relation_key,
             alias,
-            version,
             relation,
             bindings,
             when,
@@ -74,7 +46,7 @@ where
         }
     }
 
-    pub(crate) fn operation(&self) -> &Operation<EF, IF, ER, IR> {
+    pub(crate) fn operation(&self) -> &Operation {
         &self.operation
     }
 
@@ -83,41 +55,17 @@ where
         BS: Blockstore,
         F: Fn(Bindings) -> Result<bool>,
     {
-        match &self.relation {
-            SearchRelation::Edb(relation) => {
-                self.do_apply::<BS, EF, ER, F>(blockstore, bindings, relation, f)
-            }
-            SearchRelation::Idb(relation) => {
-                self.do_apply::<BS, IF, IR, F>(blockstore, bindings, relation, f)
-            }
-        }
-    }
-
-    fn do_apply<BS, F, R, WithBindings>(
-        &self,
-        blockstore: &BS,
-        bindings: &Bindings,
-        relation: &Arc<RwLock<R>>,
-        f: WithBindings,
-    ) -> Result<bool>
-    where
-        BS: Blockstore,
-        F: Fact,
-        R: Relation<Fact = F>,
-        WithBindings: Fn(Bindings) -> Result<bool>,
-    {
         let mut bound_cols = vec![];
         for (col_id, term) in self.bindings.iter() {
-            let resolved = bindings
-                .resolve::<BS, EF>(term, blockstore)?
-                .ok_or_else(|| {
-                    Error::InternalRhizomeError("expected binding not found".to_owned())
-                })?;
+            let resolved = bindings.resolve::<BS>(term, blockstore)?.ok_or_else(|| {
+                Error::InternalRhizomeError("expected binding not found".to_owned())
+            })?;
 
             bound_cols.push((*col_id, <Val>::clone(&resolved)));
         }
 
-        for fact in relation
+        for fact in self
+            .relation
             .read()
             .or_else(|_| {
                 error(Error::InternalRhizomeError(
@@ -130,8 +78,11 @@ where
 
             // TODO: Only add the CID to the bindings if it's required by
             // a later operation.
-            if let Some(cid) = fact.cid()? {
-                next_bindings.insert(BindingKey::Cid(self.id, self.alias), Val::Cid(cid));
+            if let Some(cid) = fact.cid() {
+                next_bindings.insert(
+                    BindingKey::Cid(self.relation_key.0, self.alias),
+                    Val::Cid(cid),
+                );
             }
 
             for k in fact.cols() {
@@ -139,12 +90,15 @@ where
                     Error::InternalRhizomeError("expected column not found".to_owned())
                 })?;
 
-                next_bindings.insert(BindingKey::Relation(self.id, self.alias, k), v.clone());
+                next_bindings.insert(
+                    BindingKey::Relation(self.relation_key.0, self.alias, k),
+                    v.clone(),
+                );
             }
 
             let mut satisfied = true;
             for formula in self.when.iter() {
-                if !next_bindings.is_formula_satisfied::<BS, EF, IF, ER, IR>(formula, blockstore)? {
+                if !next_bindings.is_formula_satisfied::<BS>(formula, blockstore)? {
                     satisfied = false;
                 }
             }
@@ -162,29 +116,17 @@ where
     }
 }
 
-impl<EF, IF, ER, IR> Pretty for Search<EF, IF, ER, IR>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+impl Pretty for Search {
     fn to_doc(&self) -> RcDoc<'_, ()> {
         let relation_doc = match self.alias {
             Some(alias) => RcDoc::concat([
-                RcDoc::as_string(self.id),
-                RcDoc::text("_"),
-                RcDoc::as_string(self.version),
+                self.relation_key.to_doc(),
                 RcDoc::text(" as "),
-                RcDoc::as_string(self.id),
+                RcDoc::as_string(self.relation_key.0),
                 RcDoc::text("_"),
                 RcDoc::as_string(alias),
             ]),
-            None => RcDoc::concat([
-                RcDoc::as_string(self.id),
-                RcDoc::text("_"),
-                RcDoc::as_string(self.version),
-            ]),
+            None => self.relation_key.to_doc(),
         };
 
         let when_doc = if self.when.is_empty() {

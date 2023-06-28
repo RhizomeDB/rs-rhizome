@@ -8,60 +8,52 @@ use anyhow::Result;
 use crate::{
     col_val::ColVal,
     error::{error, Error},
-    fact::traits::{EDBFact, IDBFact},
     id::{ColId, RelationId, VarId},
     ram::{
-        self, Aggregation, AggregationRelation, AliasId, ExitBuilder, Formula, Insert, Loop, Merge,
-        MergeRelations, NotInRelation, Operation, Project, Purge, PurgeRelation, RelationVersion,
-        Search, SearchRelation, SinksBuilder, SourcesBuilder, Statement, Swap, Term,
+        self, Aggregation, AliasId, ExitBuilder, Formula, Insert, Loop, Merge, Operation, Project,
+        Purge, Search, SinksBuilder, SourcesBuilder, Statement, Swap, Term,
     },
-    relation::{Relation, Source},
+    relation::{Relation, RelationKey, Source, Version},
     value::Val,
 };
 
 use super::{
     ast::{
         cid_value::CidValue, declaration::Declaration, fact::Fact, program::Program, rule::Rule,
-        stratum::Stratum, GetLink, Negation, RelPredicate, VarPredicate,
+        stratum::Stratum, Negation, RelPredicate, VarPredicate,
     },
     stratify::stratify,
 };
 
-pub(crate) fn lower_to_ram<EF, IF, ER, IR>(
-    program: &Program,
-) -> Result<ram::program::Program<EF, IF, ER, IR>>
-where
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-    EF: EDBFact,
-    IF: IDBFact,
-{
-    let mut edb = HashMap::default();
-    let mut idb = HashMap::default();
+pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
+    let mut relations: HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>> = HashMap::default();
 
     let mut inputs: Vec<&Declaration> = Vec::default();
     let mut outputs: Vec<&Declaration> = Vec::default();
-    let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
+    let mut statements: Vec<Statement> = Vec::default();
 
     for declaration in program.declarations() {
+        relations.insert(
+            (declaration.id(), Version::New),
+            Arc::new(RwLock::new(declaration.relation())),
+        );
+
+        relations.insert(
+            (declaration.id(), Version::Delta),
+            Arc::new(RwLock::new(declaration.relation())),
+        );
+
+        relations.insert(
+            (declaration.id(), Version::Total),
+            Arc::new(RwLock::new(declaration.relation())),
+        );
+
         match declaration.source() {
             Source::Edb => {
                 inputs.push(declaration);
-
-                edb.insert((declaration.id(), RelationVersion::New), Arc::default());
-
-                edb.insert((declaration.id(), RelationVersion::Delta), Arc::default());
-
-                edb.insert((declaration.id(), RelationVersion::Total), Arc::default());
             }
             Source::Idb => {
                 outputs.push(declaration);
-
-                idb.insert((declaration.id(), RelationVersion::New), Arc::default());
-
-                idb.insert((declaration.id(), RelationVersion::Delta), Arc::default());
-
-                idb.insert((declaration.id(), RelationVersion::Total), Arc::default());
             }
         }
     }
@@ -73,7 +65,8 @@ where
         for input in &inputs {
             let id = input.id();
             let relation = Arc::clone(
-                edb.get(&(id, RelationVersion::Delta))
+                relations
+                    .get(&(id, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
@@ -84,7 +77,7 @@ where
     }
 
     for stratum in &stratify(program)? {
-        let mut lowered = lower_stratum_to_ram(stratum, program, &edb, &idb)?;
+        let mut lowered = lower_stratum_to_ram(stratum, program, &relations)?;
 
         statements.append(&mut lowered);
     }
@@ -94,29 +87,29 @@ where
         let id = input.id();
 
         let delta_relation = Arc::clone(
-            edb.get(&(id, RelationVersion::Delta))
+            relations
+                .get(&(id, Version::Delta))
                 .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
         );
 
         let total_relation = Arc::clone(
-            edb.get(&(id, RelationVersion::Total))
+            relations
+                .get(&(id, Version::Total))
                 .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
         );
 
         let merge = Merge::new(
-            id,
-            RelationVersion::Delta,
-            id,
-            RelationVersion::Total,
-            MergeRelations::Edb(Arc::clone(&delta_relation), total_relation),
+            (id, Version::Delta),
+            (id, Version::Total),
+            Arc::clone(&delta_relation),
+            total_relation,
         );
 
         statements.push(Statement::Merge(merge));
 
         statements.push(Statement::Purge(Purge::new(
-            id,
-            RelationVersion::Delta,
-            PurgeRelation::Edb(delta_relation),
+            (id, Version::Delta),
+            delta_relation,
         )));
     }
 
@@ -124,15 +117,12 @@ where
     for output in &outputs {
         let id = output.id();
         let relation = Arc::clone(
-            idb.get(&(id, RelationVersion::Delta))
+            relations
+                .get(&(id, Version::Delta))
                 .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
         );
 
-        statements.push(Statement::Purge(Purge::new(
-            id,
-            RelationVersion::Delta,
-            PurgeRelation::Idb(relation),
-        )));
+        statements.push(Statement::Purge(Purge::new((id, Version::Delta), relation)));
     }
 
     let statements = statements.into_iter().map(Arc::new).collect();
@@ -140,24 +130,17 @@ where
     Ok(ram::program::Program::new(statements))
 }
 
-pub(crate) fn lower_stratum_to_ram<EF, IF, ER, IR>(
+pub(crate) fn lower_stratum_to_ram(
     stratum: &Stratum<'_>,
     program: &Program,
-    edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
-    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
-) -> Result<Vec<Statement<EF, IF, ER, IR>>>
-where
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-    EF: EDBFact,
-    IF: IDBFact,
-{
-    let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
+    relations: &HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>>,
+) -> Result<Vec<Statement>> {
+    let mut statements: Vec<Statement> = Vec::default();
 
     if stratum.is_recursive() {
         // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(fact, edb, idb)?;
+            let lowered = lower_fact_to_ram(fact, relations)?;
 
             statements.push(lowered);
         }
@@ -176,8 +159,7 @@ where
 
         // Evaluate static rules out of the loop
         for rule in &static_rules {
-            let mut lowered =
-                lower_rule_to_ram(rule, stratum, program, RelationVersion::Delta, edb, idb)?;
+            let mut lowered = lower_rule_to_ram(rule, stratum, program, Version::Delta, relations)?;
 
             statements.append(&mut lowered);
         }
@@ -185,48 +167,45 @@ where
         // Merge the output of the static rules into total
         for relation in HashSet::<RelationId>::from_iter(static_rules.iter().map(|r| r.head())) {
             let from_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Delta))
+                relations
+                    .get(&(relation, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let into_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Total))
+                relations
+                    .get(&(relation, Version::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let merge = Merge::new(
-                relation,
-                RelationVersion::Delta,
-                relation,
-                RelationVersion::Total,
-                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
+                (relation, Version::Delta),
+                (relation, Version::Total),
+                Arc::clone(&from_relation),
+                into_relation,
             );
 
             statements.push(Statement::Merge(merge));
         }
 
-        let mut loop_body: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
+        let mut loop_body: Vec<Statement> = Vec::default();
 
         // Purge new, computed during the last loop iteration
         for &id in stratum.relations() {
             let relation = Arc::clone(
-                idb.get(&(id, RelationVersion::New))
+                relations
+                    .get(&(id, Version::New))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
-            let statement = Statement::Purge(Purge::new(
-                id,
-                RelationVersion::New,
-                PurgeRelation::Idb(relation),
-            ));
+            let statement = Statement::Purge(Purge::new((id, Version::New), relation));
 
             loop_body.push(statement);
         }
 
         // Evaluate dynamic rules within the loop, inserting into new
         for rule in &dynamic_rules {
-            let mut lowered =
-                lower_rule_to_ram(rule, stratum, program, RelationVersion::New, edb, idb)?;
+            let mut lowered = lower_rule_to_ram(rule, stratum, program, Version::New, relations)?;
 
             loop_body.append(&mut lowered);
         }
@@ -236,7 +215,8 @@ where
 
         for &id in stratum.relations() {
             let relation = Arc::clone(
-                idb.get(&(id, RelationVersion::Delta))
+                relations
+                    .get(&(id, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
@@ -250,21 +230,22 @@ where
         for &relation in stratum.relations() {
             // Merge the output of the static rules into total
             let from_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Delta))
+                relations
+                    .get(&(relation, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let into_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Total))
+                relations
+                    .get(&(relation, Version::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let merge = Merge::new(
-                relation,
-                RelationVersion::Delta,
-                relation,
-                RelationVersion::Total,
-                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
+                (relation, Version::Delta),
+                (relation, Version::Total),
+                Arc::clone(&from_relation),
+                into_relation,
             );
 
             loop_body.push(Statement::Merge(merge));
@@ -275,11 +256,12 @@ where
 
         for &id in stratum.relations() {
             let relation = Arc::clone(
-                idb.get(&(id, RelationVersion::New))
+                relations
+                    .get(&(id, Version::New))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
-            exit_builder.add_relation(id, RelationVersion::New, relation);
+            exit_builder.add_relation((id, Version::New), relation);
         }
 
         loop_body.push(Statement::Exit(exit_builder.finalize()));
@@ -288,20 +270,20 @@ where
         for &relation in stratum.relations() {
             // Swap new and delta
             let left_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::New))
+                relations
+                    .get(&(relation, Version::New))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let right_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Delta))
+                relations
+                    .get(&(relation, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let swap = Swap::new(
-                relation,
-                RelationVersion::New,
-                relation,
-                RelationVersion::Delta,
+                (relation, Version::New),
+                (relation, Version::Delta),
                 left_relation,
                 right_relation,
             );
@@ -309,8 +291,7 @@ where
             loop_body.push(Statement::Swap(swap));
         }
 
-        let loop_body: Vec<Arc<Statement<EF, IF, ER, IR>>> =
-            loop_body.into_iter().map(Arc::new).collect();
+        let loop_body: Vec<Arc<Statement>> = loop_body.into_iter().map(Arc::new).collect();
 
         statements.push(Statement::Loop(Loop::new(loop_body)));
 
@@ -319,21 +300,22 @@ where
         // use the lattice based timestamps to resolve that.
         for &relation in stratum.relations() {
             let from_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Total))
+                relations
+                    .get(&(relation, Version::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let into_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Delta))
+                relations
+                    .get(&(relation, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let merge = Merge::new(
-                relation,
-                RelationVersion::Total,
-                relation,
-                RelationVersion::Delta,
-                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
+                (relation, Version::Total),
+                (relation, Version::Delta),
+                Arc::clone(&from_relation),
+                into_relation,
             );
 
             statements.push(Statement::Merge(merge));
@@ -341,15 +323,14 @@ where
     } else {
         // Merge facts into delta
         for fact in stratum.facts() {
-            let lowered = lower_fact_to_ram(fact, edb, idb)?;
+            let lowered = lower_fact_to_ram(fact, relations)?;
 
             statements.push(lowered);
         }
 
         // Evaluate all rules, inserting into Delta
         for rule in stratum.rules() {
-            let mut lowered =
-                lower_rule_to_ram(rule, stratum, program, RelationVersion::Delta, edb, idb)?;
+            let mut lowered = lower_rule_to_ram(rule, stratum, program, Version::Delta, relations)?;
 
             statements.append(&mut lowered);
         }
@@ -357,21 +338,22 @@ where
         // Merge rules from Delta into Total
         for &relation in stratum.relations() {
             let from_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Delta))
+                relations
+                    .get(&(relation, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let into_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Total))
+                relations
+                    .get(&(relation, Version::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let merge = Merge::new(
-                relation,
-                RelationVersion::Delta,
-                relation,
-                RelationVersion::Total,
-                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
+                (relation, Version::Delta),
+                (relation, Version::Total),
+                Arc::clone(&from_relation),
+                into_relation,
             );
 
             statements.push(Statement::Merge(merge));
@@ -382,7 +364,8 @@ where
 
         for &id in stratum.relations() {
             let relation = Arc::clone(
-                idb.get(&(id, RelationVersion::Delta))
+                relations
+                    .get(&(id, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
@@ -398,21 +381,22 @@ where
         // use the lattice based timestamps to resolve that.
         for &relation in stratum.relations() {
             let from_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Total))
+                relations
+                    .get(&(relation, Version::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let into_relation = Arc::clone(
-                idb.get(&(relation, RelationVersion::Delta))
+                relations
+                    .get(&(relation, Version::Delta))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
             );
 
             let merge = Merge::new(
-                relation,
-                RelationVersion::Total,
-                relation,
-                RelationVersion::Delta,
-                MergeRelations::Idb(Arc::clone(&from_relation), into_relation),
+                (relation, Version::Total),
+                (relation, Version::Delta),
+                Arc::clone(&from_relation),
+                into_relation,
             );
 
             statements.push(Statement::Merge(merge));
@@ -422,28 +406,21 @@ where
     Ok(statements)
 }
 
-pub(crate) fn lower_fact_to_ram<EF, IF, ER, IR>(
+pub(crate) fn lower_fact_to_ram(
     fact: &Fact,
-    _edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
-    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
-) -> Result<Statement<EF, IF, ER, IR>>
-where
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-    EF: EDBFact,
-    IF: IDBFact,
-{
+    relations: &HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>>,
+) -> Result<Statement> {
     let cols = fact.args().iter().map(|(k, v)| (*k, Term::Lit(v.clone())));
 
     let relation = Arc::clone(
-        idb.get(&(fact.head(), RelationVersion::Delta))
+        relations
+            .get(&(fact.head(), Version::Delta))
             .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
     );
 
     Ok(Statement::Insert(Insert::new(
         Operation::Project(Project::new(
-            fact.head(),
-            RelationVersion::Delta,
+            (fact.head(), Version::Delta),
             cols,
             vec![],
             relation,
@@ -452,21 +429,14 @@ where
     )))
 }
 
-pub(crate) fn lower_rule_to_ram<EF, IF, ER, IR>(
+pub(crate) fn lower_rule_to_ram(
     rule: &Rule,
     _stratum: &Stratum<'_>,
     _program: &Program,
-    version: RelationVersion,
-    edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
-    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
-) -> Result<Vec<Statement<EF, IF, ER, IR>>>
-where
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-    EF: EDBFact,
-    IF: IDBFact,
-{
-    let mut statements: Vec<Statement<EF, IF, ER, IR>> = Vec::default();
+    version: Version,
+    relations: &HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>>,
+) -> Result<Vec<Statement>> {
+    let mut statements: Vec<Statement> = Vec::default();
 
     for rewrite in semi_naive_rewrites(rule) {
         let ordered = order_terms(rewrite);
@@ -478,8 +448,7 @@ where
             Default::default(),
             ordered.into_iter().rev().collect(),
             vec![],
-            edb,
-            idb,
+            relations,
         )?;
 
         statements.push(Statement::Insert(Insert::new(operation, false)));
@@ -489,22 +458,15 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn lower_rule_body_to_ram<EF, IF, ER, IR>(
+pub(crate) fn lower_rule_body_to_ram(
     rule: &Rule,
-    version: RelationVersion,
+    version: Version,
     bindings: im::HashMap<VarId, Term>,
     mut next_alias: im::HashMap<RelationId, AliasId>,
     mut terms: Vec<SemiNaiveTerm>,
-    mut formulae: Vec<Formula<EF, IF, ER, IR>>,
-    edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
-    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
-) -> Result<ram::Operation<EF, IF, ER, IR>>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+    mut formulae: Vec<Formula>,
+    relations: &HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>>,
+) -> Result<ram::Operation> {
     match terms.pop() {
         Some(SemiNaiveTerm::RelPredicate(inner, inner_version)) => {
             let mut next_bindings = bindings.clone();
@@ -546,8 +508,8 @@ where
                 })
                 .all(|v| next_bindings.contains_key(&v.id()))
             {
-                let relation = idb
-                    .get(&(rule.head(), RelationVersion::Total))
+                let relation = relations
+                    .get(&(rule.head(), Version::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?
                     .clone();
 
@@ -571,9 +533,9 @@ where
 
                 formulae.push(Formula::not_in(
                     rule.head(),
-                    RelationVersion::Total,
+                    Version::Total,
                     Vec::from_iter(cols.clone()),
-                    NotInRelation::Idb(relation),
+                    relation,
                 ))
             }
 
@@ -614,33 +576,15 @@ where
                 }
             }
 
-            let search_relation = match inner.relation().source() {
-                Source::Edb => {
-                    let relation = Arc::clone(
-                        edb.get(&(inner.relation().id(), inner_version))
-                            .ok_or_else(|| {
-                                Error::InternalRhizomeError("relation not found".to_owned())
-                            })?,
-                    );
-
-                    SearchRelation::Edb(relation)
-                }
-                Source::Idb => {
-                    let relation = Arc::clone(
-                        idb.get(&(inner.relation().id(), inner_version))
-                            .ok_or_else(|| {
-                                Error::InternalRhizomeError("relation not found".to_owned())
-                            })?,
-                    );
-
-                    SearchRelation::Idb(relation)
-                }
-            };
+            let search_relation = Arc::clone(
+                relations
+                    .get(&(inner.relation().id(), inner_version))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             Ok(Operation::Search(Search::new(
-                inner.relation().id(),
+                (inner.relation().id(), inner_version),
                 alias,
-                inner_version,
                 search_relation,
                 rel_bindings,
                 formulae,
@@ -651,8 +595,7 @@ where
                     next_alias,
                     terms,
                     vec![],
-                    edb,
-                    idb,
+                    relations,
                 )?,
             )))
         }
@@ -662,61 +605,20 @@ where
             formulae.push(formula);
 
             lower_rule_body_to_ram(
-                rule, version, bindings, next_alias, terms, formulae, edb, idb,
+                rule, version, bindings, next_alias, terms, formulae, relations,
             )
         }
         Some(SemiNaiveTerm::Negation(inner)) => {
             let formula_delta =
-                lower_negation_to_ram(&inner, &bindings, RelationVersion::Delta, edb, idb)?;
+                lower_negation_to_ram(&inner, &bindings, Version::Delta, relations)?;
             let formula_total =
-                lower_negation_to_ram(&inner, &bindings, RelationVersion::Total, edb, idb)?;
+                lower_negation_to_ram(&inner, &bindings, Version::Total, relations)?;
 
             formulae.push(formula_delta);
             formulae.push(formula_total);
 
             lower_rule_body_to_ram(
-                rule, version, bindings, next_alias, terms, formulae, edb, idb,
-            )
-        }
-        Some(SemiNaiveTerm::GetLink(inner)) => {
-            let mut next_bindings = bindings.clone();
-
-            if let CidValue::Var(val_var) = inner.link_value() {
-                if !bindings.contains_key(&val_var.id()) {
-                    match inner.cid() {
-                        CidValue::Cid(cid) => {
-                            next_bindings.insert(
-                                val_var.id(),
-                                Term::Link(inner.link_id(), Box::new(Term::Lit(Val::Cid(cid)))),
-                            );
-                        }
-                        CidValue::Var(var) => {
-                            if let Some(term) = bindings.get(&var.id()) {
-                                next_bindings.insert(
-                                    val_var.id(),
-                                    Term::Link(inner.link_id(), Box::new(term.clone())),
-                                );
-                            } else {
-                                return error(Error::ClauseNotDomainIndependent(var.id()));
-                            }
-                        }
-                    };
-                }
-            }
-
-            let formula = lower_get_link_to_ram(&inner, &next_bindings)?;
-
-            formulae.push(formula);
-
-            lower_rule_body_to_ram(
-                rule,
-                version,
-                next_bindings,
-                next_alias,
-                terms,
-                formulae,
-                edb,
-                idb,
+                rule, version, bindings, next_alias, terms, formulae, relations,
             )
         }
         Some(SemiNaiveTerm::Aggregation(inner)) => {
@@ -754,28 +656,11 @@ where
                 }
             }
 
-            let aggregation_relation = match inner.relation().source() {
-                Source::Edb => {
-                    let relation = Arc::clone(
-                        edb.get(&(inner.relation().id(), RelationVersion::Total))
-                            .ok_or_else(|| {
-                                Error::InternalRhizomeError("relation not found".to_owned())
-                            })?,
-                    );
-
-                    AggregationRelation::Edb(relation)
-                }
-                Source::Idb => {
-                    let relation = Arc::clone(
-                        idb.get(&(inner.relation().id(), RelationVersion::Total))
-                            .ok_or_else(|| {
-                                Error::InternalRhizomeError("relation not found".to_owned())
-                            })?,
-                    );
-
-                    AggregationRelation::Idb(relation)
-                }
-            };
+            let aggregation_relation = Arc::clone(
+                relations
+                    .get(&(inner.relation().id(), Version::Total))
+                    .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
+            );
 
             next_bindings.insert(
                 inner.target().id(),
@@ -792,8 +677,8 @@ where
                 })
                 .all(|v| next_bindings.contains_key(&v.id()))
             {
-                let relation = idb
-                    .get(&(rule.head(), RelationVersion::Total))
+                let relation = relations
+                    .get(&(rule.head(), Version::Total))
                     .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?
                     .clone();
 
@@ -817,9 +702,9 @@ where
 
                 formulae.push(Formula::not_in(
                     rule.head(),
-                    RelationVersion::Total,
+                    Version::Total,
                     Vec::from_iter(cols.clone()),
-                    NotInRelation::Idb(relation),
+                    relation,
                 ));
             }
 
@@ -839,13 +724,12 @@ where
                     next_alias,
                     terms,
                     vec![],
-                    edb,
-                    idb,
+                    relations,
                 )?,
             )))
         }
         None => {
-            let relation = idb
+            let relation = relations
                 .get(&(rule.head(), version))
                 .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?
                 .clone();
@@ -866,8 +750,7 @@ where
             }
 
             Ok(Operation::Project(Project::new(
-                rule.head(),
-                version,
+                (rule.head(), version),
                 cols,
                 formulae,
                 relation,
@@ -876,19 +759,12 @@ where
     }
 }
 
-pub(crate) fn lower_negation_to_ram<EF, IF, ER, IR>(
+pub(crate) fn lower_negation_to_ram(
     negation: &Negation,
     bindings: &im::HashMap<VarId, Term>,
-    version: RelationVersion,
-    edb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<ER>>>,
-    idb: &HashMap<(RelationId, RelationVersion), Arc<RwLock<IR>>>,
-) -> Result<Formula<EF, IF, ER, IR>>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+    version: Version,
+    relations: &HashMap<RelationKey, Arc<RwLock<Box<dyn Relation>>>>,
+) -> Result<Formula> {
     let mut cols = im::HashMap::<ColId, Term>::default();
     for (k, v) in negation.args() {
         let term = match v {
@@ -904,72 +780,22 @@ where
         cols.insert(*k, term);
     }
 
-    let not_in_relation = match negation.relation().source() {
-        Source::Edb => NotInRelation::Edb(Arc::clone(
-            edb.get(&(negation.relation().id(), version))
-                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
-        )),
-
-        Source::Idb => NotInRelation::Idb(Arc::clone(
-            idb.get(&(negation.relation().id(), version))
-                .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?,
-        )),
-    };
+    let not_in_relation = relations
+        .get(&(negation.relation().id(), version))
+        .ok_or_else(|| Error::InternalRhizomeError("relation not found".to_owned()))?;
 
     Ok(Formula::not_in(
         negation.relation().id(),
-        RelationVersion::Total,
+        Version::Total,
         cols,
-        not_in_relation,
+        Arc::clone(not_in_relation),
     ))
 }
 
-pub(crate) fn lower_get_link_to_ram<EF, IF, ER, IR>(
-    get_link: &GetLink,
-    bindings: &im::HashMap<VarId, Term>,
-) -> Result<Formula<EF, IF, ER, IR>>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
-    let cid_term = match get_link.cid() {
-        CidValue::Cid(cid) => Term::Lit(Val::Cid(cid)),
-        CidValue::Var(var) => Term::Link(
-            get_link.link_id(),
-            Box::new(
-                bindings
-                    .get(&var.id())
-                    .ok_or_else(|| {
-                        Error::InternalRhizomeError(format!("binding not found: {}", var.id()))
-                    })?
-                    .clone(),
-            ),
-        ),
-    };
-
-    let val_term = match get_link.link_value() {
-        CidValue::Cid(cid) => Term::Link(get_link.link_id(), Box::new(Term::Lit(Val::Cid(cid)))),
-        CidValue::Var(var) => bindings
-            .get(&var.id())
-            .ok_or_else(|| Error::InternalRhizomeError(format!("binding not found: {}", var.id())))?
-            .clone(),
-    };
-
-    Ok(Formula::equality(cid_term, val_term))
-}
-
-pub(crate) fn lower_var_predicate_to_ram<EF, IF, ER, IR>(
+pub(crate) fn lower_var_predicate_to_ram(
     var_predicate: &VarPredicate,
     bindings: &im::HashMap<VarId, Term>,
-) -> Result<Formula<EF, IF, ER, IR>>
-where
-    EF: EDBFact,
-    IF: IDBFact,
-    ER: Relation<Fact = EF>,
-    IR: Relation<Fact = IF>,
-{
+) -> Result<Formula> {
     let var_terms = var_predicate
         .vars()
         .iter()
@@ -988,10 +814,9 @@ where
 
 #[derive(Debug, Clone)]
 pub(crate) enum SemiNaiveTerm {
-    RelPredicate(RelPredicate, RelationVersion),
+    RelPredicate(RelPredicate, Version),
     VarPredicate(VarPredicate),
     Negation(Negation),
-    GetLink(GetLink),
     Aggregation(super::ast::body_term::Aggregation),
 }
 
@@ -1004,10 +829,6 @@ pub(crate) fn semi_naive_rewrites(rule: &Rule) -> Vec<Vec<SemiNaiveTerm>> {
 
     for negation in rule.negation_terms() {
         non_relational_terms.push(SemiNaiveTerm::Negation(negation.clone()));
-    }
-
-    for get_link in rule.get_link_terms() {
-        non_relational_terms.push(SemiNaiveTerm::GetLink(get_link.clone()));
     }
 
     for aggregation in rule.aggregation_terms() {
@@ -1032,15 +853,9 @@ pub(crate) fn semi_naive_rewrites(rule: &Rule) -> Vec<Vec<SemiNaiveTerm>> {
 
         for (i, &term) in rule.rel_predicate_terms().iter().enumerate() {
             if offset & (1 << i) == 0 {
-                rewrite.push(SemiNaiveTerm::RelPredicate(
-                    term.clone(),
-                    RelationVersion::Total,
-                ))
+                rewrite.push(SemiNaiveTerm::RelPredicate(term.clone(), Version::Total))
             } else {
-                rewrite.push(SemiNaiveTerm::RelPredicate(
-                    term.clone(),
-                    RelationVersion::Delta,
-                ))
+                rewrite.push(SemiNaiveTerm::RelPredicate(term.clone(), Version::Delta))
             }
         }
 
@@ -1080,26 +895,18 @@ fn select_term(
             SemiNaiveTerm::RelPredicate(_, _) => true,
             SemiNaiveTerm::VarPredicate(inner) => inner.is_vars_bound(bindings),
             SemiNaiveTerm::Negation(inner) => inner.is_vars_bound(bindings),
-            SemiNaiveTerm::GetLink(_) => true,
             SemiNaiveTerm::Aggregation(_) => true,
         })
         .max_by_key(|(_, term)| match term {
             SemiNaiveTerm::Negation(inner) => (4, inner.vars().len()),
-            SemiNaiveTerm::GetLink(inner) => {
-                if inner.len_bound_args(bindings) == 2 {
-                    (4, 2)
-                } else {
-                    (0, inner.len_bound_args(bindings))
-                }
-            }
             SemiNaiveTerm::VarPredicate(inner) => (3, inner.vars().len()),
-            SemiNaiveTerm::RelPredicate(inner, RelationVersion::Delta) => {
+            SemiNaiveTerm::RelPredicate(inner, Version::Delta) => {
                 (2, inner.bound_vars(bindings).len())
             }
-            SemiNaiveTerm::RelPredicate(inner, RelationVersion::Total) => {
+            SemiNaiveTerm::RelPredicate(inner, Version::Total) => {
                 (1, inner.bound_vars(bindings).len())
             }
-            SemiNaiveTerm::RelPredicate(_, RelationVersion::New) => {
+            SemiNaiveTerm::RelPredicate(_, Version::New) => {
                 panic!("New relation in semi-naive rule");
             }
             SemiNaiveTerm::Aggregation(inner) => (0, inner.bound_vars(bindings).len()),
@@ -1111,14 +918,6 @@ fn select_term(
 
 fn update_bindings(bindings: &mut HashSet<VarId>, term: &SemiNaiveTerm) {
     match term {
-        SemiNaiveTerm::GetLink(inner) => {
-            if let CidValue::Var(var) = inner.cid() {
-                bindings.insert(var.id());
-            }
-            if let CidValue::Var(var) = inner.link_value() {
-                bindings.insert(var.id());
-            }
-        }
         SemiNaiveTerm::Aggregation(inner) => {
             bindings.insert(inner.target().id());
         }

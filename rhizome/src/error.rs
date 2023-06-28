@@ -7,7 +7,6 @@ use crate::{
     col_val::ColVal,
     id::{ColId, RelationId, VarId},
     types::{ColType, Type},
-    var::Var,
 };
 
 /// Rhizome errors.
@@ -39,8 +38,6 @@ pub enum Error {
     ClauseHeadEDB(RelationId),
     #[error("Type mismatch: expected {0}, got {1}")]
     TypeMismatch(Type, Type),
-    #[error("Type mismatch: expected {0}, got {1}")]
-    VarTypeConflict(Var, Type),
     #[error("Attempted to bind {2} to {1} of type {3} in {0}")]
     ColumnValueTypeConflict(RelationId, ColId, ColVal, ColType),
     #[error("Facts must be ground: attempted to bind {1} to variable {2} of relation {0}")]

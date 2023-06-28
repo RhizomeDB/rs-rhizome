@@ -7,13 +7,9 @@ use anyhow::Result;
 use cid::Cid;
 use futures::{sink::unfold, StreamExt};
 use rhizome::{
-    fact::{
-        btree_fact::BTreeFact,
-        evac_fact::EVACFact,
-        traits::{EDBFact, Fact},
-    },
     kernel::math,
     runtime::client::Client,
+    tuple::{InputTuple, Tuple},
     value::Val,
 };
 use tokio::spawn;
@@ -67,7 +63,7 @@ async fn main() -> Result<()> {
                         cid,
                         (("entity", k), ("attribute", "update"), ("value", v)),
                     )?;
-                    b.get_link(cid, "parent", parent)?;
+                    b.search("links", (("from", cid), ("to", parent)))?;
                     b.search("create", (("cid", parent), ("key", k)))?;
 
                     Ok(())
@@ -81,7 +77,7 @@ async fn main() -> Result<()> {
                         cid,
                         (("entity", k), ("attribute", "update"), ("value", v)),
                     )?;
-                    b.get_link(cid, "parent", parent)?;
+                    b.search("links", (("from", cid), ("to", parent)))?;
                     b.search("update", (("cid", parent), ("key", k)))?;
 
                     Ok(())
@@ -150,7 +146,7 @@ async fn main() -> Result<()> {
             Box::new({
                 let kv = Arc::clone(&kv);
                 || {
-                    Box::new(unfold(kv, move |kv, fact: BTreeFact| async move {
+                    Box::new(unfold(kv, move |kv, fact: Tuple| async move {
                         let k = fact.col(&"key".into()).unwrap();
                         let v = fact.col(&"val".into()).unwrap();
 
@@ -163,22 +159,22 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    let e0 = EVACFact::new(0, "create", 0, vec![]);
-    let e1 = EVACFact::new(0, "update", 1, vec![("parent".into(), e0.cid()?.unwrap())]);
-    let e2 = EVACFact::new(0, "update", 5, vec![("parent".into(), e1.cid()?.unwrap())]);
-    let e3 = EVACFact::new(0, "update", 3, vec![("parent".into(), e1.cid()?.unwrap())]);
-    let e4 = EVACFact::new(1, "create", 4, vec![]);
-    let e5 = EVACFact::new(0, "update", 6, vec![("parent".into(), e0.cid()?.unwrap())]);
-    let e6 = EVACFact::new(0, "update", 7, vec![("parent".into(), e0.cid()?.unwrap())]);
-    let e7 = EVACFact::new(0, "update", 9, vec![("parent".into(), e4.cid()?.unwrap())]);
-    let e8 = EVACFact::new(0, "create", 12, vec![]);
-    let e9 = EVACFact::new(0, "create", 17, vec![]);
+    let e0 = InputTuple::new(0, "create", 0, vec![]);
+    let e1 = InputTuple::new(0, "update", 1, vec![e0.cid()?]);
+    let e2 = InputTuple::new(0, "update", 5, vec![e1.cid()?]);
+    let e3 = InputTuple::new(0, "update", 3, vec![e1.cid()?]);
+    let e4 = InputTuple::new(1, "create", 4, vec![]);
+    let e5 = InputTuple::new(0, "update", 14, vec![e0.cid()?]);
+    let e6 = InputTuple::new(0, "update", 15, vec![e0.cid()?]);
+    let e7 = InputTuple::new(0, "update", 9, vec![e4.cid()?]);
+    let e8 = InputTuple::new(0, "create", 12, vec![]);
+    let e9 = InputTuple::new(0, "create", 26, vec![]);
 
-    assert!(e2.cid()?.unwrap() < e3.cid()?.unwrap());
-    assert!(e5.cid()?.unwrap() < e1.cid()?.unwrap());
-    assert!(e5.cid()?.unwrap() < e6.cid()?.unwrap());
-    assert!(e0.cid()?.unwrap() < e8.cid()?.unwrap());
-    assert!(e0.cid()?.unwrap() > e9.cid()?.unwrap());
+    assert!(e2.cid()? < e3.cid()?);
+    assert!(e5.cid()? < e1.cid()?);
+    assert!(e5.cid()? < e6.cid()?);
+    assert!(e0.cid()? < e8.cid()?);
+    assert!(e0.cid()? > e9.cid()?);
 
     client.insert_fact(e0).await?;
     client.insert_fact(e1).await?;
@@ -190,20 +186,20 @@ async fn main() -> Result<()> {
     client.insert_fact(e7).await?;
     client.flush().await?;
 
-    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&6.into()));
+    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&14.into()));
     assert_eq!(kv.read().unwrap().get(&Val::S32(1)), Some(&4.into()));
 
     // Adding a new root with a larger CID doesn't change the value
     client.insert_fact(e8).await?;
     client.flush().await?;
 
-    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&6.into()));
+    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&14.into()));
 
     // Adding a new root with a smaller CID changes the value
     client.insert_fact(e9).await?;
     client.flush().await?;
 
-    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&17.into()));
+    assert_eq!(kv.read().unwrap().get(&Val::S32(0)), Some(&26.into()));
 
     println!("{:?}", kv.read().unwrap());
 

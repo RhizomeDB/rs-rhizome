@@ -4,12 +4,9 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
-
 use crate::{
     aggregation::AggregateWrapper,
-    error::Error,
-    id::{ColId, LinkId, VarId},
+    id::{ColId, VarId},
     predicate::PredicateWrapper,
     var::Var,
 };
@@ -22,11 +19,10 @@ pub enum BodyTerm {
     VarPredicate(VarPredicate),
     RelPredicate(RelPredicate),
     Negation(Negation),
-    GetLink(GetLink),
     Aggregation(Aggregation),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct RelPredicate {
     relation: Arc<Declaration>,
     cid: Option<CidValue>,
@@ -87,7 +83,7 @@ impl RelPredicate {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Negation {
     relation: Arc<Declaration>,
     args: HashMap<ColId, ColVal>,
@@ -118,66 +114,6 @@ impl Negation {
                 ColVal::Binding(var) => Some(var),
             })
             .collect()
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct GetLink {
-    cid: CidValue,
-    link_id: LinkId,
-    link_value: CidValue,
-}
-
-impl GetLink {
-    pub fn new(cid: CidValue, args: Vec<(LinkId, CidValue)>) -> Result<Self> {
-        let links: Vec<_> = args.into_iter().collect();
-
-        // TODO: Support multiple links; see https://github.com/RhizomeDB/rs-rhizome/issues/22
-        debug_assert!(links.len() == 1);
-
-        let link = links
-            .get(0)
-            .ok_or_else(|| Error::InternalRhizomeError("link not found".to_owned()))?;
-
-        Ok(Self {
-            cid,
-            link_id: link.0,
-            link_value: link.1,
-        })
-    }
-
-    pub fn cid(&self) -> CidValue {
-        self.cid
-    }
-
-    pub fn link_id(&self) -> LinkId {
-        self.link_id
-    }
-
-    pub fn link_value(&self) -> CidValue {
-        self.link_value
-    }
-
-    pub fn len_bound_args(&self, bindings: &HashSet<VarId>) -> usize {
-        let mut len = 0;
-
-        if let CidValue::Var(var) = self.cid() {
-            if bindings.contains(&var.id()) {
-                len += 1;
-            }
-        } else {
-            len += 1;
-        }
-
-        if let CidValue::Var(var) = self.link_value() {
-            if bindings.contains(&var.id()) {
-                len += 1;
-            }
-        } else {
-            len += 1;
-        }
-
-        len
     }
 }
 

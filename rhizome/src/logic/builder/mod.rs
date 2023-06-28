@@ -1,10 +1,6 @@
 use anyhow::Result;
 
-use crate::{
-    fact::traits::{EDBFact, IDBFact},
-    ram::Program,
-    relation::Relation,
-};
+use crate::ram::Program;
 
 pub use self::{
     atom_binding::AtomBinding, atom_bindings::AtomBindings, program::ProgramBuilder,
@@ -25,16 +21,12 @@ mod rule_body;
 mod rule_head;
 mod rule_vars;
 
-pub fn build<E, I, ER, IR, F>(f: F) -> Result<Program<E, I, ER, IR>>
+pub fn build<F>(f: F) -> Result<Program>
 where
-    E: EDBFact,
-    I: IDBFact,
-    ER: Relation<Fact = E>,
-    IR: Relation<Fact = I>,
     F: FnOnce(ProgramBuilder) -> Result<ProgramBuilder>,
 {
     let logic = ProgramBuilder::build(f)?;
-    let ram = lower_to_ram::lower_to_ram::<E, I, ER, IR>(&logic)?;
+    let ram = lower_to_ram::lower_to_ram(&logic)?;
 
     Ok(ram)
 }
@@ -144,7 +136,7 @@ mod tests {
 
             p.rule::<(Cid,)>("p", &|h, b, (x,)| {
                 h.bind((("x", x),))?;
-                b.get_link(cid, "link", x)?;
+                b.search("links", (("from", cid), ("to", x)))?;
 
                 Ok(())
             })?;
@@ -664,13 +656,18 @@ mod tests {
     #[test]
     fn test_var_type_conflict_get_link_cid() {
         assert_compile_err!(
-            &Error::VarTypeConflict(Var::new::<i32>("x0"), Type::Cid),
+            &Error::ColumnValueTypeConflict(
+                "links".into(),
+                "from".into(),
+                ColVal::Binding(Var::new::<i32>("x0")),
+                ColType::Type(Type::Cid)
+            ),
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
                 p.rule::<(i32, Cid)>("p", &|h, b, (x, y)| {
                     h.bind((("x", x),))?;
-                    b.get_link(x, "link", y)?;
+                    b.search("links", (("from", x), ("to", y)))?;
 
                     Ok(())
                 })?;
@@ -685,13 +682,18 @@ mod tests {
         let cid = Cid::try_from("bafyreibvjvcv745gig4mvqs4hctx4zfkono4rjejm2ta6gtyzkqxfjeily")?;
 
         assert_compile_err!(
-            &Error::VarTypeConflict(Var::new::<i32>("x0"), Type::Cid),
+            &Error::ColumnValueTypeConflict(
+                "links".into(),
+                "to".into(),
+                ColVal::Binding(Var::new::<i32>("x0")),
+                ColType::Type(Type::Cid)
+            ),
             |p| {
                 p.output("p", |h| h.column::<i32>("x"))?;
 
                 p.rule::<(i32,)>("p", &|h, b, (x,)| {
                     h.bind((("x", x),))?;
-                    b.get_link(cid, "link", x)?;
+                    b.search("links", (("from", cid), ("to", x)))?;
 
                     Ok(())
                 })?;

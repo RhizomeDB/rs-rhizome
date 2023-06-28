@@ -1,5 +1,6 @@
+use std::collections::BTreeSet;
+
 use as_any::Downcast;
-use im::OrdSet;
 
 use crate::{id::ColId, tuple::Tuple, value::Val};
 
@@ -7,11 +8,11 @@ use super::Relation;
 
 // Just a simple (and slow) implementation for initial prototyping
 #[derive(Clone, Debug, Default)]
-pub struct ImmutableOrdSetRelation {
-    inner: OrdSet<Tuple>,
+pub struct OrdSetRelation {
+    inner: BTreeSet<Tuple>,
 }
 
-impl Relation for ImmutableOrdSetRelation {
+impl Relation for OrdSetRelation {
     fn len(&self) -> usize {
         self.inner.len()
     }
@@ -39,11 +40,11 @@ impl Relation for ImmutableOrdSetRelation {
     }
 
     fn purge(&mut self) {
-        self.inner = OrdSet::default();
+        self.inner = BTreeSet::default();
     }
 
     fn insert(&mut self, _bindings: Vec<(ColId, Val)>, val: Tuple) {
-        self.inner = self.inner.update(val);
+        self.inner.insert(val);
     }
 
     fn merge(&mut self, rhs: &dyn Relation) {
@@ -55,13 +56,13 @@ impl Relation for ImmutableOrdSetRelation {
     }
 }
 
-impl FromIterator<Tuple> for ImmutableOrdSetRelation {
+impl FromIterator<Tuple> for OrdSetRelation {
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = Tuple>,
     {
         Self {
-            inner: OrdSet::from_iter(iter),
+            inner: BTreeSet::from_iter(iter),
         }
     }
 }

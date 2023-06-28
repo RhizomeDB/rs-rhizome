@@ -13,8 +13,8 @@ mod tests {
     use tokio::{spawn, test};
 
     use rhizome::{
-        fact::traits::{EDBFact, IDBFact},
         runtime::client::Client,
+        tuple::{InputTuple, Tuple},
     };
 
     #[test]
@@ -80,25 +80,33 @@ mod tests {
             )
             .await?;
 
-        client.insert_fact(EDBFact::new(0, "to", 1, vec![])).await?;
-        client.insert_fact(EDBFact::new(1, "to", 2, vec![])).await?;
-        client.insert_fact(EDBFact::new(2, "to", 3, vec![])).await?;
-        client.insert_fact(EDBFact::new(3, "to", 4, vec![])).await?;
+        client
+            .insert_fact(InputTuple::new(0, "to", 1, vec![]))
+            .await?;
+        client
+            .insert_fact(InputTuple::new(1, "to", 2, vec![]))
+            .await?;
+        client
+            .insert_fact(InputTuple::new(2, "to", 3, vec![]))
+            .await?;
+        client
+            .insert_fact(InputTuple::new(3, "to", 4, vec![]))
+            .await?;
         client.flush().await?;
 
         assert_eq!(
             *buf2.lock().unwrap().borrow(),
             BTreeSet::from_iter([
-                IDBFact::new("path", [("from", 0), ("to", 1)]),
-                IDBFact::new("path", [("from", 0), ("to", 2)]),
-                IDBFact::new("path", [("from", 0), ("to", 3)]),
-                IDBFact::new("path", [("from", 0), ("to", 4)]),
-                IDBFact::new("path", [("from", 1), ("to", 2)]),
-                IDBFact::new("path", [("from", 1), ("to", 3)]),
-                IDBFact::new("path", [("from", 1), ("to", 4)]),
-                IDBFact::new("path", [("from", 2), ("to", 3)]),
-                IDBFact::new("path", [("from", 2), ("to", 4)]),
-                IDBFact::new("path", [("from", 3), ("to", 4)]),
+                Tuple::new("path", [("from", 0), ("to", 1)], None),
+                Tuple::new("path", [("from", 0), ("to", 2)], None),
+                Tuple::new("path", [("from", 0), ("to", 3)], None),
+                Tuple::new("path", [("from", 0), ("to", 4)], None),
+                Tuple::new("path", [("from", 1), ("to", 2)], None),
+                Tuple::new("path", [("from", 1), ("to", 3)], None),
+                Tuple::new("path", [("from", 1), ("to", 4)], None),
+                Tuple::new("path", [("from", 2), ("to", 3)], None),
+                Tuple::new("path", [("from", 2), ("to", 4)], None),
+                Tuple::new("path", [("from", 3), ("to", 4)], None),
             ])
         );
 

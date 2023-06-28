@@ -5,7 +5,7 @@ use crate::{
     id::{ColId, RelationId},
 };
 
-use super::{Aggregation, BodyTerm, GetLink, Negation, RelPredicate, VarPredicate};
+use super::{Aggregation, BodyTerm, Negation, RelPredicate, VarPredicate};
 
 #[derive(Debug)]
 pub struct Rule {
@@ -62,19 +62,6 @@ impl Rule {
             .iter()
             .filter_map(|term| {
                 if let BodyTerm::Negation(inner) = term {
-                    Some(inner)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    pub fn get_link_terms(&self) -> Vec<&GetLink> {
-        self.body
-            .iter()
-            .filter_map(|term| {
-                if let BodyTerm::GetLink(inner) = term {
                     Some(inner)
                 } else {
                     None
