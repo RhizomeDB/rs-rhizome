@@ -26,7 +26,7 @@ pub enum Error {
     DuplicateDeclarationCol(RelationId, ColId),
     #[error("Relation already declared: {0}")]
     ConflictingRelationDeclaration(RelationId),
-    #[error("Column {1} already bound in clause head, for relation {1}")]
+    #[error("Column {1} already bound in clause head, for relation {0}")]
     ConflictingColumnBinding(RelationId, ColId),
     #[error("Unrecognized column: {1}, for relation {0}")]
     UnrecognizedColumnBinding(RelationId, ColId),
