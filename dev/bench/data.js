@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684533927872,
+  "lastUpdate": 1688063450984,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -563,6 +563,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/3a2bce8263551d26162e7a5cea068c36e588c8f3"
         },
         "date": 1684533927407,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "13db1213c751caa9f522a846bcb0dc5fca4cacb5",
+          "message": "feat: add support for floats and math::mean\n\nI still need a good solution for supporting casting between\ncolumns, like if you want to take the mean of a set of i32s, as a\nf32.",
+          "timestamp": "2023-06-29T11:27:43-07:00",
+          "tree_id": "96e94fd53c9df603d09e791b85946f40c3ec7a5e",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/13db1213c751caa9f522a846bcb0dc5fca4cacb5"
+        },
+        "date": 1688063449743,
         "tool": "cargo",
         "benches": [
           {
