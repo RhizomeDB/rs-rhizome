@@ -5,7 +5,7 @@ use crate::{
     value::Val,
 };
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Fact {
     head: RelationId,
     args: HashMap<ColId, Val>,

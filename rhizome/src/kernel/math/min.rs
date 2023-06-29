@@ -10,15 +10,21 @@ rhizome_fn! {
 }
 
 #[derive(Debug)]
-pub struct Min<T: RhizomeType + Ord>(Option<T>);
+pub struct Min<T>(Option<T>);
 
-impl<T: RhizomeType + Ord> Default for Min<T> {
+impl<T> Default for Min<T>
+where
+    T: RhizomeType + Ord,
+{
     fn default() -> Self {
         Self(None)
     }
 }
 
-impl<T: RhizomeType + Ord> Aggregate for Min<T> {
+impl<T> Aggregate for Min<T>
+where
+    T: RhizomeType + Ord,
+{
     type Input = (T,);
     type Output = T;
 

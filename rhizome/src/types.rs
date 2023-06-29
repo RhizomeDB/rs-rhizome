@@ -114,6 +114,12 @@ impl IntoColType for u32 {
     }
 }
 
+impl IntoColType for f32 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::F32)
+    }
+}
+
 impl IntoColType for i64 {
     fn into_col_type() -> ColType {
         ColType::Type(Type::S64)
@@ -123,6 +129,12 @@ impl IntoColType for i64 {
 impl IntoColType for u64 {
     fn into_col_type() -> ColType {
         ColType::Type(Type::U64)
+    }
+}
+
+impl IntoColType for f64 {
+    fn into_col_type() -> ColType {
+        ColType::Type(Type::F64)
     }
 }
 
@@ -168,8 +180,10 @@ pub enum Type {
     U16,
     S32,
     U32,
+    F32,
     S64,
     U64,
+    F64,
     Char,
     String,
     Cid,
@@ -205,8 +219,10 @@ impl Display for Type {
             Type::U16 => "u16",
             Type::S32 => "s32",
             Type::U32 => "u32",
+            Type::F32 => "f32",
             Type::S64 => "s64",
             Type::U64 => "u64",
+            Type::F64 => "f64",
             Type::Char => "char",
             Type::String => "string",
             Type::Cid => "CID",
@@ -227,6 +243,7 @@ impl RhizomeType for i32 {}
 impl RhizomeType for u32 {}
 impl RhizomeType for i64 {}
 impl RhizomeType for u64 {}
+impl RhizomeType for f64 {}
 impl RhizomeType for char {}
 impl RhizomeType for Arc<str> {}
 impl RhizomeType for Cid {}

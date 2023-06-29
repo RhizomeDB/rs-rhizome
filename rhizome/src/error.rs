@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// Rhizome errors.
-#[derive(Debug, Eq, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum Error {
     #[error(
         "An unexpected error occurred in Rhizome: {0}. This is a bug: please consider filing an issue"

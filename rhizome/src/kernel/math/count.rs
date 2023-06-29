@@ -11,15 +11,21 @@ rhizome_fn! {
 }
 
 #[derive(Debug)]
-pub struct Count<T: RhizomeType + AddAssign + One + Zero>(T);
+pub struct Count<T>(T);
 
-impl<T: RhizomeType + AddAssign + One + Zero> Default for Count<T> {
+impl<T> Default for Count<T>
+where
+    T: RhizomeType + AddAssign + One + Zero,
+{
     fn default() -> Self {
         Self(Zero::zero())
     }
 }
 
-impl<T: RhizomeType + AddAssign + One + Zero> Aggregate for Count<T> {
+impl<T> Aggregate for Count<T>
+where
+    T: RhizomeType + AddAssign + One + Zero,
+{
     type Input = ();
     type Output = T;
 

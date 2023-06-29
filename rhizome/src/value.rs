@@ -4,6 +4,7 @@ use std::{
 };
 
 use cid::Cid;
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::types::Type;
@@ -17,8 +18,10 @@ pub enum Val {
     U16(u16),
     S32(i32),
     U32(u32),
+    F32(OrderedFloat<f32>),
     S64(i64),
     U64(u64),
+    F64(OrderedFloat<f64>),
     Char(char),
     String(Arc<str>),
     Cid(Cid),
@@ -34,8 +37,10 @@ impl Val {
             Val::U16(_) => Type::U16,
             Val::S32(_) => Type::S32,
             Val::U32(_) => Type::U32,
+            Val::F32(_) => Type::F32,
             Val::S64(_) => Type::S64,
             Val::U64(_) => Type::U64,
+            Val::F64(_) => Type::F64,
             Val::Char(_) => Type::Char,
             Val::String(_) => Type::String,
             Val::Cid(_) => Type::Cid,
@@ -85,6 +90,12 @@ impl From<u32> for Val {
     }
 }
 
+impl From<f32> for Val {
+    fn from(value: f32) -> Self {
+        Self::F32(value.into())
+    }
+}
+
 impl From<i64> for Val {
     fn from(value: i64) -> Self {
         Self::S64(value)
@@ -94,6 +105,12 @@ impl From<i64> for Val {
 impl From<u64> for Val {
     fn from(value: u64) -> Self {
         Self::U64(value)
+    }
+}
+
+impl From<f64> for Val {
+    fn from(value: f64) -> Self {
+        Self::F64(value.into())
     }
 }
 
@@ -198,6 +215,17 @@ impl TryFrom<Val> for u32 {
     }
 }
 
+impl TryFrom<Val> for f32 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::F32(v) => Ok(*v),
+            _ => Err(()),
+        }
+    }
+}
+
 impl TryFrom<Val> for i64 {
     type Error = ();
 
@@ -215,6 +243,17 @@ impl TryFrom<Val> for u64 {
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         match value {
             Val::U64(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Val> for f64 {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::F64(v) => Ok(*v),
             _ => Err(()),
         }
     }
@@ -274,8 +313,10 @@ impl Display for Val {
             Val::U16(v) => Display::fmt(v, f),
             Val::S32(v) => Display::fmt(v, f),
             Val::U32(v) => Display::fmt(v, f),
+            Val::F32(v) => Display::fmt(v, f),
             Val::S64(v) => Display::fmt(v, f),
             Val::U64(v) => Display::fmt(v, f),
+            Val::F64(v) => Display::fmt(v, f),
             Val::Char(v) => f.write_fmt(format_args!("{v:?}")),
             Val::String(v) => f.write_fmt(format_args!("{v:?}")),
             Val::Cid(v) => f.write_fmt(format_args!("\"{v}\"")),
