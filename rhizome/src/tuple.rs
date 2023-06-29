@@ -13,7 +13,7 @@ use crate::{
     value::Val,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InputTuple {
     entity: Val,
     attr: Val,

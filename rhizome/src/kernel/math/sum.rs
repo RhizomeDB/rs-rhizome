@@ -11,15 +11,21 @@ rhizome_fn! {
 }
 
 #[derive(Debug)]
-pub struct Sum<T: RhizomeType + AddAssign + Zero>(T);
+pub struct Sum<T>(T);
 
-impl<T: RhizomeType + AddAssign + Zero> Default for Sum<T> {
+impl<T> Default for Sum<T>
+where
+    T: RhizomeType + AddAssign + Zero,
+{
     fn default() -> Self {
         Self(Zero::zero())
     }
 }
 
-impl<T: RhizomeType + AddAssign + Zero> Aggregate for Sum<T> {
+impl<T> Aggregate for Sum<T>
+where
+    T: RhizomeType + AddAssign + Zero,
+{
     type Input = (T,);
     type Output = T;
 

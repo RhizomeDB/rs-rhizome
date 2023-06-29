@@ -17,7 +17,7 @@ use crate::{
 
 use super::Relation;
 
-trait Key: Clone + Eq + PartialEq + Ord + PartialOrd + AsRef<Val> {}
+trait Key: Clone + PartialEq + Ord + PartialOrd + AsRef<Val> {}
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, AsRef)]
 struct FromKey(Val);

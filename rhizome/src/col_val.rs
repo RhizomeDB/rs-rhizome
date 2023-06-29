@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 
 use crate::{value::Val, var::Var};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ColVal {
     Lit(Val),
     Binding(Var),

@@ -10,15 +10,21 @@ rhizome_fn! {
 }
 
 #[derive(Debug)]
-pub struct Max<T: RhizomeType + Ord>(Option<T>);
+pub struct Max<T>(Option<T>);
 
-impl<T: RhizomeType + Ord> Default for Max<T> {
+impl<T> Default for Max<T>
+where
+    T: RhizomeType + Ord,
+{
     fn default() -> Self {
         Self(None)
     }
 }
 
-impl<T: RhizomeType + Ord> Aggregate for Max<T> {
+impl<T> Aggregate for Max<T>
+where
+    T: RhizomeType + Ord,
+{
     type Input = (T,);
     type Output = T;
 

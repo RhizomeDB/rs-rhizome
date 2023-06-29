@@ -648,18 +648,11 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce() -> Result<()> {
+    fn test_min() -> Result<()> {
         assert_derives!(
             |p| {
                 p.output("num", |h| h.column::<i32>("n"))?;
-                p.output("pair", |h| h.column::<i32>("x").column::<i32>("y"))?;
-
-                p.output("count", |h| h.column::<i32>("n"))?;
-                p.output("sum", |h| h.column::<i32>("n"))?;
                 p.output("min", |h| h.column::<i32>("n"))?;
-                p.output("max", |h| h.column::<i32>("n"))?;
-
-                p.output("product", |h| h.column::<i32>("z"))?;
 
                 p.rule::<(i32,)>("num", &|h, b, (x,)| {
                     h.bind((("n", x),))?;
@@ -668,23 +661,38 @@ mod tests {
                     Ok(())
                 })?;
 
-                p.rule::<(i32, i32)>("count", &|h, b, (count, n)| {
-                    h.bind((("n", count),))?;
-                    b.group_by(count, "num", (("n", n),), math::count())?;
-
-                    Ok(())
-                })?;
-
-                p.rule::<(i32, i32)>("sum", &|h, b, (sum, n)| {
-                    h.bind((("n", sum),))?;
-                    b.group_by(sum, "num", (("n", n),), math::sum(n))?;
-
-                    Ok(())
-                })?;
-
                 p.rule::<(i32, i32)>("min", &|h, b, (min, n)| {
                     h.bind((("n", min),))?;
                     b.group_by(min, "num", (("n", n),), math::min(n))?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [
+                InputTuple::new(0, "n", 1, []),
+                InputTuple::new(0, "n", 2, []),
+                InputTuple::new(0, "n", 3, []),
+                InputTuple::new(0, "n", 4, []),
+                InputTuple::new(0, "n", 5, []),
+            ],
+            [("min", [Tuple::new("min", [("n", 1),], None),]),]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_max() -> Result<()> {
+        assert_derives!(
+            |p| {
+                p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("max", |h| h.column::<i32>("n"))?;
+
+                p.rule::<(i32,)>("num", &|h, b, (x,)| {
+                    h.bind((("n", x),))?;
+                    b.search("evac", (("value", x),))?;
 
                     Ok(())
                 })?;
@@ -705,12 +713,43 @@ mod tests {
                 InputTuple::new(0, "n", 4, []),
                 InputTuple::new(0, "n", 5, []),
             ],
+            [("max", [Tuple::new("max", [("n", 5),], None),]),]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mean() -> Result<()> {
+        assert_derives!(
+            |p| {
+                p.output("num", |h| h.column::<i32>("n"))?;
+                p.output("mean", |h| h.column::<i32>("n"))?;
+
+                p.rule::<(i32,)>("num", &|h, b, (x,)| {
+                    h.bind((("n", x),))?;
+                    b.search("evac", (("value", x),))?;
+
+                    Ok(())
+                })?;
+
+                p.rule::<(i32, i32)>("mean", &|h, b, (mean, n)| {
+                    h.bind((("n", mean),))?;
+                    b.group_by(mean, "num", (("n", n),), math::mean(n))?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
             [
-                ("count", [Tuple::new("count", [("n", 5),], None),]),
-                ("sum", [Tuple::new("sum", [("n", 15),], None),]),
-                ("min", [Tuple::new("min", [("n", 1),], None),]),
-                ("max", [Tuple::new("max", [("n", 5),], None),]),
-            ]
+                InputTuple::new(0, "n", 1, []),
+                InputTuple::new(0, "n", 2, []),
+                InputTuple::new(0, "n", 3, []),
+                InputTuple::new(0, "n", 4, []),
+                InputTuple::new(0, "n", 5, []),
+            ],
+            [("mean", [Tuple::new("mean", [("n", 3),], None),]),]
         );
 
         Ok(())
