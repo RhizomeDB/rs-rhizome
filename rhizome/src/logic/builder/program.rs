@@ -116,8 +116,8 @@ impl ProgramBuilder {
         T: RuleVars,
     {
         let Some(declaration) = self.relations.borrow().get(id).cloned() else {
-                return error(Error::UnrecognizedRelation(id.to_string()));
-            };
+            return error(Error::UnrecognizedRelation(id.to_string()));
+        };
 
         let mut bound_vars = HashMap::default();
         let head_builder = RuleHeadBuilder::new(Arc::clone(&declaration));

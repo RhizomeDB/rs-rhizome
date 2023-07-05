@@ -40,6 +40,20 @@ jobs:
           components: rustfmt, clippy
           toolchain: ${{ matrix.rust-toolchain }}
 
+      - name: Add wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install binaryen
+        run: |
+          set -e
+          curl -L https://github.com/WebAssembly/binaryen/releases/download/version_114/binaryen-version_114-x86_64-linux.tar.gz | tar xzf -
+          echo "`pwd`/binaryen-version_114/bin" > $GITHUB_PATH
+
+      - name: Install wasm-bindgen
+        uses: jetli/wasm-bindgen-action@v0.2.0
+        with:
+          version: '0.2.84'
+
       - name: Check Format
         uses: actions-rs/cargo@v1
         with:
@@ -69,16 +83,12 @@ jobs:
         with:
           command: check bans licenses sources
 
-      - name: Install wasm-pack
-        if: ${{ matrix.rust-toolchain == 'stable' }} && github.event_name == 'push' }}
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
       # Only "test" release build on push event.
       - name: Test Release
         if: ${{ matrix.rust-toolchain == 'stable' }} && github.event_name == 'push' }}
         run: |
           cargo build --manifest-path rhizome/Cargo.toml --release
-          cd rhizome-wasm && wasm-pack build --target bundler --release
+          cd rhizome-wasm && npm install && npm run release
 
   run-cargo-tests:
     runs-on: ubuntu-latest
@@ -118,9 +128,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
 
@@ -130,5 +137,22 @@ jobs:
           override: true
           toolchain: stable
 
-      - name: Run Rust Headless Browser Tests
-        run: wasm-pack test --node
+      - name: Add wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install binaryen
+        run: |
+          set -e
+          curl -L https://github.com/WebAssembly/binaryen/releases/download/version_114/binaryen-version_114-x86_64-linux.tar.gz | tar xzf -
+          echo "`pwd`/binaryen-version_114/bin" > $GITHUB_PATH
+
+      - name: Install wasm-bindgen
+        uses: jetli/wasm-bindgen-action@v0.2.0
+        with:
+          version: '0.2.84'
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run JS Tests
+        run: npm install && npm run test

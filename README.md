@@ -89,8 +89,7 @@ rhizome-wasm = "0.1.0"
   ```
 
 - To run tests for crate/workspace `rhizome-wasm`, follow
-  the instructions in [rhizome-wasm](./rhizome-wasm#testing-the-project),
-  which leverages [wasm-pack][wasm-pack].
+  the instructions in [rhizome-wasm](./rhizome-wasm#testing-the-project)
 
 ## Benchmarking the Project
 
@@ -112,15 +111,6 @@ However, with some extra work, benchmarks can be compiled to [wasi][wasi] and
 run with [wasmer][wasmer]/[wasmtime][wasmtime] or in the brower with
 [webassembly.sh][wasmsh]. Please catch-up with wasm support for criterion on their
 [user-guide][criterion-user-guide].
-
-## Setting-up rhizome-wasm
-
-The Wasm targetted version of this project relies on [wasm-pack][wasm-pack]
-for building, testing, and publishing artifacts sutiable for
-[Node.js][node-js], web broswers, or bundlers like [webpack][webpack].
-
-Please read more on working with `wasm-pack` directly in
-[rhizome-wasm](./rhizome-wasm#set-up).
 
 ## Contributing
 
@@ -223,5 +213,3 @@ conditions.
 [wasmer]: https://wasmer.io/
 [wasmtime]: https://docs.wasmtime.dev/
 [wasmsh]: https://webassembly.sh/
-[wasm-pack]: https://rustwasm.github.io/docs/wasm-pack/
-[webpack]: https://webpack.js.org/
