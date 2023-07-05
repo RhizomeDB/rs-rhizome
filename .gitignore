@@ -11,8 +11,13 @@ Cargo.lock
 
 **/package-lock.json
 **/pkg/
-wasm-pack.log
 **/node_modules/
+dist
+bundle
+lib
+.wireit
+.nyc_output
+**/tests/report
 
 # Other files + dirs
 private

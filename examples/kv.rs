@@ -89,8 +89,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         || {
                             Box::new(unfold(db, move |db, fact: Tuple| async move {
                                 let Some(Val::Cid(cid)) = fact.col(&"cid".into()) else {
-                                panic!("cid is not a cid");
-                            };
+                                    panic!("cid is not a cid");
+                                };
 
                                 let Val::String(key) = fact.col(&"key".into()).unwrap() else {
                                     panic!("key is not a string");

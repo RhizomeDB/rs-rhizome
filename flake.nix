@@ -42,7 +42,6 @@
         cargo-sort
         cargo-udeps
         cargo-watch
-        wasm-pack
         wasm-bindgen-cli
       ];
     in
@@ -59,8 +58,8 @@
           pre-commit
           direnv
           self.packages.${system}.irust
-          chromedriver # For rhizome-wasm browser tests
           binaryen
+          nodejs
         ] ++ format-pkgs ++ cargo-installs;
 
       shellHook = ''

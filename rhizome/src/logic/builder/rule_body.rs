@@ -53,8 +53,8 @@ impl RuleBodyBuilder {
 
         for (id, builder) in self.rel_predicates.into_inner() {
             let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
-                    return error(Error::UnrecognizedRelation(id));
-                };
+                return error(Error::UnrecognizedRelation(id));
+            };
 
             let predicate = builder.finalize(declaration, bound_vars)?;
             let term = BodyTerm::RelPredicate(predicate);
@@ -76,8 +76,8 @@ impl RuleBodyBuilder {
 
         for (id, builder) in self.negations.into_inner() {
             let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
-                    return error(Error::UnrecognizedRelation(id));
-                };
+                return error(Error::UnrecognizedRelation(id));
+            };
 
             let negation = builder.finalize(declaration)?;
 
@@ -94,8 +94,8 @@ impl RuleBodyBuilder {
 
         for (id, builder) in self.aggregations.into_inner() {
             let Some(declaration) = self.relations.borrow().get(&id).cloned() else {
-                    return error(Error::UnrecognizedRelation(id));
-                };
+                return error(Error::UnrecognizedRelation(id));
+            };
 
             let aggregation = builder.finalize(declaration, bound_vars)?;
             let term = BodyTerm::Aggregation(aggregation);

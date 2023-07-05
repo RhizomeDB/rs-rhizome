@@ -46,67 +46,24 @@ WebAssembly bindings for Rhizome.
 - [Set-up](#set-up)
   - [Build for Javascript](#build-for-javascript)
 - [Testing the Project](#testing-the-project)
-- [Publishing a Package](#publishing-a-package)
 - [License](#license)
   - [Contribution](#contribution)
 
-## Set-up
-
-We'll use [`wasm-pack`][wasm-pack] for building, testing, and publishing
-our Wasm project.
-
 ### Build for Javascript
 
-The `wasm-pack build` command will compile the code in this directory into
-Wasm and generate a `pkg` folder by default, containing the Wasm binary, a
-Javascript-wrapper file, the rhizome-wasm README (and version), and a
-`package.json` file.
-
-- Targetting node:
+The `npm run build` command will compile the code in this directory into
+Wasm and generate a `lib` folder, containing for each target, the Wasm binary, type declarations, and a Javascript-wrapper
 
   ```console
-  wasm-pack build --target nodejs
-  ```
-
-- Targetting browswers:
-
-  ```console
-  wasm-pack build --target web
-  ```
-
-- Targetting bundlers like [webpack][webpack]:
-
-  ```console
-  wasm-pack build --target bundler
+  npm run build
   ```
 
 ## Testing the Project
 
-For running tests in the current directory, use one of these commands:
-
-- Run tests expected to execute in [Node.js][node-js]:
+For running tests, use the following command:
 
 ```console
-wasm-pack test --node
-```
-
-- Run browser tests in a headless browwer:
-
-```console
-wasm-pack test --headless --firefox --chrome --safari
-```
-
-*Note*: Make sure you have the appropriate browser installed when running
-locally.
-
-## Publishing a Package
-
-Once you've [built the package](#build-for-javascript), which lives under
-`pkg` by default (or a sub-directory of your choosing), you can pack and
-publish it to [npm][npm] via (given credentials):
-
-```console
-wasm-pack publish
+npm run test
 ```
 
 ## License
@@ -130,5 +87,3 @@ conditions.
 [mit]: http://opensource.org/licenses/MIT
 [node-js]: https://nodejs.dev/en/
 [npm]: https://www.npmjs.com/
-[wasm-pack]: https://rustwasm.github.io/docs/wasm-pack/
-[webpack]: https://webpack.js.org/
