@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1688063450984,
+  "lastUpdate": 1688604555552,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -593,6 +593,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/13db1213c751caa9f522a846bcb0dc5fca4cacb5"
         },
         "date": 1688063449743,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "2b773c1b6c85aefe92a329d8b491b87baa6993b7",
+          "message": "feat: add package.json to rhizome-wasm to handle building for JS",
+          "timestamp": "2023-07-05T17:47:30-07:00",
+          "tree_id": "f841e5d698147ccdadd8721d8ae455f8e1e2394a",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/2b773c1b6c85aefe92a329d8b491b87baa6993b7"
+        },
+        "date": 1688604555085,
         "tool": "cargo",
         "benches": [
           {
