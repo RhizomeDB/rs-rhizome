@@ -160,18 +160,18 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    let e0 = InputTuple::new(0 as i32, 0, 0, vec![]);
-    let e1 = InputTuple::new(0 as i32, 0, 2, vec![e0.cid()?]);
-    let e2 = InputTuple::new(0 as i32, 0, 13, vec![e1.cid()?]);
-    let e3 = InputTuple::new(0 as i32, 0, 4, vec![e1.cid()?]);
-    let e4 = InputTuple::new(0 as i32, 1, 5, vec![]);
-    let e5 = InputTuple::new(0 as i32, 0, 44, vec![e0.cid()?]);
-    let e6 = InputTuple::new(0 as i32, 0, 15, vec![e0.cid()?]);
-    let e7 = InputTuple::new(0 as i32, 0, 9, vec![e4.cid()?]);
-    let e8 = InputTuple::new(0 as i32, 0, 12, vec![]);
-    let e9 = InputTuple::new(0 as i32, 0, 24, vec![]);
-    let e10 = InputTuple::new(0 as i32, 0, 25, vec![e5.cid()?]);
-    let e11 = InputTuple::new(1 as i32, 0, 2, vec![]);
+    let e0 = InputTuple::new(0_i32, 0, 0, vec![]);
+    let e1 = InputTuple::new(0_i32, 0, 2, vec![e0.cid()?]);
+    let e2 = InputTuple::new(0_i32, 0, 13, vec![e1.cid()?]);
+    let e3 = InputTuple::new(0_i32, 0, 4, vec![e1.cid()?]);
+    let e4 = InputTuple::new(0_i32, 1, 5, vec![]);
+    let e5 = InputTuple::new(0_i32, 0, 44, vec![e0.cid()?]);
+    let e6 = InputTuple::new(0_i32, 0, 15, vec![e0.cid()?]);
+    let e7 = InputTuple::new(0_i32, 0, 9, vec![e4.cid()?]);
+    let e8 = InputTuple::new(0_i32, 0, 12, vec![]);
+    let e9 = InputTuple::new(0_i32, 0, 24, vec![]);
+    let e10 = InputTuple::new(0_i32, 0, 25, vec![e5.cid()?]);
+    let e11 = InputTuple::new(1_i32, 0, 2, vec![]);
 
     assert!(e2.cid()? < e3.cid()?);
     assert!(e5.cid()? < e1.cid()?);

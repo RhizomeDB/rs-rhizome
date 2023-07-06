@@ -1,33 +1,33 @@
 use anyhow::Result;
 use cid::Cid;
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
 use super::blockstore::Blockstore;
 
 #[derive(Clone, Debug, Default)]
 pub struct MemoryBlockstore {
-    blocks: HashMap<Cid, Vec<u8>>,
+    blocks: RefCell<HashMap<Cid, Vec<u8>>>,
 }
 
 impl MemoryBlockstore {
     pub fn new() -> Self {
         Self {
-            blocks: HashMap::default(),
+            blocks: RefCell::default(),
         }
     }
 }
 
 impl Blockstore for MemoryBlockstore {
     fn has(&self, k: &Cid) -> Result<bool> {
-        Ok(self.blocks.contains_key(k))
+        Ok(self.blocks.borrow().contains_key(k))
     }
 
-    fn get(&self, k: &Cid) -> Result<Option<&[u8]>> {
-        Ok(self.blocks.get(k).map(|b| b.as_ref()))
+    fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>> {
+        Ok(self.blocks.borrow().get(k).cloned())
     }
 
-    fn put_keyed(&mut self, k: &Cid, block: &[u8]) -> anyhow::Result<()> {
-        self.blocks.insert(*k, block.into());
+    fn put_keyed(&self, k: &Cid, block: &[u8]) -> anyhow::Result<()> {
+        self.blocks.borrow_mut().insert(*k, block.into());
 
         Ok(())
     }
@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_bs() -> Result<()> {
-        let mut bs = MemoryBlockstore::default();
+        let bs = MemoryBlockstore::default();
 
         let cid1 = bs.put(
             cid::multihash::Code::Sha2_256,

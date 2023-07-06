@@ -19,6 +19,7 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1.0"
 as-any = "0.3.0"
+byteorder = "1.4.3"
 cid = { version = "0.10.0", features = ["serde-codec"] }
 derive_more = "0.99"
 dyn-clone = "1.0.11"
