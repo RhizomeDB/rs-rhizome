@@ -5,10 +5,10 @@ use super::{block::Block, codec::Codec, content_addressable::ContentAddressable}
 
 pub trait Blockstore: Default {
     fn has(&self, k: &Cid) -> Result<bool>;
-    fn get(&self, k: &Cid) -> Result<Option<&[u8]>>;
-    fn put_keyed(&mut self, k: &Cid, block: &[u8]) -> Result<()>;
+    fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>>;
+    fn put_keyed(&self, k: &Cid, block: &[u8]) -> Result<()>;
 
-    fn put<C, D>(&mut self, mh_code: multihash::Code, block: &Block<C, D>) -> Result<Cid>
+    fn put<C, D>(&self, mh_code: multihash::Code, block: &Block<C, D>) -> Result<Cid>
     where
         C: Codec,
         D: AsRef<[u8]>,
@@ -20,7 +20,7 @@ pub trait Blockstore: Default {
         Ok(k)
     }
 
-    fn put_many<C, D, I>(&mut self, blocks: I) -> Result<()>
+    fn put_many<C, D, I>(&self, blocks: I) -> Result<()>
     where
         C: Codec,
         D: AsRef<[u8]>,
@@ -31,7 +31,7 @@ pub trait Blockstore: Default {
         Ok(())
     }
 
-    fn put_many_keyed<D, I>(&mut self, blocks: I) -> Result<()>
+    fn put_many_keyed<D, I>(&self, blocks: I) -> Result<()>
     where
         D: AsRef<[u8]>,
         I: IntoIterator<Item = (Cid, D)>,
@@ -49,12 +49,12 @@ pub trait Blockstore: Default {
         T: ContentAddressable,
     {
         match self.get(cid)? {
-            Some(bz) => C::from_slice(bz).map(Some),
+            Some(bz) => C::from_slice(bz.as_slice()).map(Some),
             None => Ok(None),
         }
     }
 
-    fn put_serializable<C, T>(&mut self, obj: &T, codec: C, code: multihash::Code) -> Result<Cid>
+    fn put_serializable<C, T>(&self, obj: &T, codec: C, code: multihash::Code) -> Result<Cid>
     where
         C: Codec,
         T: ContentAddressable,
