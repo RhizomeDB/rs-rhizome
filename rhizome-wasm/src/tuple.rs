@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use rhizome::tuple::{InputTuple, Tuple};
+use rhizome::tuple::Tuple;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
 
@@ -8,20 +8,20 @@ use crate::Cid;
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, DowncastJS)]
-pub struct InputFact(InputTuple);
+pub struct InputTuple(rhizome::tuple::InputTuple);
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, DowncastJS)]
-pub struct OutputFact(Rc<Tuple>);
+pub struct OutputTuple(Rc<Tuple>);
 
-impl InputFact {
-    pub fn into_inner(self) -> InputTuple {
+impl InputTuple {
+    pub fn into_inner(self) -> rhizome::tuple::InputTuple {
         self.0
     }
 }
 
 #[wasm_bindgen]
-impl InputFact {
+impl InputTuple {
     #[wasm_bindgen(constructor)]
     pub fn new(entity: &str, attribute: &str, value: JsValue, links_obj: &js_sys::Object) -> Self {
         let mut links = Vec::default();
@@ -38,13 +38,27 @@ impl InputFact {
         }
 
         if let Some(val) = value.as_bool() {
-            Self(InputTuple::new(entity, attribute, val, links))
+            Self(rhizome::tuple::InputTuple::new(
+                entity, attribute, val, links,
+            ))
         } else if let Some(val) = value.as_f64() {
-            Self(InputTuple::new(entity, attribute, val as i64, links))
+            Self(rhizome::tuple::InputTuple::new(
+                entity, attribute, val as i64, links,
+            ))
         } else if let Some(val) = value.as_string() {
-            Self(InputTuple::new(entity, attribute, val.as_ref(), links))
+            Self(rhizome::tuple::InputTuple::new(
+                entity,
+                attribute,
+                val.as_ref(),
+                links,
+            ))
         } else if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(value) {
-            Self(InputTuple::new(entity, attribute, val.inner(), links))
+            Self(rhizome::tuple::InputTuple::new(
+                entity,
+                attribute,
+                val.inner(),
+                links,
+            ))
         } else {
             panic!("unknown type")
         }

@@ -11,28 +11,29 @@ use crate::{
 };
 
 pub mod client;
+pub mod epoch;
 pub mod reactor;
 mod vm;
 
-pub type FactStream = Box<dyn Stream<Item = InputTuple>>;
-pub type FactSink = Box<dyn Sink<Tuple, Error = Error>>;
+pub type TupleStream = Box<dyn Stream<Item = InputTuple>>;
+pub type TupleSink = Box<dyn Sink<Tuple, Error = Error>>;
 
-pub trait CreateStream: (FnOnce() -> FactStream) + MaybeSend {}
-pub trait CreateSink: (FnOnce() -> FactSink) + MaybeSend {}
+pub trait CreateStream: (FnOnce() -> TupleStream) + MaybeSend {}
+pub trait CreateSink: (FnOnce() -> TupleSink) + MaybeSend {}
 
-impl<F> CreateStream for F where F: FnOnce() -> FactStream + MaybeSend {}
+impl<F> CreateStream for F where F: FnOnce() -> TupleStream + MaybeSend {}
 
-impl<F> CreateSink for F where F: FnOnce() -> FactSink + MaybeSend {}
+impl<F> CreateSink for F where F: FnOnce() -> TupleSink + MaybeSend {}
 
 #[derive(Debug)]
 pub enum StreamEvent {
-    Fact(InputTuple),
+    Tuple(InputTuple),
 }
 
 #[derive(Debug)]
 pub enum SinkCommand {
     Flush(oneshot::Sender<()>),
-    ProcessFact(Tuple),
+    ProcessTuple(Tuple),
 }
 
 #[derive(Debug)]
@@ -45,7 +46,7 @@ where
 
 pub enum ClientCommand {
     Flush(oneshot::Sender<()>),
-    InsertFact(Box<InputTuple>, oneshot::Sender<()>),
+    InsertTuple(Box<InputTuple>, oneshot::Sender<()>),
     RegisterStream(RelationId, Box<dyn CreateStream>, oneshot::Sender<()>),
     RegisterSink(RelationId, Box<dyn CreateSink>, oneshot::Sender<()>),
 }
@@ -54,7 +55,9 @@ impl Debug for ClientCommand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ClientCommand::Flush(_) => f.debug_tuple("Flush").finish(),
-            ClientCommand::InsertFact(fact, _) => f.debug_tuple("InsertFact").field(fact).finish(),
+            ClientCommand::InsertTuple(tuple, _) => {
+                f.debug_tuple("InsertTuple").field(tuple).finish()
+            }
             ClientCommand::RegisterStream(_, _, _) => f.debug_tuple("RegisterStream").finish(),
             ClientCommand::RegisterSink(_, _, _) => f.debug_tuple("RegisterSink").finish(),
         }

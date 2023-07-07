@@ -43,7 +43,7 @@ pub(crate) struct Sinks {
 impl Sinks {
     pub(crate) fn apply(&self, output: &mut VecDeque<Tuple>) -> Result<()> {
         for relation in self.relations.values() {
-            for fact in relation
+            for tuple in relation
                 .read()
                 .or_else(|_| {
                     error(Error::InternalRhizomeError(
@@ -52,7 +52,7 @@ impl Sinks {
                 })?
                 .search(vec![])
             {
-                output.push_back(fact.clone());
+                output.push_back(tuple.clone());
             }
         }
 

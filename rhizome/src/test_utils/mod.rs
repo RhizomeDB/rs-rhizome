@@ -56,33 +56,33 @@ macro_rules! assert_derives {
         let mut bs = $crate::storage::memory::MemoryBlockstore::default();
         let mut vm = <$crate::runtime::vm::VM>::new(program);
 
-        for input_fact in $edb {
+        for input_tuple in $edb {
             $crate::storage::blockstore::Blockstore::put_serializable(
                 &mut bs,
-                &input_fact,
+                &input_tuple,
                 #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                 $crate::storage::DefaultCodec::default(),
                 $crate::storage::DEFAULT_MULTIHASH,
             )
             .unwrap();
 
-            let cid = input_fact.cid().unwrap();
-            let fact = $crate::tuple::Tuple::new(
+            let cid = input_tuple.cid().unwrap();
+            let tuple = $crate::tuple::Tuple::new(
                 "evac",
                 [
-                    ("entity", input_fact.entity()),
-                    ("attribute", input_fact.attr()),
-                    ("value", input_fact.val()),
+                    ("entity", input_tuple.entity()),
+                    ("attribute", input_tuple.attr()),
+                    ("value", input_tuple.val()),
                 ],
                 Some(cid),
             );
 
-            vm.push(fact).unwrap();
+            vm.push(tuple).unwrap();
 
-            for link in input_fact.links() {
-                let fact = Tuple::new("links", [("from", cid), ("to", *link)], None);
+            for link in input_tuple.links() {
+                let tuple = Tuple::new("links", [("from", cid), ("to", *link)], None);
 
-                vm.push(fact).unwrap();
+                vm.push(tuple).unwrap();
             }
         }
 
@@ -93,23 +93,23 @@ macro_rules! assert_derives {
             }
         };
 
-        let mut facts = std::collections::BTreeMap::default();
+        let mut tuples = std::collections::BTreeMap::default();
 
         for (relation, _) in &$expected {
-            facts.insert(
+            tuples.insert(
                 $crate::id::RelationId::new(relation),
                 std::collections::BTreeSet::default(),
             );
         }
 
-        while let Ok(Some(fact)) = vm.pop() {
-            if let Some(relation) = facts.get_mut(&fact.id()) {
-                relation.insert(fact);
+        while let Ok(Some(tuple)) = vm.pop() {
+            if let Some(relation) = tuples.get_mut(&tuple.id()) {
+                relation.insert(tuple);
             }
         }
 
         for (relation, expected) in $expected {
-            let actual = facts
+            let actual = tuples
                 .get(&$crate::id::RelationId::new(relation))
                 .unwrap()
                 .clone();

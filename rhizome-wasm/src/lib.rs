@@ -14,11 +14,11 @@ use wasm_bindgen_downcast::DowncastJS;
 use wasm_bindgen_futures::{spawn_local, stream::JsStream};
 
 pub mod builder;
-pub mod fact;
+pub mod tuple;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{builder::ProgramBuilder, fact::InputFact};
+use crate::{builder::ProgramBuilder, tuple::InputTuple};
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, DowncastJS)]
@@ -87,11 +87,11 @@ impl Rhizome {
             .register_stream(
                 id,
                 Box::new(move || {
-                    Box::new(JsStream::from(async_iterator).map(|fact| {
-                        let fact = fact.unwrap();
-                        let fact = InputFact::downcast_js_ref(&fact).unwrap();
+                    Box::new(JsStream::from(async_iterator).map(|tuple| {
+                        let tuple = tuple.unwrap();
+                        let tuple = InputTuple::downcast_js_ref(&tuple).unwrap();
 
-                        fact.clone().into_inner()
+                        tuple.clone().into_inner()
                     }))
                 }),
             )
@@ -109,31 +109,31 @@ impl Rhizome {
             .register_sink(
                 id,
                 Box::new(move || {
-                    Box::new(unfold(f, move |f, fact: Tuple| async move {
-                        let js_fact = js_sys::Object::new();
+                    Box::new(unfold(f, move |f, tuple: Tuple| async move {
+                        let js_tuple = js_sys::Object::new();
 
-                        for col in fact.cols() {
-                            match fact.col(&col).unwrap() {
+                        for col in tuple.cols() {
+                            match tuple.col(&col).unwrap() {
                                 Val::Bool(v) => js_sys::Reflect::set(
-                                    &js_fact,
+                                    &js_tuple,
                                     &col.resolve().into(),
                                     &serde_wasm_bindgen::to_value(&v).unwrap(),
                                 )
                                 .unwrap(),
                                 Val::S64(v) => js_sys::Reflect::set(
-                                    &js_fact,
+                                    &js_tuple,
                                     &col.resolve().into(),
                                     &serde_wasm_bindgen::to_value(&v).unwrap(),
                                 )
                                 .unwrap(),
                                 Val::String(v) => js_sys::Reflect::set(
-                                    &js_fact,
+                                    &js_tuple,
                                     &col.resolve().into(),
                                     &serde_wasm_bindgen::to_value(&v).unwrap(),
                                 )
                                 .unwrap(),
                                 Val::Cid(v) => js_sys::Reflect::set(
-                                    &js_fact,
+                                    &js_tuple,
                                     &col.resolve().into(),
                                     &serde_wasm_bindgen::to_value(&Cid(v)).unwrap(),
                                 )
@@ -142,7 +142,7 @@ impl Rhizome {
                             };
                         }
 
-                        f.call1(&JsValue::NULL, &js_fact).unwrap();
+                        f.call1(&JsValue::NULL, &js_tuple).unwrap();
 
                         Ok(f)
                     }))

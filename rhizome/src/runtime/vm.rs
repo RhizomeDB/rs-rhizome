@@ -57,16 +57,16 @@ where
         &self.timestamp
     }
 
-    pub(crate) fn push(&mut self, fact: Tuple) -> Result<()> {
-        self.input.push_back(fact);
+    pub(crate) fn push(&mut self, tuple: Tuple) -> Result<()> {
+        self.input.push_back(tuple);
 
         Ok(())
     }
 
     pub(crate) fn pop(&mut self) -> Result<Option<Tuple>> {
-        let fact = self.output.pop_front();
+        let tuple = self.output.pop_front();
 
-        Ok(fact)
+        Ok(tuple)
     }
 
     pub(crate) fn step_epoch<BS>(&mut self, blockstore: &BS) -> Result<()>
