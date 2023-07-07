@@ -38,7 +38,7 @@ where
 impl<T, BS> Reactor<T, BS>
 where
     T: Timestamp,
-    BS: Blockstore,
+    BS: Blockstore + Default,
 {
     pub fn new(command_rx: Receiver<ClientCommand>, event_tx: Sender<ClientEvent<T>>) -> Self
 where {

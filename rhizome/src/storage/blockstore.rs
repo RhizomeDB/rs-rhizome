@@ -3,7 +3,7 @@ use cid::{multihash, Cid};
 
 use super::{block::Block, codec::Codec, content_addressable::ContentAddressable};
 
-pub trait Blockstore: Default {
+pub trait Blockstore {
     fn has(&self, k: &Cid) -> Result<bool>;
     fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>>;
     fn put_keyed(&self, k: &Cid, block: &[u8]) -> Result<()>;
@@ -62,5 +62,75 @@ pub trait Blockstore: Default {
         let bytes = C::to_vec(obj)?;
 
         self.put(code, &Block::new(codec, &bytes))
+    }
+}
+
+impl<'a, T: Blockstore> Blockstore for &'a T {
+    fn has(&self, k: &Cid) -> Result<bool> {
+        (**self).has(k)
+    }
+
+    fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>> {
+        (**self).get(k)
+    }
+
+    fn put_keyed(&self, k: &Cid, block: &[u8]) -> Result<()> {
+        (**self).put_keyed(k, block)
+    }
+}
+
+impl<'a, T: Blockstore> Blockstore for &'a mut T {
+    fn has(&self, k: &Cid) -> Result<bool> {
+        (**self).has(k)
+    }
+
+    fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>> {
+        (**self).get(k)
+    }
+
+    fn put_keyed(&self, k: &Cid, block: &[u8]) -> Result<()> {
+        (**self).put_keyed(k, block)
+    }
+}
+
+impl<T: Blockstore> Blockstore for Box<T> {
+    fn has(&self, k: &Cid) -> Result<bool> {
+        (**self).has(k)
+    }
+
+    fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>> {
+        (**self).get(k)
+    }
+
+    fn put_keyed(&self, k: &Cid, block: &[u8]) -> Result<()> {
+        (**self).put_keyed(k, block)
+    }
+}
+
+impl<T: Blockstore> Blockstore for std::rc::Rc<T> {
+    fn has(&self, k: &Cid) -> Result<bool> {
+        (**self).has(k)
+    }
+
+    fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>> {
+        (**self).get(k)
+    }
+
+    fn put_keyed(&self, k: &Cid, block: &[u8]) -> Result<()> {
+        (**self).put_keyed(k, block)
+    }
+}
+
+impl<T: Blockstore> Blockstore for std::sync::Arc<T> {
+    fn has(&self, k: &Cid) -> Result<bool> {
+        (**self).has(k)
+    }
+
+    fn get(&self, k: &Cid) -> Result<Option<Vec<u8>>> {
+        (**self).get(k)
+    }
+
+    fn put_keyed(&self, k: &Cid, block: &[u8]) -> Result<()> {
+        (**self).put_keyed(k, block)
     }
 }
