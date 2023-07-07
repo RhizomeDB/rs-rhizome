@@ -6,7 +6,6 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     io::{Cursor, Read, Seek},
-    sync::Arc,
 };
 
 use anyhow::{anyhow, Result};
@@ -21,9 +20,9 @@ pub trait Buffered: Blockstore {
     fn flush(&self, root: &Cid) -> Result<()>;
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct BufferedBlockstore<BS> {
-    inner: Arc<BS>,
+    inner: BS,
     write: RefCell<HashMap<Cid, Vec<u8>>>,
 }
 
@@ -31,14 +30,14 @@ impl<BS> BufferedBlockstore<BS>
 where
     BS: Blockstore,
 {
-    pub fn new(inner: Arc<BS>) -> Self {
+    pub fn new(inner: BS) -> Self {
         Self {
             inner,
             write: Default::default(),
         }
     }
 
-    pub fn into_inner(self) -> Arc<BS> {
+    pub fn into_inner(self) -> BS {
         self.inner
     }
 }
