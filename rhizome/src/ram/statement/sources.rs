@@ -45,13 +45,13 @@ impl Sources {
     pub(crate) fn apply(&self, input: &mut VecDeque<Tuple>) -> Result<bool> {
         let mut has_new_facts = false;
 
-        while let Some(fact) = input.pop_front() {
+        while let Some(tuple) = input.pop_front() {
             let mut bindings: Vec<(ColId, Val)> = Vec::default();
-            for col_id in fact.cols() {
-                bindings.push((col_id, <Val>::clone(&fact.col(&col_id).unwrap())));
+            for col_id in tuple.cols() {
+                bindings.push((col_id, <Val>::clone(&tuple.col(&col_id).unwrap())));
             }
 
-            let id = fact.id();
+            let id = tuple.id();
             let relation = self
                 .relations
                 .get(&id)
@@ -64,7 +64,7 @@ impl Sources {
                         "relation lock poisoned".to_owned(),
                     ))
                 })?
-                .insert(bindings, fact);
+                .insert(bindings, tuple);
 
             has_new_facts = true;
         }

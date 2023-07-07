@@ -91,7 +91,7 @@ where {
             while let Ok(Some(fact)) = vm.pop() {
                 if let Some(sinks) = self.sinks.get_mut(&fact.id()) {
                     for sink in sinks {
-                        sink.send(SinkCommand::ProcessFact(fact.clone())).await?;
+                        sink.send(SinkCommand::ProcessTuple(tuple.clone())).await?;
                     }
                 }
             }
@@ -124,7 +124,7 @@ where {
                     .send(())
                     .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
-            ClientCommand::InsertFact(input_fact, sender) => {
+            ClientCommand::InsertTuple(input_fact, sender) => {
                 self.blockstore.put_serializable(
                     &input_fact,
                     #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
@@ -160,8 +160,8 @@ where {
                 let create_task = move || async move {
                     let mut stream = Box::into_pin(create_stream());
 
-                    while let Some(fact) = stream.next().await {
-                        tx.send(StreamEvent::Fact(fact))
+                    while let Some(tuple) = stream.next().await {
+                        tx.send(StreamEvent::Tuple(tuple))
                             .await
                             .expect("stream channel closed");
                     }
@@ -183,8 +183,8 @@ where {
                             Some(SinkCommand::Flush(sender)) => {
                                 sender.send(()).expect("reactor channel closed")
                             }
-                            Some(SinkCommand::ProcessFact(fact)) => {
-                                sink.send(fact).await.expect("reactor channel closed")
+                            Some(SinkCommand::ProcessTuple(tuple)) => {
+                                sink.send(tuple).await.expect("reactor channel closed")
                             }
                             None => break,
                         };
@@ -205,7 +205,7 @@ where {
 
     async fn handle_event(&mut self, vm: &mut VM<T>, event: StreamEvent) -> Result<()> {
         match event {
-            StreamEvent::Fact(input_fact) => {
+            StreamEvent::Tuple(input_fact) => {
                 self.blockstore.put_serializable(
                     &input_fact,
                     #[allow(unknown_lints, clippy::default_constructed_unit_structs)]

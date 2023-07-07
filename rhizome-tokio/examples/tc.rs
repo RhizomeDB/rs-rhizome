@@ -52,8 +52,8 @@ async fn main() -> Result<()> {
         .register_sink(
             "path",
             Box::new(|| {
-                Box::new(unfold((), move |(), fact| async move {
-                    println!("{fact}");
+                Box::new(unfold((), move |(), tuple| async move {
+                    println!("{tuple}");
 
                     Ok(())
                 }))
@@ -62,16 +62,16 @@ async fn main() -> Result<()> {
         .await?;
 
     client
-        .insert_fact(InputTuple::new(0, "to", 1, vec![]))
+        .insert_tuple(InputTuple::new(0, "to", 1, vec![]))
         .await?;
     client
-        .insert_fact(InputTuple::new(1, "to", 2, vec![]))
+        .insert_tuple(InputTuple::new(1, "to", 2, vec![]))
         .await?;
     client
-        .insert_fact(InputTuple::new(2, "to", 3, vec![]))
+        .insert_tuple(InputTuple::new(2, "to", 3, vec![]))
         .await?;
     client
-        .insert_fact(InputTuple::new(3, "to", 4, vec![]))
+        .insert_tuple(InputTuple::new(3, "to", 4, vec![]))
         .await?;
 
     client.flush().await?;

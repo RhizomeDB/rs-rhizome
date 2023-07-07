@@ -69,10 +69,10 @@ mod tests {
             .register_sink(
                 "path",
                 Box::new(|| {
-                    Box::new(unfold((), move |(), fact| {
+                    Box::new(unfold((), move |(), tuple| {
                         let b = Arc::clone(&buf1);
                         async move {
-                            Arc::clone(&b).lock().unwrap().borrow_mut().insert(fact);
+                            Arc::clone(&b).lock().unwrap().borrow_mut().insert(tuple);
                             Ok(())
                         }
                     }))
@@ -81,16 +81,16 @@ mod tests {
             .await?;
 
         client
-            .insert_fact(InputTuple::new(0, "to", 1, vec![]))
+            .insert_tuple(InputTuple::new(0, "to", 1, vec![]))
             .await?;
         client
-            .insert_fact(InputTuple::new(1, "to", 2, vec![]))
+            .insert_tuple(InputTuple::new(1, "to", 2, vec![]))
             .await?;
         client
-            .insert_fact(InputTuple::new(2, "to", 3, vec![]))
+            .insert_tuple(InputTuple::new(2, "to", 3, vec![]))
             .await?;
         client
-            .insert_fact(InputTuple::new(3, "to", 4, vec![]))
+            .insert_tuple(InputTuple::new(3, "to", 4, vec![]))
             .await?;
         client.flush().await?;
 

@@ -87,16 +87,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         let db = Arc::clone(&db);
 
                         || {
-                            Box::new(unfold(db, move |db, fact: Tuple| async move {
-                                let Some(Val::Cid(cid)) = fact.col(&"cid".into()) else {
+                            Box::new(unfold(db, move |db, tuple: Tuple| async move {
+                                let Some(Val::Cid(cid)) = tuple.col(&"cid".into()) else {
                                     panic!("cid is not a cid");
                                 };
 
-                                let Val::String(key) = fact.col(&"key".into()).unwrap() else {
+                                let Val::String(key) = tuple.col(&"key".into()).unwrap() else {
                                     panic!("key is not a string");
                                 };
 
-                                let Val::String(val) = fact.col(&"val".into()).unwrap() else {
+                                let Val::String(val) = tuple.col(&"val".into()).unwrap() else {
                                     panic!("val is not a string");
                                 };
 
@@ -115,10 +115,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             loop {
                 select! {
-                    command = rx.recv() => if let Some(fact) = command {
-                        db.bs.write().unwrap().insert(fact.cid().unwrap(), fact.clone());
+                    command = rx.recv() => if let Some(tuple) = command {
+                        db.bs.write().unwrap().insert(tuple.cid().unwrap(), tuple.clone());
 
-                        client.insert_fact(fact).await.unwrap();
+                        client.insert_tuple(tuple).await.unwrap();
                     }
                 }
             }
@@ -192,10 +192,10 @@ async fn handle_request(
 
             match previous {
                 Some((parent, previous)) => {
-                    let fact = InputTuple::new("kv", key.clone(), val.clone(), vec![parent]);
-                    let cid = fact.cid().unwrap();
+                    let tuple = InputTuple::new("kv", key.clone(), val.clone(), vec![parent]);
+                    let cid = tuple.cid().unwrap();
 
-                    tx.send(fact).await.unwrap();
+                    tx.send(tuple).await.unwrap();
 
                     Response::Set {
                         key,
@@ -205,10 +205,10 @@ async fn handle_request(
                     }
                 }
                 None => {
-                    let fact = InputTuple::new("kv", key.clone(), val.clone(), vec![]);
-                    let cid = fact.cid().unwrap();
+                    let tuple = InputTuple::new("kv", key.clone(), val.clone(), vec![]);
+                    let cid = tuple.cid().unwrap();
 
-                    tx.send(fact).await.unwrap();
+                    tx.send(tuple).await.unwrap();
 
                     Response::Set {
                         key,
@@ -226,15 +226,15 @@ async fn handle_request(
             stream.write_all(b"DUMP\n").await.unwrap();
 
             let mut buf = String::new();
-            let facts: Vec<InputTuple> = match stream.read_line(&mut buf).await {
+            let tuples: Vec<InputTuple> = match stream.read_line(&mut buf).await {
                 Ok(_) => serde_json::from_str(&buf).unwrap(),
                 _ => panic!(),
             };
-            for fact in &facts {
+            for fact in &tuples {
                 tx.send(fact.clone()).await.unwrap();
             }
 
-            let entries = facts.into_iter().map(|f| f.cid().unwrap()).collect();
+            let entries = tuples.into_iter().map(|f| f.cid().unwrap()).collect();
 
             Response::Pull { entries }
         }

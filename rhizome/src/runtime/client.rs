@@ -37,11 +37,11 @@ impl Client {
         Ok(())
     }
 
-    pub async fn insert_fact(&mut self, fact: InputTuple) -> Result<()> {
+    pub async fn insert_tuple(&mut self, tuple: InputTuple) -> Result<()> {
         let (tx, rx) = oneshot::channel();
 
         self.command_tx
-            .send(ClientCommand::InsertFact(Box::new(fact), tx))
+            .send(ClientCommand::InsertTuple(Box::new(tuple), tx))
             .await?;
 
         rx.await?;

@@ -1,6 +1,6 @@
 import { beforeAll, describe, it } from 'vitest'
 
-import { setPanicHook, Rhizome, InputFact } from '../lib/node/rhizome_wasm.js'
+import { setPanicHook, Rhizome, InputTuple } from '../lib/node/rhizome_wasm.js'
 import { runRhizomeTest } from "./rhizome/rhizome.test.js"
 
 beforeAll(async () => {
@@ -11,6 +11,6 @@ runRhizomeTest({
   runner: { describe, it },
   rhizome: {
     Rhizome,
-    InputFact
+    InputTuple
   }
 })

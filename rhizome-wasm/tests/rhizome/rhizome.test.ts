@@ -5,7 +5,7 @@ export function runRhizomeTest(
     runner?: { describe, it },
     rhizome: {
       Rhizome,
-      InputFact
+      InputTuple
     }
   }) {
 
@@ -13,7 +13,7 @@ export function runRhizomeTest(
   const describe = impl.runner?.describe ?? globalThis.describe
   const it = impl.runner?.it ?? globalThis.it
 
-  const { Rhizome, InputFact } = impl.rhizome
+  const { Rhizome, InputTuple } = impl.rhizome
 
   describe('rhizome', async () => {
     it('can compute simple projections', async () => {
@@ -46,11 +46,11 @@ export function runRhizomeTest(
       const p = new Promise((resolve) => { resolver = resolve });
 
       await client.registerStream("evac", async function*() {
-        yield new InputFact("1", "value", 1, {});
-        yield new InputFact("1", "value", 2, {});
-        yield new InputFact("1", "value", 3, {});
-        yield new InputFact("1", "value", 4, {});
-        yield new InputFact("1", "value", 5, {});
+        yield new InputTuple("1", "value", 1, {});
+        yield new InputTuple("1", "value", 2, {});
+        yield new InputTuple("1", "value", 3, {});
+        yield new InputTuple("1", "value", 4, {});
+        yield new InputTuple("1", "value", 5, {});
 
         resolver();
       }());

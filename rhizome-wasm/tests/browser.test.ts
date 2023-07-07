@@ -1,4 +1,4 @@
-import init, { setPanicHook, Rhizome, InputFact } from '../lib/browser/rhizome_wasm.js'
+import init, { setPanicHook, Rhizome, InputTuple } from '../lib/browser/rhizome_wasm.js'
 import { runRhizomeTest } from "./rhizome/rhizome.test.js"
 
 before(async () => {
@@ -11,6 +11,6 @@ runRhizomeTest({
   runner: { describe, it },
   rhizome: {
     Rhizome,
-    InputFact
+    InputTuple
   }
 })
