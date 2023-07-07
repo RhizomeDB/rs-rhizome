@@ -146,10 +146,10 @@ async fn main() -> Result<()> {
             Box::new({
                 let kv = Arc::clone(&kv);
                 || {
-                    Box::new(unfold(kv, move |kv, fact: Tuple| async move {
-                        let store = fact.col(&"store".into()).unwrap();
-                        let k = fact.col(&"key".into()).unwrap();
-                        let v = fact.col(&"val".into()).unwrap();
+                    Box::new(unfold(kv, move |kv, tuple: Tuple| async move {
+                        let store = tuple.col(&"store".into()).unwrap();
+                        let k = tuple.col(&"key".into()).unwrap();
+                        let v = tuple.col(&"val".into()).unwrap();
 
                         kv.write().unwrap().insert((store, k), v);
 
@@ -162,15 +162,15 @@ async fn main() -> Result<()> {
 
     let e0 = InputTuple::new(0_i32, 0, 0, vec![]);
     let e1 = InputTuple::new(0_i32, 0, 2, vec![e0.cid()?]);
-    let e2 = InputTuple::new(0_i32, 0, 13, vec![e1.cid()?]);
-    let e3 = InputTuple::new(0_i32, 0, 4, vec![e1.cid()?]);
+    let e2 = InputTuple::new(0_i32, 0, 4, vec![e1.cid()?]);
+    let e3 = InputTuple::new(0_i32, 0, 5, vec![e1.cid()?]);
     let e4 = InputTuple::new(0_i32, 1, 5, vec![]);
-    let e5 = InputTuple::new(0_i32, 0, 44, vec![e0.cid()?]);
-    let e6 = InputTuple::new(0_i32, 0, 15, vec![e0.cid()?]);
+    let e5 = InputTuple::new(0_i32, 0, 6, vec![e0.cid()?]);
+    let e6 = InputTuple::new(0_i32, 0, 16, vec![e0.cid()?]);
     let e7 = InputTuple::new(0_i32, 0, 9, vec![e4.cid()?]);
-    let e8 = InputTuple::new(0_i32, 0, 12, vec![]);
+    let e8 = InputTuple::new(0_i32, 0, 22, vec![]);
     let e9 = InputTuple::new(0_i32, 0, 24, vec![]);
-    let e10 = InputTuple::new(0_i32, 0, 25, vec![e5.cid()?]);
+    let e10 = InputTuple::new(0_i32, 0, 86, vec![e5.cid()?]);
     let e11 = InputTuple::new(1_i32, 0, 2, vec![]);
 
     assert!(e2.cid()? < e3.cid()?);
@@ -181,19 +181,19 @@ async fn main() -> Result<()> {
     assert!(e10.cid()? < e9.cid()?);
     assert!(e11.cid()? < e0.cid()?);
 
-    client.insert_fact(e0).await?;
-    client.insert_fact(e1).await?;
-    client.insert_fact(e2).await?;
-    client.insert_fact(e3).await?;
-    client.insert_fact(e4).await?;
-    client.insert_fact(e5).await?;
-    client.insert_fact(e6).await?;
-    client.insert_fact(e7).await?;
+    client.insert_tuple(e0).await?;
+    client.insert_tuple(e1).await?;
+    client.insert_tuple(e2).await?;
+    client.insert_tuple(e3).await?;
+    client.insert_tuple(e4).await?;
+    client.insert_tuple(e5).await?;
+    client.insert_tuple(e6).await?;
+    client.insert_tuple(e7).await?;
     client.flush().await?;
 
     assert_eq!(
         kv.read().unwrap().get(&(0.into(), 0.into())),
-        Some(&44.into())
+        Some(&6.into())
     );
     assert_eq!(
         kv.read().unwrap().get(&(0.into(), 1.into())),
@@ -201,16 +201,16 @@ async fn main() -> Result<()> {
     );
 
     // Adding a new root with a larger CID doesn't change the value
-    client.insert_fact(e8).await?;
+    client.insert_tuple(e8).await?;
     client.flush().await?;
 
     assert_eq!(
         kv.read().unwrap().get(&(0.into(), 0.into())),
-        Some(&44.into())
+        Some(&6.into())
     );
 
     // Adding a new root with a smaller CID changes the value
-    client.insert_fact(e9).await?;
+    client.insert_tuple(e9).await?;
     client.flush().await?;
 
     assert_eq!(
@@ -219,7 +219,7 @@ async fn main() -> Result<()> {
     );
 
     // Adding a new child under a previously latest write doesn't change the value
-    client.insert_fact(e10).await?;
+    client.insert_tuple(e10).await?;
     client.flush().await?;
 
     assert_eq!(
@@ -228,7 +228,7 @@ async fn main() -> Result<()> {
     );
 
     // Writing a more recent value to another KV doesn't change the value in other KVs
-    client.insert_fact(e11).await?;
+    client.insert_tuple(e11).await?;
     client.flush().await?;
 
     assert_eq!(
