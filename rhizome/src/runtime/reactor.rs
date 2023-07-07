@@ -15,19 +15,25 @@ use crate::{
     error::Error,
     id::RelationId,
     logic::ProgramBuilder,
-    storage::{blockstore::Blockstore, memory::MemoryBlockstore, DefaultCodec, DEFAULT_MULTIHASH},
+    storage::{
+        buffered::{Buffered, BufferedBlockstore},
+        content_addressable::ContentAddressable,
+        memory::MemoryBlockstore,
+        DefaultCodec, DEFAULT_MULTIHASH,
+    },
     timestamp::{DefaultTimestamp, Timestamp},
     tuple::Tuple,
 };
 
-use super::{vm::VM, ClientCommand, ClientEvent, SinkCommand, StreamEvent};
+use super::{epoch::Epoch, vm::VM, ClientCommand, ClientEvent, SinkCommand, StreamEvent};
 
-pub struct Reactor<T = DefaultTimestamp, BS = MemoryBlockstore>
+pub struct Reactor<T = DefaultTimestamp, BS = BufferedBlockstore<MemoryBlockstore>>
 where
     T: Timestamp,
 {
     runtime: Runtime,
     blockstore: BS,
+    epoch: Epoch,
     sinks: HashMap<RelationId, Vec<mpsc::Sender<SinkCommand>>>,
     command_rx: mpsc::Receiver<ClientCommand>,
     event_tx: mpsc::Sender<ClientEvent<T>>,
@@ -38,7 +44,7 @@ where
 impl<T, BS> Reactor<T, BS>
 where
     T: Timestamp,
-    BS: Blockstore + Default,
+    BS: Buffered + Default,
 {
     pub fn new(command_rx: Receiver<ClientCommand>, event_tx: Sender<ClientEvent<T>>) -> Self
 where {
@@ -47,6 +53,7 @@ where {
         Self {
             runtime: Default::default(),
             blockstore: Default::default(),
+            epoch: Default::default(),
             sinks: Default::default(),
             command_rx,
             event_tx,
@@ -66,30 +73,56 @@ where {
             // Poll for any future and then run all ready futures
             select! {
                 command = self.command_rx.next() => if let Some(c) = command {
-                    self.handle_command(&mut vm, c).await?;
+                    self.handle_command(c).await?;
                 },
                 event = self.stream_rx.next() => if let Some(e) = event {
-                    self.handle_event(&mut vm, e).await?;
+                    self.handle_event(e).await?;
                 },
             }
 
             loop {
                 select! {
                     command = self.command_rx.next() => if let Some(c) = command {
-                        self.handle_command(&mut vm, c).await?;
+                        self.handle_command(c).await?;
                     },
                     event = self.stream_rx.next() => if let Some(e) = event {
-                        self.handle_event(&mut vm, e).await?;
+                        self.handle_event(e).await?;
                     },
                     default => break
                 }
             }
 
-            // TODO: use a buffered blockstore; see https://github.com/RhizomeDB/rs-rhizome/issues/24
+            self.blockstore.flush(&self.epoch.cid()?)?;
+            self.epoch
+                .with_tuples(&self.blockstore, &mut |input_tuple| {
+                    let cid = input_tuple.cid()?;
+                    let tuple = Tuple::new(
+                        "evac",
+                        [
+                            ("entity", input_tuple.entity()),
+                            ("attribute", input_tuple.attr()),
+                            ("value", input_tuple.val()),
+                        ],
+                        Some(cid),
+                    );
+
+                    vm.push(tuple)?;
+
+                    for link in input_tuple.links() {
+                        let tuple = Tuple::new("links", [("from", cid), ("to", *link)], None);
+
+                        vm.push(tuple)?;
+                    }
+
+                    Ok(())
+                })?;
+
             vm.step_epoch(&self.blockstore)?;
 
-            while let Ok(Some(fact)) = vm.pop() {
-                if let Some(sinks) = self.sinks.get_mut(&fact.id()) {
+            self.epoch = self.epoch.step_epoch()?;
+
+            while let Ok(Some(tuple)) = vm.pop() {
+                if let Some(sinks) = self.sinks.get_mut(&tuple.id()) {
                     for sink in sinks {
                         sink.send(SinkCommand::ProcessTuple(tuple.clone())).await?;
                     }
@@ -102,7 +135,7 @@ where {
         }
     }
 
-    async fn handle_command(&mut self, vm: &mut VM<T>, command: ClientCommand) -> Result<()> {
+    async fn handle_command(&mut self, command: ClientCommand) -> Result<()> {
         match command {
             ClientCommand::Flush(sender) => {
                 let mut handles = Vec::default();
@@ -124,32 +157,15 @@ where {
                     .send(())
                     .map_err(|_| Error::InternalRhizomeError("client channel closed".to_owned()))?;
             }
-            ClientCommand::InsertTuple(input_fact, sender) => {
+            ClientCommand::InsertTuple(tuple, sender) => {
                 self.blockstore.put_serializable(
-                    &input_fact,
+                    &tuple,
                     #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                     DefaultCodec::default(),
                     DEFAULT_MULTIHASH,
                 )?;
 
-                let cid = input_fact.cid()?;
-                let fact = Tuple::new(
-                    "evac",
-                    [
-                        ("entity", input_fact.entity()),
-                        ("attribute", input_fact.attr()),
-                        ("value", input_fact.val()),
-                    ],
-                    Some(cid),
-                );
-
-                vm.push(fact)?;
-
-                for link in input_fact.links() {
-                    let fact = Tuple::new("links", [("from", cid), ("to", *link)], None);
-
-                    vm.push(fact)?;
-                }
+                self.epoch.push_tuple(*tuple)?;
 
                 sender
                     .send(())
@@ -203,34 +219,17 @@ where {
         Ok(())
     }
 
-    async fn handle_event(&mut self, vm: &mut VM<T>, event: StreamEvent) -> Result<()> {
+    async fn handle_event(&mut self, event: StreamEvent) -> Result<()> {
         match event {
-            StreamEvent::Tuple(input_fact) => {
+            StreamEvent::Tuple(tuple) => {
                 self.blockstore.put_serializable(
-                    &input_fact,
+                    &tuple,
                     #[allow(unknown_lints, clippy::default_constructed_unit_structs)]
                     DefaultCodec::default(),
                     DEFAULT_MULTIHASH,
                 )?;
 
-                let cid = input_fact.cid()?;
-                let fact = Tuple::new(
-                    "evac",
-                    [
-                        ("entity", input_fact.entity()),
-                        ("attribute", input_fact.attr()),
-                        ("value", input_fact.val()),
-                    ],
-                    Some(cid),
-                );
-
-                vm.push(fact)?;
-
-                for link in input_fact.links() {
-                    let fact = Tuple::new("links", [("from", cid), ("to", *link)], None);
-
-                    vm.push(fact)?;
-                }
+                self.epoch.push_tuple(tuple)?;
             }
         };
 
