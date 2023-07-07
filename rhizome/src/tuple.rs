@@ -1,9 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashSet},
-    fmt::Display,
-};
+use std::{collections::BTreeMap, fmt::Display};
 
 use cid::Cid;
 
@@ -18,7 +15,7 @@ pub struct InputTuple {
     entity: Val,
     attr: Val,
     val: Val,
-    links: HashSet<Cid>,
+    links: Vec<Cid>,
 }
 
 impl InputTuple {
@@ -57,7 +54,7 @@ impl InputTuple {
         ContentAddressable::cid(self)
     }
 
-    pub fn links(&self) -> &HashSet<Cid> {
+    pub fn links(&self) -> &[Cid] {
         &self.links
     }
 }
