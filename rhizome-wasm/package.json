@@ -17,20 +17,25 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "types": "./lib/browser/rhizome_wasm.d.ts",
-      "default": "./lib/browser/rhizome_wasm.js",
-      "deno": {
-        "types": "./lib/deno/rhizome_wasm.d.ts",
-        "default": "./lib/deno/rhizome_wasm.js"
+      "browser": {
+        "types": "./lib/browser/rhizome_wasm.d.ts",
+        "import": "./lib/browser/rhizome_wasm.js"
       },
       "node": {
         "types": "./lib/node/rhizome_wasm.d.ts",
+        "import": "./lib/browser/rhizome_wasm.js",
         "require": "./lib/node/rhizome_wasm.js"
+      },
+      "deno": {
+        "types": "./lib/deno/rhizome_wasm.d.ts",
+        "import": "./lib/deno/rhizome_wasm.js"
       },
       "workerd": {
         "types": "./lib/workerd/rhizome_wasm.d.ts",
-        "default": "./lib/workerd/index.js"
-      }
+        "import": "./lib/workerd/index.js"
+      },
+      "import": "./lib/browser/rhizome_wasm.js",
+      "require": "./lib/node/rhizome_wasm.js"
     }
   },
   "scripts": {
