@@ -213,7 +213,37 @@ impl RuleBodyBuilder {
             builder.vars.push(var);
         }
 
-        group_by.bind(&mut builder.bindings);
+        group_by.bind(&mut builder.bindings.borrow_mut());
+
+        self.aggregations
+            .borrow_mut()
+            .push((id.to_string(), builder));
+
+        Ok(())
+    }
+
+    pub fn build_group_by<F, Agg, I, O>(
+        &self,
+        target: TypedVar<O>,
+        id: &str,
+        agg: Agg,
+        f: F,
+    ) -> Result<()>
+    where
+        F: Fn(&'_ AggregationBuilder) -> Result<()>,
+        Agg: AggregateGroupBy<I, O>,
+        I: Args,
+        O: AggAcc,
+        Agg::Aggregate: AggregateWrapper + 'static,
+    {
+        let wrapper = Arc::new(Agg::Aggregate::default());
+        let mut builder = AggregationBuilder::new(target.into(), wrapper);
+
+        for var in agg.as_args() {
+            builder.vars.push(var);
+        }
+
+        f(&builder)?;
 
         self.aggregations
             .borrow_mut()

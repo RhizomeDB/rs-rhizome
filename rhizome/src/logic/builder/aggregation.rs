@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
     col_val::ColVal,
@@ -8,14 +8,15 @@ use crate::{
     logic::ast::{Aggregation, Declaration},
     types::ColType,
     var::Var,
+    AtomBinding,
 };
 
 use crate::aggregation::AggregateWrapper;
 
-pub(crate) struct AggregationBuilder {
+pub struct AggregationBuilder {
     pub(super) target: Var,
     pub(super) vars: Vec<Var>,
-    pub(super) bindings: Vec<(ColId, ColVal)>,
+    pub(super) bindings: RefCell<Vec<(ColId, ColVal)>>,
     pub(super) agg: Arc<dyn AggregateWrapper>,
 }
 
@@ -24,8 +25,8 @@ impl AggregationBuilder {
         Self {
             target,
             agg: f,
-            vars: Vec::default(),
-            bindings: Vec::default(),
+            vars: Default::default(),
+            bindings: Default::default(),
         }
     }
     pub(crate) fn finalize(
@@ -42,7 +43,7 @@ impl AggregationBuilder {
 
         let mut cols = HashMap::default();
 
-        for (col_id, col_val) in self.bindings {
+        for (col_id, col_val) in self.bindings.into_inner() {
             let schema = relation.schema();
 
             let Some(col) = schema.get_col(&col_id) else {
@@ -82,6 +83,17 @@ impl AggregationBuilder {
         let aggregation = Aggregation::new(self.target, self.vars, relation, cols, self.agg);
 
         Ok(aggregation)
+    }
+
+    pub fn bind_one<T>(&self, binding: T) -> Result<()>
+    where
+        T: AtomBinding,
+    {
+        let (id, val) = binding.into_pair();
+
+        self.bindings.borrow_mut().push((id, val));
+
+        Ok(())
     }
 }
 
