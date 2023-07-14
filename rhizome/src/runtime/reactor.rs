@@ -130,7 +130,10 @@ where {
             }
 
             self.event_tx
-                .send(ClientEvent::ReachedFixedpoint(*vm.timestamp()))
+                .send(ClientEvent::ReachedFixedpoint(
+                    *vm.timestamp(),
+                    self.epoch.cid()?,
+                ))
                 .await?;
         }
     }

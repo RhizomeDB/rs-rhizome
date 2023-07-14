@@ -1,5 +1,6 @@
 use std::{fmt, fmt::Debug};
 
+use cid::Cid;
 use futures::{channel::oneshot, Sink, Stream};
 use rhizome_runtime::MaybeSend;
 
@@ -41,7 +42,7 @@ pub enum ClientEvent<T>
 where
     T: Timestamp,
 {
-    ReachedFixedpoint(T),
+    ReachedFixedpoint(T, Cid),
 }
 
 pub enum ClientCommand {
