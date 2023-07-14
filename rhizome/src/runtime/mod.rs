@@ -50,6 +50,8 @@ pub enum ClientCommand {
     InsertTuple(Box<InputTuple>, oneshot::Sender<()>),
     RegisterStream(RelationId, Box<dyn CreateStream>, oneshot::Sender<()>),
     RegisterSink(RelationId, Box<dyn CreateSink>, oneshot::Sender<()>),
+    RewindEpoch(oneshot::Sender<()>),
+    ReplayEpoch(oneshot::Sender<()>),
 }
 
 impl Debug for ClientCommand {
@@ -61,6 +63,8 @@ impl Debug for ClientCommand {
             }
             ClientCommand::RegisterStream(_, _, _) => f.debug_tuple("RegisterStream").finish(),
             ClientCommand::RegisterSink(_, _, _) => f.debug_tuple("RegisterSink").finish(),
+            ClientCommand::RewindEpoch(_) => f.debug_tuple("RewindEpoch").finish(),
+            ClientCommand::ReplayEpoch(_) => f.debug_tuple("ReplayEpoch").finish(),
         }
     }
 }

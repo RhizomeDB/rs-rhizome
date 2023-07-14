@@ -15,6 +15,17 @@ pub struct Epoch {
 }
 
 impl Epoch {
+    pub fn rewind<BS>(&self, bs: &BS) -> Result<Option<Self>>
+    where
+        BS: Blockstore,
+    {
+        if let Some(prev) = &self.prev {
+            Ok(bs.get_serializable::<DagCbor, Epoch>(prev)?)
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn step_epoch(&self) -> Result<Self> {
         Ok(Self {
             prev: Some(self.cid()?),
@@ -26,6 +37,10 @@ impl Epoch {
         self.tuples.push(tuple.cid()?);
 
         Ok(())
+    }
+
+    pub fn has_tuples_pending(&self) -> bool {
+        !self.tuples.is_empty()
     }
 
     pub fn with_tuples<BS, F>(&self, bs: &BS, f: &mut F) -> Result<()>
@@ -41,6 +56,26 @@ impl Epoch {
                     "expected block to deserialize as InputTuple".to_owned(),
                 ));
             };
+        }
+
+        Ok(())
+    }
+
+    pub fn with_tuples_rec<BS, F>(&self, bs: &BS, f: &mut F) -> Result<()>
+    where
+        BS: Blockstore,
+        F: FnMut(InputTuple) -> Result<()>,
+    {
+        let mut cur = Some(self.clone());
+
+        while let Some(node) = cur {
+            node.with_tuples(bs, f)?;
+
+            if let Some(cid) = &node.prev {
+                cur = bs.get_serializable::<DagCbor, Epoch>(cid)?;
+            } else {
+                cur = None;
+            }
         }
 
         Ok(())

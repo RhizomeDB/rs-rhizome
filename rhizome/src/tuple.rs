@@ -57,6 +57,27 @@ impl InputTuple {
     pub fn links(&self) -> &[Cid] {
         &self.links
     }
+
+    pub fn normalize_as_tuples(&self) -> Result<Vec<Tuple>> {
+        let cid = self.cid()?;
+        let mut tuples = Vec::default();
+
+        tuples.push(Tuple::new(
+            "evac",
+            [
+                ("entity", self.entity()),
+                ("attribute", self.attr()),
+                ("value", self.val()),
+            ],
+            Some(cid),
+        ));
+
+        for link in self.links() {
+            tuples.push(Tuple::new("links", [("from", cid), ("to", *link)], None));
+        }
+
+        Ok(tuples)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
