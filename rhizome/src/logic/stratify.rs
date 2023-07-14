@@ -151,6 +151,7 @@ pub(crate) fn stratify(program: &Program) -> Result<Vec<Stratum<'_>>> {
                 nodes.len() > 1 || edg.contains_edge(nodes[0], nodes[0]),
             )
         })
+        .filter(|stratum| !stratum.relations().is_empty())
         .rev()
         .collect())
 }
