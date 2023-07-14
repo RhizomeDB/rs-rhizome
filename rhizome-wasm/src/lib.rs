@@ -160,6 +160,22 @@ impl Rhizome {
                 |_| Ok(()),
             )
     }
+
+    #[wasm_bindgen(js_name = rewindEpoch)]
+    pub async fn rewind_epoch(&self) -> Result<(), JsValue> {
+        self.client.borrow_mut().rewind_epoch().await.map_or_else(
+            |err: anyhow::Error| Err(serde_wasm_bindgen::to_value(&err.to_string())?),
+            |_| Ok(()),
+        )
+    }
+
+    #[wasm_bindgen(js_name = replayEpoch)]
+    pub async fn replay_epoch(&self) -> Result<(), JsValue> {
+        self.client.borrow_mut().replay_epoch().await.map_or_else(
+            |err: anyhow::Error| Err(serde_wasm_bindgen::to_value(&err.to_string())?),
+            |_| Ok(()),
+        )
+    }
 }
 
 //------------------------------------------------------------------------------

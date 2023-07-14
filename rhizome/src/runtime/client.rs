@@ -74,4 +74,24 @@ impl Client {
 
         Ok(())
     }
+
+    pub async fn rewind_epoch(&mut self) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+
+        self.command_tx.send(ClientCommand::RewindEpoch(tx)).await?;
+
+        rx.await?;
+
+        Ok(())
+    }
+
+    pub async fn replay_epoch(&mut self) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+
+        self.command_tx.send(ClientCommand::ReplayEpoch(tx)).await?;
+
+        rx.await?;
+
+        Ok(())
+    }
 }
