@@ -31,6 +31,7 @@ pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
     let mut inputs: Vec<&Declaration> = Vec::default();
     let mut outputs: Vec<&Declaration> = Vec::default();
     let mut statements: Vec<Statement> = Vec::default();
+    let strata = stratify(program)?;
 
     for declaration in program.declarations() {
         relations.insert(
@@ -76,7 +77,7 @@ pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
         statements.push(Statement::Sources(sources_builder.finalize()));
     }
 
-    for stratum in &stratify(program)? {
+    for stratum in &strata {
         let mut lowered = lower_stratum_to_ram(stratum, program, &relations)?;
 
         statements.append(&mut lowered);
@@ -125,9 +126,16 @@ pub(crate) fn lower_to_ram(program: &Program) -> Result<ram::program::Program> {
         statements.push(Statement::Purge(Purge::new((id, Version::Delta), relation)));
     }
 
+    // TODO: The first strata should never be recursive, but maybe we should assert that
+    // during stratification?
+    let is_monotonic = strata.len() == 1 && !strata[0].is_recursive();
     let statements = statements.into_iter().map(Arc::new).collect();
 
-    Ok(ram::program::Program::new(statements))
+    Ok(ram::program::Program::new(
+        is_monotonic,
+        relations,
+        statements,
+    ))
 }
 
 pub(crate) fn lower_stratum_to_ram(
@@ -226,6 +234,7 @@ pub(crate) fn lower_stratum_to_ram(
         if !sinks_builder.relations.is_empty() {
             loop_body.push(Statement::Sinks(sinks_builder.finalize()));
         }
+
         // Merge delta into total
         for &relation in stratum.relations() {
             // Merge the output of the static rules into total

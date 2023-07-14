@@ -25,6 +25,7 @@ pub(crate) struct VM<T = DefaultTimestamp> {
     input: VecDeque<Tuple>,
     output: VecDeque<Tuple>,
     program: Program,
+    should_insert_ground_facts: bool,
 }
 
 impl<T> Debug for VM<T>
@@ -50,6 +51,7 @@ where
             input: VecDeque::default(),
             output: VecDeque::default(),
             program,
+            should_insert_ground_facts: true,
         }
     }
 
@@ -69,6 +71,16 @@ where
         Ok(tuple)
     }
 
+    pub(crate) fn reset_relations(&mut self) -> Result<()> {
+        self.program.relations().iter().for_each(|(_, relation)| {
+            relation.write().unwrap().purge();
+        });
+
+        self.should_insert_ground_facts = true;
+
+        Ok(())
+    }
+
     pub(crate) fn step_epoch<BS>(&mut self, blockstore: &BS) -> Result<()>
     where
         BS: Blockstore,
@@ -79,6 +91,8 @@ where
 
         loop {
             if !self.step(blockstore)? || self.timestamp.epoch() != start.epoch() {
+                self.should_insert_ground_facts = false;
+
                 break;
             };
         }
@@ -185,8 +199,7 @@ where
     where
         BS: Blockstore,
     {
-        // Only insert ground facts on the first clock cycle
-        if insert.is_ground() && *self.timestamp() != self.timestamp().clock_start() {
+        if insert.is_ground() && !self.should_insert_ground_facts {
             Ok(true)
         } else {
             self.handle_operation(insert.operation(), blockstore)
