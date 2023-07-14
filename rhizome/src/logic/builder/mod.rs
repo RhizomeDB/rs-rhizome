@@ -52,8 +52,8 @@ mod tests {
         error::Error,
         kernel::math,
         predicate::Predicate,
-        types::{Any, ColType, RhizomeType, Type},
-        value::Val,
+        types::{ColType, RhizomeType, Type},
+        value::{Any, Val},
         var::{TypedVar, Var},
     };
 
@@ -1568,6 +1568,23 @@ mod tests {
                 h.bind((("x", x),))?;
 
                 b.search_cid("q", x, ())?;
+
+                Ok(())
+            })?;
+
+            Ok(p)
+        });
+    }
+
+    #[test]
+    fn test_group_by_any() {
+        assert_compile!(|p| {
+            p.input("p", |h| h.column::<Any>("x"))?;
+            p.output("min", |h| h.column::<Any>("x"))?;
+
+            p.rule::<Any>("min", &|h, b, x| {
+                h.bind((("x", x),))?;
+                b.group_by(x, "p", (("x", x),), math::min(x))?;
 
                 Ok(())
             })?;

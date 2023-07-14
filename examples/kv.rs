@@ -4,8 +4,7 @@ use rhizome::{
     kernel::math,
     runtime::{client::Client, reactor::Reactor},
     tuple::{InputTuple, Tuple},
-    types::Any,
-    value::Val,
+    value::{Any, Val},
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},

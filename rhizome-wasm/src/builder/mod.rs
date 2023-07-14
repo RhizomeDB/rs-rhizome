@@ -1,7 +1,7 @@
 use std::{cell::RefCell, cmp::max, rc::Rc};
 
 use anyhow::Result;
-use rhizome::{types::Any, var::TypedVar, RuleVars};
+use rhizome::{value::Any, var::TypedVar, RuleVars};
 use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
 

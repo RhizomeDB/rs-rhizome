@@ -1,13 +1,54 @@
 use std::{
     fmt::{self, Display},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use cid::Cid;
+use id_arena::{Arena, Id};
+use once_cell::sync::Lazy;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::types::Type;
+
+static ANY_ARENA: Lazy<Mutex<Arena<Val>>> = Lazy::new(|| Mutex::new(Arena::new()));
+
+#[derive(Debug, Clone, Copy, Ord, Eq, Hash)]
+pub struct Any {
+    idx: Id<Val>,
+}
+
+impl PartialEq for Any {
+    fn eq(&self, other: &Self) -> bool {
+        let arena = ANY_ARENA.lock().expect("Any Arena lock poisoned");
+
+        let Some(lhs) = arena.get(self.idx) else {
+            panic!("Any contained invalid index")
+        };
+
+        let Some(rhs) = arena.get(other.idx) else {
+            panic!("Any contained invalid index")
+        };
+
+        PartialEq::eq(lhs, rhs)
+    }
+}
+
+impl PartialOrd for Any {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let arena = ANY_ARENA.lock().expect("Any Arena lock poisoned");
+
+        let Some(lhs) = arena.get(self.idx) else {
+            panic!("Any contained invalid index")
+        };
+
+        let Some(rhs) = arena.get(other.idx) else {
+            panic!("Any contained invalid index")
+        };
+
+        PartialOrd::partial_cmp(lhs, rhs)
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Val {
@@ -135,6 +176,18 @@ impl From<String> for Val {
 impl From<Cid> for Val {
     fn from(value: Cid) -> Self {
         Self::Cid(value)
+    }
+}
+
+impl From<Any> for Val {
+    fn from(value: Any) -> Self {
+        let arena = ANY_ARENA.lock().expect("Any Arena lock poisoned");
+
+        if let Some(val) = arena.get(value.idx) {
+            return val.clone();
+        } else {
+            panic!("Any contained invalid index")
+        }
     }
 }
 
@@ -300,6 +353,19 @@ impl TryFrom<Val> for Cid {
             Val::Cid(v) => Ok(v),
             _ => Err(()),
         }
+    }
+}
+
+impl TryFrom<Val> for Any {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        let idx = ANY_ARENA
+            .lock()
+            .expect("Any Arena lock poisoned")
+            .alloc(value);
+
+        Ok(Self { idx })
     }
 }
 
