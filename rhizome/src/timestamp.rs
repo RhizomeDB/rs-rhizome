@@ -2,7 +2,7 @@ use std::{cmp::Ordering, fmt::Debug, hash::Hash};
 
 use crate::lattice::Lattice;
 
-pub(crate) type DefaultTimestamp = PairTimestamp;
+pub type DefaultTimestamp = PairTimestamp;
 
 pub trait Timestamp:
     Lattice + Debug + Clone + Copy + Eq + Hash + Default + Ord + PartialOrd + PartialEq

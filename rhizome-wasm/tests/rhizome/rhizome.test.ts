@@ -17,24 +17,26 @@ export function runRhizomeTest(
 
   describe('rhizome', async () => {
     it('can compute simple projections', async () => {
-      const client = await new Rhizome((p) => {
-        p.output("values", { value: "int" });
+      const client = await new Rhizome(
+        () => { },
+        (p) => {
+          p.output("values", { value: "int" });
 
-        p.rule(
-          "values",
-          (value) => ({ value }),
-          (value) => [
-            {
-              op: "search",
-              rel: "evac",
-              where: {
-                attribute: "value",
-                value,
+          p.rule(
+            "values",
+            (value) => ({ value }),
+            (value) => [
+              {
+                op: "search",
+                rel: "evac",
+                where: {
+                  attribute: "value",
+                  value,
+                },
               },
-            },
-          ]
-        );
-      });
+            ]
+          );
+        });
 
       const values = [];
 

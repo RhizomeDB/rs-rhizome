@@ -7,7 +7,7 @@
 use futures::{sink::unfold, StreamExt};
 
 use js_sys::AsyncIterator;
-use rhizome::{tuple::Tuple, value::Val};
+use rhizome::{runtime::ClientEvent, tuple::Tuple, value::Val};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
@@ -34,13 +34,12 @@ impl Cid {
 #[derive(Debug, Clone, DowncastJS)]
 pub struct Rhizome {
     client: Rc<RefCell<rhizome::runtime::client::Client>>,
-    // event_rx: Rc<RefCell<Receiver<ClientEvent<PairTimestamp>>>>,
 }
 
 #[wasm_bindgen]
 impl Rhizome {
     #[wasm_bindgen(constructor)]
-    pub fn new(f: js_sys::Function) -> Self {
+    pub fn new(on_fixedpoint: js_sys::Function, f: js_sys::Function) -> Self {
         let (client, mut rx, reactor) = rhizome::runtime::client::Client::new();
 
         spawn_local(async move {
@@ -59,13 +58,20 @@ impl Rhizome {
 
         spawn_local(async move {
             loop {
-                let _ = rx.next().await;
+                match rx.next().await {
+                    Some(ClientEvent::ReachedFixedpoint(_, new_epoch)) => on_fixedpoint
+                        .call1(
+                            &JsValue::NULL,
+                            &serde_wasm_bindgen::to_value(&Cid(new_epoch)).unwrap(),
+                        )
+                        .unwrap(),
+                    None => continue,
+                };
             }
         });
 
         Self {
             client: Rc::new(RefCell::new(client)),
-            // event_rx: Rc::new(RefCell::new(rx)),
         }
     }
 
