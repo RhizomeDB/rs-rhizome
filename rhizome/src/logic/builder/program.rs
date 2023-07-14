@@ -8,7 +8,7 @@ use crate::{
     logic::ast::{Clause, Declaration, Program, Rule},
     relation::{Bistore, Hexastore, Relation, Source},
     tuple::Tuple,
-    types::Any,
+    value::Any,
 };
 
 use super::{

@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     error::{error, Error},
-    value::Val,
+    value::{Any, Val},
 };
 use anyhow::Result;
 use cid::Cid;
@@ -58,9 +58,6 @@ impl ColType {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct Any {}
 
 pub trait IntoColType {
     fn into_col_type() -> ColType;
@@ -173,6 +170,7 @@ impl Display for ColType {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Type {
+    Dyn,
     Bool,
     S8,
     U8,
@@ -199,6 +197,8 @@ impl Type {
     pub fn unify(&self, other: &Type) -> Result<Type> {
         if self == other {
             Ok(*self)
+        } else if *self == Type::Dyn || *other == Type::Dyn {
+            Ok(Type::Dyn)
         } else if mem::discriminant(self) != mem::discriminant(other) {
             error(Error::TypeMismatch(*self, *other))
         } else {
@@ -212,6 +212,7 @@ impl Type {
 impl Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
+            Type::Dyn => "dyn",
             Type::Bool => "bool",
             Type::S8 => "s8",
             Type::U8 => "u8",
@@ -247,3 +248,4 @@ impl RhizomeType for f64 {}
 impl RhizomeType for char {}
 impl RhizomeType for Arc<str> {}
 impl RhizomeType for Cid {}
+impl RhizomeType for Any {}

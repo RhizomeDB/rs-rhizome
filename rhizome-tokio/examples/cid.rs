@@ -10,8 +10,7 @@ use rhizome::{
     kernel::math,
     runtime::client::Client,
     tuple::{InputTuple, Tuple},
-    types::Any,
-    value::Val,
+    value::{Any, Val},
 };
 use tokio::spawn;
 

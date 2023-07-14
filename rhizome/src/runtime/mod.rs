@@ -82,7 +82,7 @@ mod tests {
         kernel::{self, math},
         predicate::Predicate,
         types::RhizomeType,
-        value::Val,
+        value::{Any, Val},
     };
 
     use super::*;
@@ -903,6 +903,30 @@ mod tests {
                     Tuple::new("pair2", [("id", "b"), ("x", "3"), ("y", "4")], None),
                 ]
             )]
+        );
+    }
+
+    #[test]
+    fn test_group_by_any() {
+        assert_derives!(
+            |p| {
+                p.output("p", |h| h.column::<Any>("x"))?;
+                p.output("min", |h| h.column::<Any>("x"))?;
+
+                p.fact("p", |f| f.bind((("x", 5),)))?;
+                p.fact("p", |f| f.bind((("x", 12),)))?;
+                p.fact("p", |f| f.bind((("x", -7),)))?;
+
+                p.rule::<Any>("min", &|h, b, x| {
+                    h.bind((("x", x),))?;
+                    b.group_by(x, "p", (("x", x),), math::min(x))?;
+
+                    Ok(())
+                })?;
+
+                Ok(p)
+            },
+            [("min", [Tuple::new("min", [("x", -7),], None),])]
         );
     }
 
