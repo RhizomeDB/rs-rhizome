@@ -1,7 +1,7 @@
 use std::{cell::RefCell, cmp::max, rc::Rc};
 
 use anyhow::Result;
-use rhizome::{value::Any, var::TypedVar, RuleVars};
+use rhizome::{kernel, value::Any, var::TypedVar, RuleVars};
 use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use wasm_bindgen_downcast::DowncastJS;
 
@@ -289,6 +289,97 @@ impl ProgramBuilder {
                                 Ok(())
                             })
                             .unwrap();
+                        }
+                        "group_by" => {
+                            let target =
+                                js_sys::Reflect::get(&term, &JsValue::from("target")).unwrap();
+
+                            let target = if let Some(var) = Var::downcast_js_ref(&target) {
+                                *vars.get(var.idx).unwrap()
+                            } else {
+                                panic!("expected var for target")
+                            };
+
+                            let id = js_sys::Reflect::get(&term, &JsValue::from("rel"))
+                                .unwrap()
+                                .as_string()
+                                .unwrap();
+
+                            let agg = js_sys::Reflect::get(&term, &JsValue::from("agg"))
+                                .unwrap()
+                                .as_string()
+                                .unwrap();
+
+                            let args: js_sys::Array =
+                                js_sys::Reflect::get(&term, &JsValue::from("args"))
+                                    .unwrap()
+                                    .dyn_into()
+                                    .unwrap();
+
+                            match agg.as_ref() {
+                                "min" => {
+                                    if args.length() != 1 {
+                                        panic!("expected 1 arg for min")
+                                    }
+
+                                    let Some(arg) = Var::downcast_js_ref(&args.at(0)) else {
+                                        panic!("expected arg to be a var");
+                                    };
+
+                                    let arg = *vars.get(arg.idx).unwrap();
+
+                                    let group_by =
+                                        js_sys::Reflect::get(&term, &JsValue::from("group_by"))
+                                            .unwrap();
+
+                                    let group_by_keys =
+                                        js_sys::Reflect::own_keys(&group_by).unwrap();
+
+                                    b.build_group_by(
+                                        target,
+                                        id.as_ref(),
+                                        kernel::math::min(arg),
+                                        |s| {
+                                            group_by_keys.iter().for_each(|key| {
+                                                let col_key = key.as_string().unwrap();
+                                                let col_val =
+                                                    js_sys::Reflect::get(&group_by, &key).unwrap();
+
+                                                if let Some(val) = col_val.as_bool() {
+                                                    s.bind_one((col_key.as_ref(), val)).unwrap();
+                                                } else if let Some(val) = col_val.as_f64() {
+                                                    s.bind_one((col_key.as_ref(), val as i64))
+                                                        .unwrap();
+                                                } else if let Some(val) = col_val.as_string() {
+                                                    s.bind_one((col_key.as_ref(), val.as_str()))
+                                                        .unwrap();
+                                                } else if let Ok(val) =
+                                                    serde_wasm_bindgen::from_value::<Cid>(
+                                                        col_val.clone(),
+                                                    )
+                                                {
+                                                    s.bind_one((col_key.as_ref(), val.inner()))
+                                                        .unwrap()
+                                                } else if let Some(var) =
+                                                    Var::downcast_js_ref(&col_val)
+                                                {
+                                                    s.bind_one((
+                                                        col_key.as_str(),
+                                                        *vars.get(var.idx).unwrap(),
+                                                    ))
+                                                    .unwrap();
+                                                } else {
+                                                    panic!("unknown type")
+                                                }
+                                            });
+
+                                            Ok(())
+                                        },
+                                    )
+                                    .unwrap();
+                                }
+                                _ => panic!("unrecognized aggregate"),
+                            }
                         }
                         _ => panic!("unrecognized op"),
                     };
