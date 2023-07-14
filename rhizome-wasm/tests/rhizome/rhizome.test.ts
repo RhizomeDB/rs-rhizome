@@ -46,11 +46,11 @@ export function runRhizomeTest(
       const p = new Promise((resolve) => { resolver = resolve });
 
       await client.registerStream("evac", async function*() {
-        yield new InputTuple("1", "value", 1, {});
-        yield new InputTuple("1", "value", 2, {});
-        yield new InputTuple("1", "value", 3, {});
-        yield new InputTuple("1", "value", 4, {});
-        yield new InputTuple("1", "value", 5, {});
+        yield new InputTuple("1", "value", 1, []);
+        yield new InputTuple("1", "value", 2, []);
+        yield new InputTuple("1", "value", 3, []);
+        yield new InputTuple("1", "value", 4, []);
+        yield new InputTuple("1", "value", 5, []);
 
         resolver();
       }());

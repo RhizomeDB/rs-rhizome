@@ -23,14 +23,11 @@ impl InputTuple {
 #[wasm_bindgen]
 impl InputTuple {
     #[wasm_bindgen(constructor)]
-    pub fn new(entity: &str, attribute: &str, value: JsValue, links_obj: &js_sys::Object) -> Self {
+    pub fn new(entity: &str, attribute: &str, value: JsValue, links_arr: &js_sys::Array) -> Self {
         let mut links = Vec::default();
-        let keys = js_sys::Reflect::own_keys(links_obj).unwrap();
 
-        for key in keys.iter() {
-            let link_val = js_sys::Reflect::get(links_obj, &key).unwrap();
-
-            if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(link_val) {
+        for link in links_arr.iter() {
+            if let Ok(val) = serde_wasm_bindgen::from_value::<Cid>(link) {
                 links.push(val.inner());
             } else {
                 panic!("expected CID")
