@@ -1,6 +1,6 @@
 use cid::Cid;
 use futures::sink::unfold;
-use rhizome::{
+use rhizomedb::{
     kernel::math,
     runtime::{client::Client, reactor::Reactor},
     tuple::{InputTuple, Tuple},

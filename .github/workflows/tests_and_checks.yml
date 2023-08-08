@@ -87,8 +87,8 @@ jobs:
       - name: Test Release
         if: ${{ matrix.rust-toolchain == 'stable' }} && github.event_name == 'push' }}
         run: |
-          cargo build --manifest-path rhizome/Cargo.toml --release
-          cd rhizome-wasm && npm install && npm run release
+          cargo build --manifest-path rhizomedb/Cargo.toml --release
+          cd rhizomedb-wasm && npm install && npm run release
 
   run-cargo-tests:
     runs-on: ubuntu-latest
@@ -113,7 +113,7 @@ jobs:
           toolchain: ${{ matrix.rust-toolchain }}
 
       - name: Run Tests
-        run: cargo test --manifest-path rhizome/Cargo.toml --all-features
+        run: cargo test --manifest-path rhizomedb/Cargo.toml --all-features
 
   run-node-tests:
     runs-on: ubuntu-latest
@@ -122,7 +122,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./rhizome-wasm
+        working-directory: ./rhizomedb-wasm
 
     steps:
       - name: Checkout Repository

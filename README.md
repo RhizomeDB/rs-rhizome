@@ -3,14 +3,14 @@
     <img src="https://github.com/fission-codes/kit/blob/main/images/logo-icon-coloured.png?raw=true" alt="Fission logo" width="100" />
   </a>
 
-  <h1 align="center">rhizome</h1>
+  <h1 align="center">rhizomedb</h1>
 
   <p>
-    <a href="https://crates.io/crates/rhizome">
-      <img src="https://img.shields.io/crates/v/rhizome?label=crates" alt="Crate">
+    <a href="https://crates.io/crates/rhizomedb">
+      <img src="https://img.shields.io/crates/v/rhizomedb?label=crates" alt="Crate">
     </a>
-    <a href="https://npmjs.com/package/rhizome">
-      <img src="https://img.shields.io/npm/v/rhizome" alt="Npm">
+    <a href="https://npmjs.com/package/rhizomedb">
+      <img src="https://img.shields.io/npm/v/rhizomedb" alt="Npm">
     </a>
     <a href="https://codecov.io/gh/rhizomedb/rs-rhizome">
       <img src="https://codecov.io/gh/rhizomedb/rs-rhizome/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
@@ -24,7 +24,7 @@
     <a href="https://github.com/rhizomedb/rs-rhizome/blob/main/LICENSE-MIT">
       <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License-MIT">
     </a>
-    <a href="https://docs.rs/rhizome">
+    <a href="https://docs.rs/rhizomedb">
       <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Docs">
     </a>
     <a href="https://fission.codes/discord">
@@ -61,35 +61,35 @@ Rhizome is an in-development database for use in building local-first applicatio
 
 ## Crates
 
-- [rhizome](https://github.com/rhizomedb/rs-rhizome/tree/main/rhizome)
-- [rhizome-wasm](https://github.com/rhizomedb/rs-rhizome/tree/main/)
+- [rhizomedb](https://github.com/rhizomedb/rs-rhizome/tree/main/rhizomedb)
+- [rhizomedb-wasm](https://github.com/rhizomedb/rs-rhizome/tree/main/rhizomedb-wasm)
 
 ## Usage
 
 - Add the following to the `[dependencies]` section of your `Cargo.toml` file
-  for using the rust-only `rhizome` crate/workspace:
+  for using the rust-only `rhizomedb` crate/workspace:
 
 ```toml
-rhizome = "0.1.0"
+rhizomedb = "0.1.0"
 ```
 
 - Add the following to the `[dependencies]` section of your `Cargo.toml` file
-  for using `rhizome-wasm` crate/workspace:
+  for using `rhizomedb-wasm` crate/workspace:
 
 ```toml
-rhizome-wasm = "0.1.0"
+rhizomedb-wasm = "0.1.0"
 ```
 
 ## Testing the Project
 
-- Run tests for crate/workspace `rhizome`:
+- Run tests for crate/workspace `rhizomedb`:
 
   ```console
-  cd rhizome && cargo test --all-features
+  cd rhizomedb && cargo test --all-features
   ```
 
-- To run tests for crate/workspace `rhizome-wasm`, follow
-  the instructions in [rhizome-wasm](./rhizome-wasm#testing-the-project)
+- To run tests for crate/workspace `rhizomedb-wasm`, follow
+  the instructions in [rhizomedb-wasm](./rhizomedb-wasm#testing-the-project)
 
 ## Benchmarking the Project
 
@@ -102,7 +102,7 @@ generated values.
 - Run benchmarks
 
   ```console
-  cargo bench -p rhizome-benches
+  cargo bench -p rhizomedb-benches
   ```
 
 *Note*: Currently, this workspace only supports Rust-native benchmarking, as

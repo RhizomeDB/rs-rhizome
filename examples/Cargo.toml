@@ -8,8 +8,8 @@ authors = ["Quinn Wilton <quinn@quinnwilton.com>"]
 [dev-dependencies]
 cid = { version = "0.10.0", features = ["serde-codec"] }
 futures = { version = "0.3.0", features = ["thread-pool"] }
-rhizome = { path = "../rhizome", version = "0.1" }
-rhizome-tokio = { path = "../rhizome-tokio", version = "0.1" }
+rhizomedb = { path = "../rhizomedb", version = "0.1" }
+rhizomedb-tokio = { path = "../rhizomedb-tokio", version = "0.1" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 
