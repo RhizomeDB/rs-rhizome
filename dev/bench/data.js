@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689313105152,
+  "lastUpdate": 1691532911677,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -653,6 +653,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/f73549c5fdfcefb692b0b0cf45b283a69331006e"
         },
         "date": 1689313104029,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "f044fc8e932f82454cfdbf289a2be06f6eba294f",
+          "message": "refactor: resolve clippy warnings around derived Hash / Ord for Val",
+          "timestamp": "2023-08-08T15:12:32-07:00",
+          "tree_id": "1674f51cb5b1dd43fefa967dc3c11fd9ea3d76e1",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/f044fc8e932f82454cfdbf289a2be06f6eba294f"
+        },
+        "date": 1691532910799,
         "tool": "cargo",
         "benches": [
           {
