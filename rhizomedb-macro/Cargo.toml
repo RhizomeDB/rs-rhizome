@@ -1,8 +1,9 @@
 [package]
 name = "rhizomedb-macro"
 version = "0.1.0"
+description = "RhizomeDB macros"
 edition = "2021"
-license = "Apache-2.0 or MIT"
+license = "Apache-2.0"
 
 [lib]
 proc-macro = true

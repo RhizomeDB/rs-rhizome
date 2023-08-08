@@ -1,8 +1,9 @@
 [package]
 name = "rhizomedb-runtime"
 version = "0.1.0"
+description = "RhizomeDB runtime"
 edition = "2021"
-license = "Apache-2.0 or MIT"
+license = "Apache-2.0"
 
 [dependencies]
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
