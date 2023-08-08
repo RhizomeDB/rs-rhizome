@@ -1,11 +1,11 @@
 [package]
 name = "rhizomedb"
 version = "0.1.0"
-description = ""
+description = "RhizomeDB"
 keywords = []
 categories = []
 include = ["/src", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
-license = "Apache-2.0 or MIT"
+license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
 rust-version = "1.67"
