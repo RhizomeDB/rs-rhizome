@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1691532911677,
+  "lastUpdate": 1691537164072,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -683,6 +683,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/f044fc8e932f82454cfdbf289a2be06f6eba294f"
         },
         "date": 1691532910799,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "ff3e785e2055e23c3bdb3bc76b89c19b03e34fd6",
+          "message": "chore: rename rhizome -> rhizomedb\n\nSee: https://github.com/RhizomeDB/rs-rhizome/issues/90",
+          "timestamp": "2023-08-08T16:24:55-07:00",
+          "tree_id": "082c1f7aa176a384c2b69f2e4aa5d50715624ec2",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/ff3e785e2055e23c3bdb3bc76b89c19b03e34fd6"
+        },
+        "date": 1691537163200,
         "tool": "cargo",
         "benches": [
           {
