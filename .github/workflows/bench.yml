@@ -29,7 +29,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run Benchmark
-        run: cargo bench -p rhizome-benches -- --output-format bencher | tee output.txt
+        run: cargo bench -p rhizomedb-benches -- --output-format bencher | tee output.txt
 
       - name: Upload Benchmark Result Artifact
         uses: actions/upload-artifact@v3

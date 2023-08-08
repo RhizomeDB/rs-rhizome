@@ -1,11 +1,13 @@
 {
-  "plugins": ["cargo-workspace"],
+  "plugins": [
+    "cargo-workspace"
+  ],
   "changelog-path": "CHANGELOG.md",
   "release-type": "rust",
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
   "packages": {
-    "rhizome": {},
-    "rhizome-wasm": {}
+    "rhizomedb": {},
+    "rhizomedb-wasm": {}
   }
 }

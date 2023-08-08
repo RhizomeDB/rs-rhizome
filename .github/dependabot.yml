@@ -7,7 +7,7 @@ version: 2
 
 updates:
   - package-ecosystem: "cargo"
-    directory: "/rhizome"
+    directory: "/rhizomedb"
     commit-message:
       prefix: "chore(rust)"
       include: "scope"
@@ -16,7 +16,7 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "npm"
-    directory: "/rhizome-wasm"
+    directory: "/rhizomedb-wasm"
     commit-message:
       prefix: "chore(npm)"
       include: "scope"

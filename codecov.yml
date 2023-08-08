@@ -1,7 +1,7 @@
 ignore:
-  - "rhizome/tests"
-  - "rhizome-wasm"
-  - "rhizome-benches"
+  - "rhizomedb/tests"
+  - "rhizomedb-wasm"
+  - "rhizomedb-benches"
   - "examples"
 
 comment:
