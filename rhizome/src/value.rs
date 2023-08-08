@@ -1,5 +1,6 @@
 use std::{
     fmt::{self, Display},
+    hash::Hash,
     sync::{Arc, Mutex},
 };
 
@@ -13,7 +14,7 @@ use crate::types::Type;
 
 static ANY_ARENA: Lazy<Mutex<Arena<Val>>> = Lazy::new(|| Mutex::new(Arena::new()));
 
-#[derive(Debug, Clone, Copy, Ord, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Eq)]
 pub struct Any {
     idx: Id<Val>,
 }
@@ -34,8 +35,8 @@ impl PartialEq for Any {
     }
 }
 
-impl PartialOrd for Any {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+impl Ord for Any {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let arena = ANY_ARENA.lock().expect("Any Arena lock poisoned");
 
         let Some(lhs) = arena.get(self.idx) else {
@@ -46,7 +47,25 @@ impl PartialOrd for Any {
             panic!("Any contained invalid index")
         };
 
-        PartialOrd::partial_cmp(lhs, rhs)
+        Ord::cmp(lhs, rhs)
+    }
+}
+
+impl PartialOrd for Any {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Hash for Any {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let arena = ANY_ARENA.lock().expect("Any Arena lock poisoned");
+
+        let Some(val) = arena.get(self.idx) else {
+            panic!("Any contained invalid index")
+        };
+
+        Hash::hash(val, state);
     }
 }
 
@@ -184,7 +203,7 @@ impl From<Any> for Val {
         let arena = ANY_ARENA.lock().expect("Any Arena lock poisoned");
 
         if let Some(val) = arena.get(value.idx) {
-            return val.clone();
+            val.clone()
         } else {
             panic!("Any contained invalid index")
         }
