@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1691537164072,
+  "lastUpdate": 1691537630537,
   "repoUrl": "https://github.com/RhizomeDB/rs-rhizome",
   "entries": {
     "Rust Benchmark": [
@@ -713,6 +713,36 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/RhizomeDB/rs-rhizome/commit/ff3e785e2055e23c3bdb3bc76b89c19b03e34fd6"
         },
         "date": 1691537163200,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "add",
+            "value": 0,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "committer": {
+            "email": "quinn@quinnwilton.com",
+            "name": "Quinn Wilton",
+            "username": "QuinnWilton"
+          },
+          "distinct": true,
+          "id": "1a3a027dea60a3083596f00f2a4d6d5982eed040",
+          "message": "chore: fix crate metadata for publishing",
+          "timestamp": "2023-08-08T16:32:52-07:00",
+          "tree_id": "96d192553989a088d2d378313c89e29987951dc6",
+          "url": "https://github.com/RhizomeDB/rs-rhizome/commit/1a3a027dea60a3083596f00f2a4d6d5982eed040"
+        },
+        "date": 1691537630064,
         "tool": "cargo",
         "benches": [
           {
