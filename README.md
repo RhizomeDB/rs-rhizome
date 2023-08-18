@@ -173,6 +173,7 @@ We would be happy to try to answer your question or try opening a new issue on G
 ## External Resources
 
 These are references to specifications, talks and presentations, etc.
+- [Roadmap](https://starmap.site/roadmap/github.com/fission-codes/Fission-Starmap/issues/40#view=simple)
 
 ## License
 
