@@ -14,37 +14,38 @@
   },
   "homepage": "https://github.com/rhizomedb/rs-rhizome#readme",
   "type": "module",
+  "module": "dist/bundler/rhizomedb_wasm.js",
+  "types": "dist/nodejs/rhizomedb_wasm.d.ts",
   "exports": {
-    "./package.json": "./package.json",
     ".": {
-      "browser": {
-        "types": "./lib/browser/rhizomedb_wasm.d.ts",
-        "import": "./lib/browser/rhizomedb_wasm.js"
-      },
-      "node": {
-        "types": "./lib/node/rhizomedb_wasm.d.ts",
-        "import": "./lib/browser/rhizomedb_wasm.js",
-        "require": "./lib/node/rhizomedb_wasm.js"
-      },
-      "deno": {
-        "types": "./lib/deno/rhizomedb_wasm.d.ts",
-        "import": "./lib/deno/rhizomedb_wasm.js"
-      },
-      "workerd": {
-        "types": "./lib/workerd/rhizomedb_wasm.d.ts",
-        "import": "./lib/workerd/index.js"
-      },
-      "import": "./lib/browser/rhizomedb_wasm.js",
-      "require": "./lib/node/rhizomedb_wasm.js"
+      "workerd": "./dist/web/workerd.js",
+      "browser": "./dist/bundler/rhizomedb_wasm.js",
+      "node": "./dist/nodejs/rhizomedb_wasm.cjs",
+      "default": "./dist/bundler/rhizomedb_wasm.js",
+      "types": "./dist/nodejs/rhizomedb_wasm.d.ts"
+    },
+    "./nodejs": {
+      "default": "./dist/nodejs/rhizomedb_wasm.cjs",
+      "types": "./dist/nodejs/rhizomedb_wasm.d.ts"
+    },
+    "./web": {
+      "default": "./dist/web/rhizomedb_wasm.js",
+      "types": "./dist/web/rhizomedb_wasm.d.ts"
+    },
+    "./workerd": {
+      "default": "./dist/web/workerd.js",
+      "types": "./dist/web/rhizomedb_wasm.d.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "export PROFILE=dev && export TARGET_DIR=debug && npm run buildall",
-    "release": "export PROFILE=release && export TARGET_DIR=release && npm run buildall",
-    "buildall": "wireit",
+    "build": "export PROFILE=dev && export TARGET_DIR=debug && npm run build:all",
+    "release": "export PROFILE=release && export TARGET_DIR=release && npm run build:all",
+    "build:all": "wireit",
     "clean": "wireit",
     "test": "wireit",
-    "test:browser": "wireit",
     "test:node": "wireit"
   },
   "wireit": {
@@ -67,8 +68,8 @@
         "compile"
       ]
     },
-    "bindgen:browser": {
-      "command": "wasm-bindgen --target web --out-dir lib/browser target/wasm32-unknown-unknown/$TARGET_DIR/rhizomedb_wasm.wasm",
+    "bindgen:bundler": {
+      "command": "wasm-bindgen --weak-refs --target bundler --out-dir dist/bundler target/wasm32-unknown-unknown/$TARGET_DIR/rhizomedb_wasm.wasm",
       "env": {
         "TARGET_DIR": {
           "external": true
@@ -76,10 +77,13 @@
       },
       "dependencies": [
         "opt"
+      ],
+      "output": [
+        "dist/bundler"
       ]
     },
-    "bindgen:node": {
-      "command": "wasm-bindgen --target nodejs --out-dir lib/node target/wasm32-unknown-unknown/$TARGET_DIR/rhizomedb_wasm.wasm",
+    "bindgen:nodejs": {
+      "command": "wasm-bindgen --weak-refs --target nodejs --out-dir dist/nodejs target/wasm32-unknown-unknown/$TARGET_DIR/rhizomedb_wasm.wasm && move-file dist/nodejs/rhizomedb_wasm.js dist/nodejs/rhizomedb_wasm.cjs",
       "env": {
         "TARGET_DIR": {
           "external": true
@@ -87,10 +91,13 @@
       },
       "dependencies": [
         "opt"
+      ],
+      "output": [
+        "dist/nodejs"
       ]
     },
-    "bindgen:deno": {
-      "command": "wasm-bindgen --target deno --out-dir lib/deno target/wasm32-unknown-unknown/$TARGET_DIR/rhizomedb_wasm.wasm",
+    "bindgen:web": {
+      "command": "wasm-bindgen --weak-refs --target web --out-dir dist/web target/wasm32-unknown-unknown/$TARGET_DIR/rhizomedb_wasm.wasm && cpy --flat src/loaders/workerd.js dist/web",
       "env": {
         "TARGET_DIR": {
           "external": true
@@ -98,45 +105,39 @@
       },
       "dependencies": [
         "opt"
+      ],
+      "output": [
+        "dist/web"
       ]
     },
-    "bindgen:workerd": {
-      "command": "wasm-bindgen --target web --out-dir lib/workerd target/wasm32-unknown-unknown/$TARGET_DIR/rhizomedb_wasm.wasm && shx cp src/loaders/export-workerd-wasm.js lib/workerd/index.js",
-      "env": {
-        "TARGET_DIR": {
-          "external": true
-        }
-      },
+    "build:all": {
       "dependencies": [
-        "opt"
-      ]
-    },
-    "buildall": {
-      "dependencies": [
-        "bindgen:browser",
-        "bindgen:node",
-        "bindgen:deno",
-        "bindgen:workerd"
+        "bindgen:bundler",
+        "bindgen:nodejs",
+        "bindgen:web"
       ]
     },
     "clean": {
-      "command": "shx rm -rf ./lib"
+      "command": "rimraf dist"
     },
     "test:prepare": {
-      "command": "npx playwright install && shx mkdir tests/report",
+      "command": "npx playwright install && cross-env mkdir tests/report",
       "output": [
         "tests/report"
       ]
     },
     "test:chromium": {
-      "command": "pw-test tests/browser.test.ts --assets lib/browser --reporter json --cov > tests/report/chromium.json",
+      "command": "pw-test tests/rhizomedb.test.ts -r mocha --reporter json --cov > tests/report/chromium.json",
       "dependencies": [
         "build",
         "test:prepare"
+      ],
+      "output": [
+        "tests/report/chromium.json"
       ]
     },
     "test:firefox": {
-      "command": "pw-test tests/browser.test.ts --assets lib/browser --reporter json --browser firefox > tests/report/firefox.json",
+      "command": "pw-test tests/rhizomedb.test.ts -r mocha --reporter json --browser firefox > tests/report/firefox.json",
       "dependencies": [
         "build",
         "test:prepare"
@@ -146,7 +147,7 @@
       ]
     },
     "test:webkit": {
-      "command": "pw-test tests/browser.test.ts --assets lib/browser --reporter json --browser webkit > tests/report/webkit.json",
+      "command": "pw-test tests/rhizomedb.test.ts -r mocha --reporter json --browser webkit > tests/report/webkit.json",
       "dependencies": [
         "build",
         "test:prepare"
@@ -163,7 +164,7 @@
       ]
     },
     "test:node": {
-      "command": "vitest run node.test.ts --outputFile tests/report/node.json",
+      "command": "pw-test tests/rhizomedb.test.ts -r mocha --reporter json --mode node > tests/report/node.json",
       "dependencies": [
         "build",
         "test:prepare"
@@ -190,18 +191,17 @@
     }
   },
   "devDependencies": {
-    "@playwright/test": "^1.34.3",
-    "@types/expect": "^24.3.0",
+    "@types/assert": "^1.5.6",
     "@types/mocha": "^10.0.1",
-    "@types/node": "^20.2.5",
     "assert": "^2.0.0",
-    "expect": "^29.5.0",
+    "cpy-cli": "^5.0.0",
+    "cross-env": "^7.0.3",
     "mocha": "^10.2.0",
+    "move-file-cli": "^3.0.0",
     "nyc": "^15.1.0",
-    "playwright-test": "^9.1.0",
-    "shx": "^0.3.4",
-    "ts-node": "^10.9.1",
-    "vitest": "^0.31.4",
+    "playwright-test": "^12.1.1",
+    "rimraf": "^5.0.1",
+    "typescript": "^5.1.6",
     "wireit": "^0.9.5"
   }
 }
