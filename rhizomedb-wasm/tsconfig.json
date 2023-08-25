@@ -1,11 +1,24 @@
 {
   "compilerOptions": {
+    "outDir": "dist",
+    "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "nodenext",
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "emitDeclarationOnly": true,
+    "esModuleInterop": true,
+    "moduleResolution": "Node"
   },
   "include": [
-    "tests/**/*.test.ts"
+    "src",
+    "tests",
+    "package.json"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 }
