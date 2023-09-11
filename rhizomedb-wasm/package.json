@@ -198,7 +198,7 @@
     "expect": "^29.5.0",
     "mocha": "^10.2.0",
     "nyc": "^15.1.0",
-    "playwright-test": "^9.1.0",
+    "playwright-test": "^12.3.0",
     "shx": "^0.3.4",
     "ts-node": "^10.9.1",
     "vitest": "^0.31.4",
